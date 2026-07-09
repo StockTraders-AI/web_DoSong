@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-
+import { useEffect, useState } from "react";
+import { io } from "socket.io-client";
 // ─────────────────────────────────────────────────────────────
 // TOKENS
 // ─────────────────────────────────────────────────────────────
@@ -17,17 +17,25 @@ const T = {
 // ─────────────────────────────────────────────────────────────
 // DATA
 // ─────────────────────────────────────────────────────────────
-const HIST_DATA = [
-  { date:"19/06", dow:"Thứ 5", cm:163, mu:32,  cb:123, ba:84,  tc:78, today:true },
-  { date:"18/06", dow:"Thứ 4", cm:128, mu:31,  cb:147, ba:96,  tc:71 },
-  { date:"17/06", dow:"Thứ 3", cm:106, mu:28,  cb:156, ba:112, tc:63 },
-  { date:"16/06", dow:"Thứ 2", cm:72,  mu:25,  cb:171, ba:134, tc:52 },
-  { date:"13/06", dow:"Thứ 6", cm:88,  mu:29,  cb:162, ba:123, tc:58 },
-  { date:"12/06", dow:"Thứ 5", cm:95,  mu:26,  cb:158, ba:123, tc:61 },
-  { date:"11/06", dow:"Thứ 4", cm:110, mu:33,  cb:145, ba:114, tc:65 },
-  { date:"10/06", dow:"Thứ 3", cm:98,  mu:27,  cb:152, ba:125, tc:60 },
-  { date:"09/06", dow:"Thứ 2", cm:82,  mu:24,  cb:168, ba:128, tc:54 },
-];
+const STOCK_WAVE_CURRENT_URL = import.meta.env.VITE_STOCK_WAVE_CURRENT_URL || "/api/stock-wave-current";
+const STOCK_WAVE_HISTORY_URL = import.meta.env.VITE_STOCK_WAVE_HISTORY_URL || "/api/stock-wave-history";
+const REALTIME_WAVE_URL =
+  import.meta.env.VITE_REALTIME_WAVE_URL ||
+  import.meta.env.VITE_REALTIME_URL ||
+  "http://112.213.91.235:3005/realtime";
+const WAVE_CHANNEL = "wave";
+const EMPTY_WAVE = {
+  rawDate:"",
+  date:"--/--/----",
+  dow:"",
+  cm:0,
+  mu:0,
+  cb:0,
+  ba:0,
+  total:0,
+  tc:0,
+  today:false,
+};
 
 const DANH_MUC = {
   cm: [
@@ -78,6 +86,133 @@ const TAB_CFG = {
 // ─────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────
+function toNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function toDate(value) {
+  if (!value) return null;
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatWaveDate(value) {
+  const date = toDate(value);
+  if (!date) return "--/--/----";
+  return new Intl.DateTimeFormat("vi-VN", {
+    day:"2-digit",
+    month:"2-digit",
+    year:"numeric",
+  }).format(date);
+}
+
+function formatWaveDow(value) {
+  const date = toDate(value);
+  if (!date) return "";
+  return new Intl.DateTimeFormat("vi-VN", { weekday:"long" }).format(date);
+}
+
+function isToday(value) {
+  const date = toDate(value);
+  if (!date) return false;
+  const now = new Date();
+  return date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+}
+
+function normalizeWaveRow(row) {
+  if (!row || typeof row !== "object") return null;
+  const cm = toNumber(row.waitbuy ?? row.waitBuy ?? row.wait_buy);
+  const mu = toNumber(row.buy);
+  const cb = toNumber(row.waitsell ?? row.waitSell ?? row.wait_sell);
+  const ba = toNumber(row.sell);
+  const total = toNumber(row.total) || cm + mu + cb + ba;
+  const rawDate = String(row.date || row.tradingDate || row.ngay || "");
+
+  return {
+    rawDate,
+    date:formatWaveDate(rawDate),
+    dow:formatWaveDow(rawDate),
+    cm,
+    mu,
+    cb,
+    ba,
+    total,
+    tc:Math.max(0, Math.min(100, toNumber(row.reliability ?? row.tc))),
+    today:isToday(rawDate),
+  };
+}
+
+function getWaveRows(payload) {
+  const root = payload?.StockWaveRequest ?? payload;
+  const waves = root?.stockWaves ?? root?.data?.stockWaves ?? root?.data ?? root;
+  const rows = waves?.waveDatas ?? waves?.waveData ?? waves?.rows ?? waves?.history ?? waves?.stockWaves?.waveDatas ?? waves;
+  if (Array.isArray(rows)) return rows;
+  if (rows && typeof rows === "object" && (rows.date || rows.buy !== undefined)) return [rows];
+  return [];
+}
+
+function normalizeWavePayload(payload) {
+  return getWaveRows(payload)
+    .map(normalizeWaveRow)
+    .filter(Boolean)
+    .sort((a, b) => String(b.rawDate).localeCompare(String(a.rawDate)))
+    .map((item, index) => ({ ...item, today:index === 0 ? item.today : false }));
+}
+
+function getPreviousWaveSessions(rows, referenceDate) {
+  return rows
+    .filter((item) => item.rawDate && item.rawDate < referenceDate)
+    .slice(0, 3)
+    .map((item) => ({ ...item, today:false }));
+}
+
+function getSocketWaveData(payload) {
+  if (payload?.channel && payload.channel !== WAVE_CHANNEL) return null;
+  return payload?.data ?? payload;
+}
+
+function fetchStockWaveCurrent() {
+  return fetch(STOCK_WAVE_CURRENT_URL)
+    .then((response) => {
+      if (!response.ok) return null;
+      return response.json();
+    })
+    .then((payload) => {
+      if (!payload) return null;
+      return normalizeWavePayload(payload.data ?? payload)[0] || null;
+    });
+}
+
+const stockWaveHistoryRequests = new Map();
+
+function getHistoryUrl(referenceDate) {
+  const url = new URL(STOCK_WAVE_HISTORY_URL, window.location.origin);
+  url.searchParams.set("before", referenceDate);
+  return url.toString();
+}
+
+function fetchStockWaveHistory(referenceDate) {
+  if (!stockWaveHistoryRequests.has(referenceDate)) {
+    const request = fetch(getHistoryUrl(referenceDate))
+      .then((response) => {
+        if (!response.ok) throw new Error(`Stock wave history failed: ${response.status}`);
+        return response.json();
+      })
+      .then((payload) => getPreviousWaveSessions(normalizeWavePayload(payload), referenceDate))
+      .catch((error) => {
+        stockWaveHistoryRequests.delete(referenceDate);
+        throw error;
+      });
+
+    stockWaveHistoryRequests.set(referenceDate, request);
+  }
+
+  return stockWaveHistoryRequests.get(referenceDate);
+}
+
 function arcPath(cx, cy, r, sw, pct, color, off) {
   const c = 2 * Math.PI * r, d = c * pct / 100, g = c - d;
   return (
@@ -131,21 +266,6 @@ function Clink({ children, onClick }) {
   );
 }
 
-function NavBtn({ disabled, onClick, dir }) {
-  return (
-    <button onClick={onClick} disabled={disabled}
-      style={{
-        width:28, height:28, borderRadius:7, background:T.elev,
-        border:`0.5px solid ${T.bdr}`, display:"flex", alignItems:"center",
-        justifyContent:"center", cursor: disabled ? "default" : "pointer",
-        color:T.t2, fontSize:14, opacity: disabled ? .3 : 1,
-        fontFamily:"inherit",
-      }}>
-      <i className={`ti ti-chevron-${dir}`} />
-    </button>
-  );
-}
-
 // ─────────────────────────────────────────────────────────────
 // AI ICON SVG
 // ─────────────────────────────────────────────────────────────
@@ -168,9 +288,11 @@ function AIIconSvg() {
 // ─────────────────────────────────────────────────────────────
 // MAIN DONUT
 // ─────────────────────────────────────────────────────────────
-function MainDonut({ cm=163, mu=32, cb=123, ba=84 }) {
-  const tot = cm + mu + cb + ba;
-  const pC = cm/tot*100, pM = mu/tot*100, pCb = cb/tot*100, pB = ba/tot*100;
+function MainDonut({ d = EMPTY_WAVE }) {
+  const { cm, mu, cb, ba } = d;
+  const tot = d.total || cm + mu + cb + ba;
+  const denom = Math.max(tot, cm + mu + cb + ba, 1);
+  const pC = cm / denom * 100, pM = mu / denom * 100, pCb = cb / denom * 100, pB = ba / denom * 100;
 
   const corners = [
     { val:cm,  pct:(pC).toFixed(1),  color:T.G,  pos:{ top:2, left:2 }, align:"left" },
@@ -187,8 +309,8 @@ function MainDonut({ cm=163, mu=32, cb=123, ba=84 }) {
           <div style={{ display:"flex", alignItems:"center", gap:5, fontSize:10, color:T.t3, marginBottom:5 }}>
             <i className="ti ti-calendar" style={{ fontSize:12 }} />Ngày gần nhất
           </div>
-          <div style={{ fontSize:15, fontWeight:800, color:T.t1, lineHeight:1.2 }}>19/06/2026</div>
-          <div style={{ fontSize:10, color:T.t3, marginTop:2 }}>(Thứ 5)</div>
+          <div style={{ fontSize:15, fontWeight:800, color:T.t1, lineHeight:1.2 }}>{d.date}</div>
+          {d.dow && <div style={{ fontSize:10, color:T.t3, marginTop:2 }}>({d.dow})</div>}
         </div>
         <div style={{ background:T.elev, border:`0.5px solid ${T.bdr}`, borderRadius:9, padding:"10px 12px" }}>
           <div style={{ fontSize:10, color:T.t3, marginBottom:4, lineHeight:1.4 }}>Tổng số mã hệ thống</div>
@@ -227,13 +349,13 @@ function MainDonut({ cm=163, mu=32, cb=123, ba=84 }) {
     </div>
   );
 }
-
 // ─────────────────────────────────────────────────────────────
 // HIST DONUT CARD (single)
 // ─────────────────────────────────────────────────────────────
 function HistDonutCard({ d, active }) {
-  const tot = d.cm + d.mu + d.cb + d.ba;
-  const pC = d.cm/tot*100, pM = d.mu/tot*100, pCb = d.cb/tot*100, pB = d.ba/tot*100;
+  const tot = d.total || d.cm + d.mu + d.cb + d.ba;
+  const denom = Math.max(tot, d.cm + d.mu + d.cb + d.ba, 1);
+  const pC = d.cm/denom*100, pM = d.mu/denom*100, pCb = d.cb/denom*100, pB = d.ba/denom*100;
   const tc = tcColor(d.tc);
 
   return (
@@ -245,7 +367,7 @@ function HistDonutCard({ d, active }) {
     }}>
       {/* Date header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-        <span style={{ fontSize:11, fontWeight:600, color:T.t2 }}>{d.date}/2026</span>
+        <span style={{ fontSize:11, fontWeight:600, color:T.t2 }}>{d.date}</span>
         {d.today && (
           <span style={{ fontSize:9, background:`rgba(124,58,237,.25)`, color:"#C4B5FD",
             borderRadius:4, padding:"2px 5px", fontWeight:600 }}>Hôm nay</span>
@@ -299,39 +421,26 @@ function HistDonutCard({ d, active }) {
 // ─────────────────────────────────────────────────────────────
 // HIST NAVIGATOR
 // ─────────────────────────────────────────────────────────────
-function HistNavigator() {
-  const [off, setOff] = useState(0);
-  const PER = 3;
-  const slice = HIST_DATA.slice(off, off + PER);
+function HistNavigator({ data }) {
+  const slice = data.slice(0, 3);
 
   return (
     <Card>
-      <CardHeader icon="ti-clock" title="Lịch sử dò sóng" meta="(3 ngày gần nhất)"
-        right={
-          <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-            <NavBtn disabled={off === 0} onClick={() => setOff(o => Math.max(0, o - PER))} dir="left" />
-            <NavBtn disabled={off + PER >= HIST_DATA.length} onClick={() => setOff(o => Math.min(HIST_DATA.length - PER, o + PER))} dir="right" />
-          </div>
-        }
-      />
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:9 }}>
-        {slice.map((d, i) => (
-          <HistDonutCard key={d.date} d={d} active={i === 0 && off === 0} />
-        ))}
-      </div>
-      {/* Dot pagination */}
-      <div style={{ display:"flex", justifyContent:"center", gap:6, marginTop:10 }}>
-        {Array.from({ length: Math.ceil(HIST_DATA.length / PER) }, (_, i) => (
-          <span key={i} style={{
-            width:8, height:8, borderRadius:"50%", display:"inline-block",
-            background: Math.floor(off / PER) === i ? T.B : T.bdr,
-          }} />
-        ))}
-      </div>
+      <CardHeader icon="ti-clock" title="Lịch sử dò sóng" meta="(3 ngày gần nhất)" />
+      {slice.length ? (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:9 }}>
+          {slice.map((d, i) => (
+            <HistDonutCard key={d.rawDate || d.date} d={d} active={i === 0} />
+          ))}
+        </div>
+      ) : (
+        <div style={{ color:T.t3, fontSize:12, padding:"18px 0", textAlign:"center" }}>
+          Đang chờ dữ liệu dò sóng...
+        </div>
+      )}
     </Card>
   );
 }
-
 // ─────────────────────────────────────────────────────────────
 // DANH MỤC DÒ SÓNG
 // ─────────────────────────────────────────────────────────────
@@ -580,6 +689,80 @@ function NhatKy() {
 // ROOT COMPONENT
 // ─────────────────────────────────────────────────────────────
 export default function DoSongThiTruong() {
+  const [latestWave, setLatestWave] = useState(EMPTY_WAVE);
+  const [waveStatus, setWaveStatus] = useState("loading");
+  const [historyWaves, setHistoryWaves] = useState([]);
+  const latestTotal = latestWave.total || latestWave.cm + latestWave.mu + latestWave.cb + latestWave.ba;
+  const waveMeta = latestWave.rawDate
+    ? `· ${latestTotal} mã · ${latestWave.date}${latestWave.dow ? ` (${latestWave.dow})` : ""}`
+    : waveStatus === "loading"
+      ? "· đang chờ realtime"
+      : "· chưa có dữ liệu";
+
+  useEffect(() => {
+    let active = true;
+
+    fetchStockWaveCurrent()
+      .then((row) => {
+        if (!active || !row) return;
+        setLatestWave(row);
+        setWaveStatus("cached");
+      })
+      .catch((error) => {
+        console.error("Load stock wave current cache failed", error);
+      });
+
+    const socket = io(REALTIME_WAVE_URL, {
+      transports:["websocket"],
+    });
+
+    socket.on("connect", () => {
+      socket.emit("message", {
+        action:"subscribe",
+        channels:[WAVE_CHANNEL],
+      });
+    });
+
+    socket.on("message", (payload) => {
+      const data = getSocketWaveData(payload);
+      if (!data) return;
+
+      const rows = normalizeWavePayload(data);
+      if (!rows.length) return;
+
+      setLatestWave(rows[0]);
+      setWaveStatus("live");
+    });
+
+    socket.on("connect_error", (error) => {
+      console.error("Realtime wave socket failed", error);
+      setWaveStatus((current) => current === "loading" ? "error" : current);
+    });
+
+    return () => {
+      active = false;
+      socket.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!latestWave.rawDate) return;
+
+    let active = true;
+
+    fetchStockWaveHistory(latestWave.rawDate)
+      .then((rows) => {
+        if (active) setHistoryWaves(rows);
+      })
+      .catch((error) => {
+        console.error("Load stock wave history failed", error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [latestWave.rawDate]);
+
   return (
     <>
       <style>{`
@@ -604,14 +787,12 @@ export default function DoSongThiTruong() {
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             {/* Vòng tròn dò sóng */}
             <Card>
-              <CardHeader icon="ti-chart-donut" title="Vòng tròn dò sóng"
-                meta="· 402 mã · 19/06/2026 (Thứ 5)"
-              />
-              <MainDonut cm={163} mu={32} cb={123} ba={84} />
+              <CardHeader icon="ti-chart-donut" title="Vòng tròn dò sóng" meta={waveMeta} />
+              <MainDonut d={latestWave} />
             </Card>
 
             {/* Lịch sử dò sóng */}
-            <HistNavigator />
+            <HistNavigator data={historyWaves} />
 
             {/* Lịch sử chân sóng */}
             <ChanSong />
