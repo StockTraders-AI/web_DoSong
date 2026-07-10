@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { handleStockWaveHistory } from './stockWaveHistoryCache.js'
 import { handleStockWaveCurrent, startStockWaveCurrentSocket } from './stockWaveCurrentCache.js'
+import { handleStockWaveTickers } from './stockWaveTickersCache.js'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -15,6 +16,11 @@ export default defineConfig({
           const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`)
           if (req.method === 'GET' && url.pathname === '/api/stock-wave-current') {
             handleStockWaveCurrent(req, res)
+            return
+          }
+
+          if (req.method === 'GET' && url.pathname === '/api/stock-wave-tickers') {
+            handleStockWaveTickers(req, res, req.url)
             return
           }
 

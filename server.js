@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { handleStockWaveHistory, sendJson } from "./stockWaveHistoryCache.js";
 import { handleStockWaveCurrent, startStockWaveCurrentSocket } from "./stockWaveCurrentCache.js";
+import { handleStockWaveTickers } from "./stockWaveTickersCache.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 5173);
@@ -57,6 +58,11 @@ createServer((req, res) => {
 
   if (req.method === "GET" && url.pathname === "/api/stock-wave-current") {
     handleStockWaveCurrent(req, res);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/stock-wave-tickers") {
+    handleStockWaveTickers(req, res, req.url);
     return;
   }
 

@@ -19,6 +19,7 @@ const T = {
 // ─────────────────────────────────────────────────────────────
 const STOCK_WAVE_CURRENT_URL = import.meta.env.VITE_STOCK_WAVE_CURRENT_URL || "/api/stock-wave-current";
 const STOCK_WAVE_HISTORY_URL = import.meta.env.VITE_STOCK_WAVE_HISTORY_URL || "/api/stock-wave-history";
+const STOCK_WAVE_TICKERS_URL = import.meta.env.VITE_STOCK_WAVE_TICKERS_URL || "/api/stock-wave-tickers";
 const REALTIME_WAVE_URL =
   import.meta.env.VITE_REALTIME_WAVE_URL ||
   import.meta.env.VITE_REALTIME_URL ||
@@ -35,30 +36,10 @@ const EMPTY_WAVE = {
   total:0,
   tc:0,
   today:false,
-};
-
-const DANH_MUC = {
-  cm: [
-    { ma:"SSI", nganh:"Chứng khoán", gia:"24,850", tc:85 },
-    { ma:"HCM", nganh:"Chứng khoán", gia:"26,100", tc:82 },
-    { ma:"VND", nganh:"Chứng khoán", gia:"19,650", tc:80 },
-    { ma:"VCI", nganh:"Chứng khoán", gia:"26,300", tc:78 },
-    { ma:"ACB", nganh:"Ngân hàng",   gia:"24,900", tc:75 },
-  ],
-  mu: [
-    { ma:"FPT", nganh:"Công nghệ",   gia:"127,800", tc:88 },
-    { ma:"CSV", nganh:"Xây dựng",    gia:"48,900",  tc:84 },
-    { ma:"CTS", nganh:"Chứng khoán", gia:"38,700",  tc:79 },
-  ],
-  cb: [
-    { ma:"VIC", nganh:"BĐS",         gia:"38,200",  tc:45 },
-    { ma:"VHM", nganh:"BĐS",         gia:"52,100",  tc:42 },
-    { ma:"BCM", nganh:"BĐS KCN",     gia:"41,500",  tc:38 },
-  ],
-  ba: [
-    { ma:"PDR", nganh:"BĐS",         gia:"21,600",  tc:22 },
-    { ma:"DIG", nganh:"BĐS",         gia:"23,650",  tc:24 },
-  ],
+  tickerB:[],
+  tickerS:[],
+  tickerWB:[],
+  tickerWS:[],
 };
 
 const CHAN_SONG = [
@@ -77,10 +58,10 @@ const LOG = [
 ];
 
 const TAB_CFG = {
-  cm: { label:"Chờ mua", count:163, bg:T.Gs, border:T.Gb, color:T.G },
-  mu: { label:"Mua",     count:32,  bg:T.MUs,border:T.MUb,color:T.MU },
-  cb: { label:"Chờ bán", count:123, bg:T.As, border:T.Ab, color:T.A },
-  ba: { label:"Bán",     count:84,  bg:T.Rs, border:T.Rb, color:T.R },
+  cm: { label:"Chờ mua", countKey:"cm", rowsKey:"tickerWB", bg:T.Gs, border:T.Gb, color:T.G },
+  mu: { label:"Mua",     countKey:"mu", rowsKey:"tickerB",  bg:T.MUs,border:T.MUb,color:T.MU },
+  cb: { label:"Chờ bán", countKey:"cb", rowsKey:"tickerWS", bg:T.As, border:T.Ab, color:T.A },
+  ba: { label:"Bán",     countKey:"ba", rowsKey:"tickerS",  bg:T.Rs, border:T.Rb, color:T.R },
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -122,6 +103,16 @@ function isToday(value) {
     date.getDate() === now.getDate();
 }
 
+function getPreviousCalendarDate(value) {
+  const date = toDate(value);
+  if (!date) return "";
+  date.setDate(date.getDate() - 1);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function normalizeWaveRow(row) {
   if (!row || typeof row !== "object") return null;
   const cm = toNumber(row.waitbuy ?? row.waitBuy ?? row.wait_buy);
@@ -142,9 +133,34 @@ function normalizeWaveRow(row) {
     total,
     tc:Math.max(0, Math.min(100, toNumber(row.reliability ?? row.tc))),
     today:isToday(rawDate),
+    tickerB:Array.isArray(row.tickerB) ? row.tickerB : [],
+    tickerS:Array.isArray(row.tickerS) ? row.tickerS : [],
+    tickerWB:Array.isArray(row.tickerWB) ? row.tickerWB : [],
+    tickerWS:Array.isArray(row.tickerwWS) ? row.tickerwWS : Array.isArray(row.tickerWS) ? row.tickerWS : Array.isArray(row.tickerWWS) ? row.tickerWWS : [],
   };
 }
 
+function formatTickerNumber(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "-";
+  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits:2 }).format(number);
+}
+
+function formatTickerVolume(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "-";
+  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits:0 }).format(number);
+}
+
+function normalizeTickerRows(items) {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => ({
+    ma:item.ticker || item.ma || "-",
+    gia:formatTickerNumber(item.close ?? item.gia ?? item.price),
+    vol:formatTickerVolume(item.vol ?? item.volume),
+    tc:Math.max(0, Math.min(100, toNumber(item.reliability ?? item.tc))),
+  }));
+}
 function getWaveRows(payload) {
   const root = payload?.StockWaveRequest ?? payload;
   const waves = root?.stockWaves ?? root?.data?.stockWaves ?? root?.data ?? root;
@@ -187,6 +203,7 @@ function fetchStockWaveCurrent() {
 }
 
 const stockWaveHistoryRequests = new Map();
+const stockWaveTickerRequests = new Map();
 
 function getHistoryUrl(referenceDate) {
   const url = new URL(STOCK_WAVE_HISTORY_URL, window.location.origin);
@@ -211,6 +228,31 @@ function fetchStockWaveHistory(referenceDate) {
   }
 
   return stockWaveHistoryRequests.get(referenceDate);
+}
+
+function getTickersUrl(date) {
+  const url = new URL(STOCK_WAVE_TICKERS_URL, window.location.origin);
+  url.searchParams.set("date", date);
+  return url.toString();
+}
+
+function fetchStockWaveTickers(date) {
+  if (!stockWaveTickerRequests.has(date)) {
+    const request = fetch(getTickersUrl(date))
+      .then((response) => {
+        if (!response.ok) throw new Error(`Stock wave tickers failed: ${response.status}`);
+        return response.json();
+      })
+      .then((payload) => normalizeWavePayload(payload)[0] || null)
+      .catch((error) => {
+        stockWaveTickerRequests.delete(date);
+        throw error;
+      });
+
+    stockWaveTickerRequests.set(date, request);
+  }
+
+  return stockWaveTickerRequests.get(date);
 }
 
 function arcPath(cx, cy, r, sw, pct, color, off) {
@@ -444,20 +486,32 @@ function HistNavigator({ data }) {
 // ─────────────────────────────────────────────────────────────
 // DANH MỤC DÒ SÓNG
 // ─────────────────────────────────────────────────────────────
-function DanhMucDoSong() {
+function DanhMucDoSong({ wave = EMPTY_WAVE }) {
   const [tab, setTab] = useState("cm");
-  const rows = DANH_MUC[tab] || [];
-  const cfg  = TAB_CFG[tab];
+  const [showAll, setShowAll] = useState(false);
+  const cfg = TAB_CFG[tab];
+  const rows = normalizeTickerRows(wave[cfg.rowsKey]);
+  const count = wave[cfg.countKey] || rows.length;
+  const visibleRows = showAll ? rows : rows.slice(0, 5);
+
+  useEffect(() => {
+    setShowAll(false);
+  }, [tab]);
 
   const tdStyle = { padding:"8px 8px", borderBottom:`0.5px solid ${T.bdrs}`, whiteSpace:"nowrap" };
 
   return (
     <Card>
-      <CardHeader icon="ti-list" title="Danh mục dò sóng" right={<Clink>Xem tất cả →</Clink>} />
+      <CardHeader
+        icon="ti-list"
+        title="Danh mục dò sóng"
+        right={<Clink onClick={() => setShowAll((value) => !value)}>{showAll ? "Thu gọn" : "Xem tất cả →"}</Clink>}
+      />
       {/* Tab buttons */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:5, marginBottom:11 }}>
         {Object.entries(TAB_CFG).map(([key, c]) => {
           const active = key === tab;
+          const tabCount = wave[c.countKey] || normalizeTickerRows(wave[c.rowsKey]).length;
           return (
             <button key={key} onClick={() => setTab(key)} style={{
               textAlign:"center", padding:"7px 3px", borderRadius:8, cursor:"pointer",
@@ -466,33 +520,34 @@ function DanhMucDoSong() {
               fontFamily:"inherit",
             }}>
               <div style={{ fontSize:12, fontWeight: active ? 700 : 500, color: active ? c.color : T.t2 }}>{c.label}</div>
-              <div style={{ fontSize:11, color: active ? c.color : T.t4, opacity: active ? .8 : 1 }}>({c.count})</div>
+              <div style={{ fontSize:11, color: active ? c.color : T.t4, opacity: active ? .8 : 1 }}>({tabCount})</div>
             </button>
           );
         })}
       </div>
       {/* Table */}
+      <div style={{ maxHeight:showAll ? 260 : "none", overflowY:showAll ? "auto" : "visible", overflowX:"auto" }}>
       <table style={{ width:"100%", borderCollapse:"collapse" }}>
         <thead>
           <tr>
-            {["Mã","Ngành","Giá","Độ tin cậy"].map((h,i) => (
+            {["Mã","Giá","KL","Độ tin cậy"].map((h,i) => (
               <th key={h} style={{
                 fontSize:10, fontWeight:700, color:T.t4, textTransform:"uppercase",
                 letterSpacing:".06em", padding:"7px 8px", borderBottom:`0.5px solid ${T.bdr}`,
-                textAlign: i >= 2 ? "right" : "left", background:T.elev, whiteSpace:"nowrap",
+                textAlign: i >= 1 ? "right" : "left", background:T.elev, whiteSpace:"nowrap",
               }}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, idx) => {
-            const isLast = idx === rows.length - 1;
+          {visibleRows.map((r, idx) => {
+            const isLast = idx === visibleRows.length - 1;
             const barColor = r.tc >= 70 ? T.G : r.tc >= 55 ? T.A : T.R;
             return (
-              <tr key={r.ma} style={{ borderBottom: isLast ? "none" : `0.5px solid ${T.bdrs}` }}>
+              <tr key={`${r.ma}-${idx}`} style={{ borderBottom: isLast ? "none" : `0.5px solid ${T.bdrs}` }}>
                 <td style={{ ...tdStyle, fontWeight:700, color:T.B, fontSize:13 }}>{r.ma}</td>
-                <td style={{ ...tdStyle, fontSize:11, color:T.t3 }}>{r.nganh}</td>
-                <td style={{ ...tdStyle, textAlign:"right" }}>{r.gia}</td>
+                <td style={{ ...tdStyle, textAlign:"right", fontWeight:700, color:T.t1 }}>{r.gia}</td>
+                <td style={{ ...tdStyle, textAlign:"right", fontSize:11, color:T.t3 }}>{r.vol}</td>
                 <td style={{ ...tdStyle, textAlign:"right" }}>
                   <span style={{ fontWeight:700, color:barColor }}>{r.tc}%</span>
                   <span style={{ display:"inline-block", width:40, height:3, background:T.bdr,
@@ -503,10 +558,21 @@ function DanhMucDoSong() {
               </tr>
             );
           })}
+          {!rows.length && (
+            <tr>
+              <td colSpan={4} style={{ padding:"18px 8px", textAlign:"center", color:T.t3, fontSize:12 }}>
+                Chưa có danh sách mã cho nhóm {cfg.label.toLowerCase()}.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
-      <div style={{ marginTop:10, fontSize:12, color:T.B, fontWeight:600, cursor:"pointer" }}>
-        Xem tất cả {cfg.count} mã {cfg.label.toLowerCase()} →
+      </div>
+      <div
+        onClick={() => setShowAll((value) => !value)}
+        style={{ marginTop:10, fontSize:12, color:T.B, fontWeight:600, cursor:"pointer" }}
+      >
+        {showAll ? "Thu gọn" : `Xem tất cả ${count} mã ${cfg.label.toLowerCase()} →`}
       </div>
     </Card>
   );
@@ -692,7 +758,12 @@ export default function DoSongThiTruong() {
   const [latestWave, setLatestWave] = useState(EMPTY_WAVE);
   const [waveStatus, setWaveStatus] = useState("loading");
   const [historyWaves, setHistoryWaves] = useState([]);
+  const [tickerWave, setTickerWave] = useState(EMPTY_WAVE);
   const latestTotal = latestWave.total || latestWave.cm + latestWave.mu + latestWave.cb + latestWave.ba;
+  const tickerReferenceDate = getPreviousCalendarDate(latestWave.rawDate);
+  const danhMucWave = tickerWave.rawDate
+    ? { ...latestWave, ...tickerWave }
+    : latestWave;
   const waveMeta = latestWave.rawDate
     ? `· ${latestTotal} mã · ${latestWave.date}${latestWave.dow ? ` (${latestWave.dow})` : ""}`
     : waveStatus === "loading"
@@ -763,6 +834,25 @@ export default function DoSongThiTruong() {
     };
   }, [latestWave.rawDate]);
 
+  useEffect(() => {
+    if (!tickerReferenceDate) return;
+
+    let active = true;
+
+    fetchStockWaveTickers(tickerReferenceDate)
+      .then((row) => {
+        if (!active) return;
+        setTickerWave(row || EMPTY_WAVE);
+      })
+      .catch((error) => {
+        console.error("Load stock wave ticker list failed", error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [tickerReferenceDate]);
+
   return (
     <>
       <style>{`
@@ -802,7 +892,7 @@ export default function DoSongThiTruong() {
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             <AIPanel />
             <TinhHuong />
-            <DanhMucDoSong />
+            <DanhMucDoSong wave={danhMucWave} />
             <NhatKy />
           </div>
         </div>
