@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
+import branchLookup from "../data/branchLookup.json";
 // ─────────────────────────────────────────────────────────────
 // TOKENS
 // ─────────────────────────────────────────────────────────────
@@ -20,6 +21,7 @@ const T = {
 const STOCK_WAVE_CURRENT_URL = import.meta.env.VITE_STOCK_WAVE_CURRENT_URL || "/api/stock-wave-current";
 const STOCK_WAVE_HISTORY_URL = import.meta.env.VITE_STOCK_WAVE_HISTORY_URL || "/api/stock-wave-history";
 const STOCK_WAVE_TICKERS_URL = import.meta.env.VITE_STOCK_WAVE_TICKERS_URL || "/api/stock-wave-tickers";
+const WAVE_BOTTOM_CONFIRM_PAIRS_URL = import.meta.env.VITE_WAVE_BOTTOM_CONFIRM_PAIRS_URL || "/api/wave-bottom-confirm-pairs";
 const REALTIME_WAVE_URL =
   import.meta.env.VITE_REALTIME_WAVE_URL ||
   import.meta.env.VITE_REALTIME_URL ||
@@ -42,13 +44,6 @@ const EMPTY_WAVE = {
   tickerWS:[],
 };
 
-const CHAN_SONG = [
-  { ngay:"09/04/2026", vi:"1,073.61", tc:82, tang:"+300.36", doi:"21 phiên", big:true },
-  { ngay:"20/02/2026", vi:"1,202.57", tc:76, tang:"+250.68", doi:"17 phiên", big:true },
-  { ngay:"10/01/2026", vi:"1,158.23", tc:71, tang:"+185.44", doi:"15 phiên", big:false },
-  { ngay:"12/11/2025", vi:"1,198.47", tc:73, tang:"+182.12", doi:"18 phiên", big:false },
-  { ngay:"19/09/2025", vi:"1,265.11", tc:68, tang:"+215.29", doi:"13 phiên", big:false },
-];
 
 const LOG = [
   { time:"15:30", icon:"ti-trending-up", color:T.G,  bg:"rgba(61,214,140,.15)",  txt:"Số lượng mã Chờ mua tăng mạnh lên 163 mã (40.5%). Khả năng tạo đáy cao – Chờ xác nhận chân sóng." },
@@ -113,6 +108,7 @@ function getPreviousCalendarDate(value) {
   return `${year}-${month}-${day}`;
 }
 
+
 function normalizeWaveRow(row) {
   if (!row || typeof row !== "object") return null;
   const cm = toNumber(row.waitbuy ?? row.waitBuy ?? row.wait_buy);
@@ -152,15 +148,28 @@ function formatTickerVolume(value) {
   return new Intl.NumberFormat("vi-VN", { maximumFractionDigits:0 }).format(number);
 }
 
+function formatVnindex(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number === 0) return "-";
+  return new Intl.NumberFormat("vi-VN", { minimumFractionDigits:2, maximumFractionDigits:2 }).format(number);
+}
+
+function getTickerBranch(item) {
+  const ticker = String(item?.ticker || item?.ma || "").toUpperCase();
+  return item?.branch || item?.nganh || branchLookup[ticker] || "Khác";
+}
+
 function normalizeTickerRows(items) {
   if (!Array.isArray(items)) return [];
   return items.map((item) => ({
     ma:item.ticker || item.ma || "-",
+    nganh:getTickerBranch(item),
     gia:formatTickerNumber(item.close ?? item.gia ?? item.price),
     vol:formatTickerVolume(item.vol ?? item.volume),
     tc:Math.max(0, Math.min(100, toNumber(item.reliability ?? item.tc))),
   }));
 }
+
 function getWaveRows(payload) {
   const root = payload?.StockWaveRequest ?? payload;
   const waves = root?.stockWaves ?? root?.data?.stockWaves ?? root?.data ?? root;
@@ -204,6 +213,7 @@ function fetchStockWaveCurrent() {
 
 const stockWaveHistoryRequests = new Map();
 const stockWaveTickerRequests = new Map();
+let waveBottomConfirmPairsRequest = null;
 
 function getHistoryUrl(referenceDate) {
   const url = new URL(STOCK_WAVE_HISTORY_URL, window.location.origin);
@@ -253,6 +263,23 @@ function fetchStockWaveTickers(date) {
   }
 
   return stockWaveTickerRequests.get(date);
+}
+
+function fetchWaveBottomConfirmPairs() {
+  if (!waveBottomConfirmPairsRequest) {
+    waveBottomConfirmPairsRequest = fetch(WAVE_BOTTOM_CONFIRM_PAIRS_URL)
+      .then((response) => {
+        if (!response.ok) throw new Error(`Wave bottom confirm pairs failed: ${response.status}`);
+        return response.json();
+      })
+      .then((payload) => Array.isArray(payload?.rows) ? payload.rows : [])
+      .catch((error) => {
+        waveBottomConfirmPairsRequest = null;
+        throw error;
+      });
+  }
+
+  return waveBottomConfirmPairsRequest;
 }
 
 function arcPath(cx, cy, r, sw, pct, color, off) {
@@ -530,11 +557,11 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
       <table style={{ width:"100%", borderCollapse:"collapse" }}>
         <thead>
           <tr>
-            {["Mã","Giá","KL","Độ tin cậy"].map((h,i) => (
+            {["Mã","Ngành","Giá","Độ tin cậy"].map((h,i) => (
               <th key={h} style={{
                 fontSize:10, fontWeight:700, color:T.t4, textTransform:"uppercase",
                 letterSpacing:".06em", padding:"7px 8px", borderBottom:`0.5px solid ${T.bdr}`,
-                textAlign: i >= 1 ? "right" : "left", background:T.elev, whiteSpace:"nowrap",
+                textAlign: i >= 2 ? "right" : "left", background:T.elev, whiteSpace:"nowrap",
               }}>{h}</th>
             ))}
           </tr>
@@ -546,8 +573,8 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
             return (
               <tr key={`${r.ma}-${idx}`} style={{ borderBottom: isLast ? "none" : `0.5px solid ${T.bdrs}` }}>
                 <td style={{ ...tdStyle, fontWeight:700, color:T.B, fontSize:13 }}>{r.ma}</td>
+                <td style={{ ...tdStyle, fontSize:11, color:T.t3, maxWidth:160, overflow:"hidden", textOverflow:"ellipsis" }}>{r.nganh}</td>
                 <td style={{ ...tdStyle, textAlign:"right", fontWeight:700, color:T.t1 }}>{r.gia}</td>
-                <td style={{ ...tdStyle, textAlign:"right", fontSize:11, color:T.t3 }}>{r.vol}</td>
                 <td style={{ ...tdStyle, textAlign:"right" }}>
                   <span style={{ fontWeight:700, color:barColor }}>{r.tc}%</span>
                   <span style={{ display:"inline-block", width:40, height:3, background:T.bdr,
@@ -581,49 +608,55 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
 // ─────────────────────────────────────────────────────────────
 // LỊCH SỬ CHÂN SÓNG
 // ─────────────────────────────────────────────────────────────
-function ChanSong() {
+function ChanSong({ data = [] }) {
   const tdStyle = { padding:"8px 8px", borderBottom:`0.5px solid ${T.bdrs}`, whiteSpace:"nowrap", fontSize:12, color:T.t2 };
   return (
     <Card>
       <CardHeader icon="ti-history" title="Lịch sử chân sóng tiêu biểu" right={<Clink>Xem tất cả →</Clink>} />
       <div style={{ overflowX:"auto" }}>
-        <table style={{ width:"100%", borderCollapse:"collapse", minWidth:440 }}>
+        <table style={{ width:"100%", borderCollapse:"collapse", minWidth:360 }}>
           <thead>
             <tr>
-              {["Ngày tạo đáy","VNINDEX đáy","Độ tin cậy","Tăng điểm","Độ dài","Loại sóng"].map((h,i) => (
+              {["Ngày xác nhận","VNINDEX","Độ tin cậy","Loại sóng"].map((h,i) => (
                 <th key={h} style={{
                   fontSize:10, fontWeight:700, color:T.t4, textTransform:"uppercase",
                   letterSpacing:".06em", padding:"7px 8px", borderBottom:`0.5px solid ${T.bdr}`,
-                  textAlign: i >= 1 && i <= 4 ? "right" : "left", background:T.elev, whiteSpace:"nowrap",
+                  textAlign: i >= 1 ? "right" : "left", background:T.elev, whiteSpace:"nowrap",
                 }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {CHAN_SONG.map((r, idx) => {
-              const tcC = r.tc >= 70 ? T.G : T.A;
-              const isLast = idx === CHAN_SONG.length - 1;
+            {data.map((r, idx) => {
+              const reliability = toNumber(r.reliability);
+              const tcC = reliability >= 70 ? T.G : reliability >= 55 ? T.A : T.R;
+              const isLast = idx === data.length - 1;
               return (
-                <tr key={r.ngay} style={{ borderBottom: isLast ? "none" : `0.5px solid ${T.bdrs}` }}>
-                  <td style={tdStyle}>{r.ngay}</td>
-                  <td style={{ ...tdStyle, textAlign:"right" }}>{r.vi}</td>
-                  <td style={{ ...tdStyle, textAlign:"right", color:tcC, fontWeight:600 }}>{r.tc}%</td>
-                  <td style={{ ...tdStyle, textAlign:"right", color:T.G, fontWeight:700 }}>{r.tang}đ</td>
-                  <td style={{ ...tdStyle, textAlign:"right", color:T.t3 }}>{r.doi}</td>
-                  <td style={{ ...tdStyle }}>
+                <tr key={`${r.confirm_wave_date}-${idx}`} style={{ borderBottom: isLast ? "none" : `0.5px solid ${T.bdrs}` }}>
+                  <td style={tdStyle}>{formatWaveDate(r.confirm_wave_date)}</td>
+                  <td style={{ ...tdStyle, textAlign:"right", fontWeight:700, color:T.t1 }}>{formatVnindex(r.vnindex)}</td>
+                  <td style={{ ...tdStyle, textAlign:"right", color:tcC, fontWeight:600 }}>{reliability}%</td>
+                  <td style={{ ...tdStyle, textAlign:"right" }}>
                     <span style={{
                       display:"inline-flex", alignItems:"center", fontSize:11, padding:"3px 8px",
                       borderRadius:20, border:".5px solid", fontWeight:600,
-                      background: r.big ? T.Gs : T.Bs,
-                      borderColor: r.big ? T.Gb : T.Bb,
-                      color: r.big ? T.G : T.B,
+                      background: reliability >= 70 ? T.Gs : T.Bs,
+                      borderColor: reliability >= 70 ? T.Gb : T.Bb,
+                      color: reliability >= 70 ? T.G : T.B,
                     }}>
-                      {r.big ? "Sóng lớn" : "Sóng hồi"}
+                      {reliability >= 70 ? "Sóng lớn" : "Sóng hồi"}
                     </span>
                   </td>
                 </tr>
               );
             })}
+            {!data.length && (
+              <tr>
+                <td colSpan={4} style={{ padding:"18px 8px", textAlign:"center", color:T.t3, fontSize:12 }}>
+                  Đang chờ dữ liệu chân sóng...
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -758,6 +791,7 @@ export default function DoSongThiTruong() {
   const [latestWave, setLatestWave] = useState(EMPTY_WAVE);
   const [waveStatus, setWaveStatus] = useState("loading");
   const [historyWaves, setHistoryWaves] = useState([]);
+  const [chanSongRows, setChanSongRows] = useState([]);
   const [tickerWave, setTickerWave] = useState(EMPTY_WAVE);
   const latestTotal = latestWave.total || latestWave.cm + latestWave.mu + latestWave.cb + latestWave.ba;
   const tickerReferenceDate = getPreviousCalendarDate(latestWave.rawDate);
@@ -813,6 +847,22 @@ export default function DoSongThiTruong() {
     return () => {
       active = false;
       socket.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    fetchWaveBottomConfirmPairs()
+      .then((rows) => {
+        if (active) setChanSongRows(rows);
+      })
+      .catch((error) => {
+        console.error("Load wave bottom confirm pairs failed", error);
+      });
+
+    return () => {
+      active = false;
     };
   }, []);
 
@@ -885,7 +935,7 @@ export default function DoSongThiTruong() {
             <HistNavigator data={historyWaves} />
 
             {/* Lịch sử chân sóng */}
-            <ChanSong />
+            <ChanSong data={chanSongRows} />
           </div>
 
           {/* ── CỘT PHẢI ── */}

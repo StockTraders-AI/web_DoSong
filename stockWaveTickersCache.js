@@ -36,7 +36,7 @@ async function readDiskCache(date) {
   try {
     const raw = await readFile(cachePath(date), "utf8");
     const parsed = JSON.parse(raw);
-    return parsed?.row && getRawDate(parsed.row) <= date ? parsed : null;
+    return !parsed?.cacheVersion && parsed?.row && getRawDate(parsed.row) <= date ? parsed : null;
   } catch {
     return null;
   }
@@ -65,7 +65,7 @@ export async function getStockWaveTickers(date) {
 
   if (memoryCache.has(date)) {
     const cached = memoryCache.get(date);
-    if (cached?.row && getRawDate(cached.row) <= date) return { ...cached, source: "memory" };
+    if (!cached?.cacheVersion && cached?.row && getRawDate(cached.row) <= date) return { ...cached, source: "memory" };
     memoryCache.delete(date);
   }
 

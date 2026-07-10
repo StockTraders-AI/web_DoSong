@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { handleStockWaveHistory } from './stockWaveHistoryCache.js'
 import { handleStockWaveCurrent, startStockWaveCurrentSocket } from './stockWaveCurrentCache.js'
 import { handleStockWaveTickers } from './stockWaveTickersCache.js'
+import { handleWaveBottomConfirmPairs } from './waveBottomConfirmPairsCache.js'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -21,6 +22,11 @@ export default defineConfig({
 
           if (req.method === 'GET' && url.pathname === '/api/stock-wave-tickers') {
             handleStockWaveTickers(req, res, req.url)
+            return
+          }
+
+          if (req.method === 'GET' && url.pathname === '/api/wave-bottom-confirm-pairs') {
+            handleWaveBottomConfirmPairs(req, res)
             return
           }
 
