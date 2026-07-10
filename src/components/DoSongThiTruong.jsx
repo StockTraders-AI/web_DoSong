@@ -154,6 +154,12 @@ function formatVnindex(value) {
   return new Intl.NumberFormat("vi-VN", { minimumFractionDigits:2, maximumFractionDigits:2 }).format(number);
 }
 
+function formatSessions(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return "-";
+  return `${number} phiên`;
+}
+
 function getTickerBranch(item) {
   const ticker = String(item?.ticker || item?.ma || "").toUpperCase();
   return item?.branch || item?.nganh || branchLookup[ticker] || "Khác";
@@ -267,7 +273,7 @@ function fetchStockWaveTickers(date) {
 
 function fetchWaveBottomConfirmPairs() {
   if (!waveBottomConfirmPairsRequest) {
-    waveBottomConfirmPairsRequest = fetch(WAVE_BOTTOM_CONFIRM_PAIRS_URL)
+    waveBottomConfirmPairsRequest = fetch(WAVE_BOTTOM_CONFIRM_PAIRS_URL, { method: "POST" })
       .then((response) => {
         if (!response.ok) throw new Error(`Wave bottom confirm pairs failed: ${response.status}`);
         return response.json();
@@ -614,10 +620,10 @@ function ChanSong({ data = [] }) {
     <Card>
       <CardHeader icon="ti-history" title="Lịch sử chân sóng tiêu biểu" right={<Clink>Xem tất cả →</Clink>} />
       <div style={{ overflowX:"auto" }}>
-        <table style={{ width:"100%", borderCollapse:"collapse", minWidth:360 }}>
+        <table style={{ width:"100%", borderCollapse:"collapse", minWidth:620 }}>
           <thead>
             <tr>
-              {["Ngày xác nhận","VNINDEX","Độ tin cậy","Loại sóng"].map((h,i) => (
+              {["Ngày xác nhận","VNINDEX","Tăng điểm","Độ dài","Độ tin cậy","Loại sóng"].map((h,i) => (
                 <th key={h} style={{
                   fontSize:10, fontWeight:700, color:T.t4, textTransform:"uppercase",
                   letterSpacing:".06em", padding:"7px 8px", borderBottom:`0.5px solid ${T.bdr}`,
@@ -635,6 +641,8 @@ function ChanSong({ data = [] }) {
                 <tr key={`${r.confirm_wave_date}-${idx}`} style={{ borderBottom: isLast ? "none" : `0.5px solid ${T.bdrs}` }}>
                   <td style={tdStyle}>{formatWaveDate(r.confirm_wave_date)}</td>
                   <td style={{ ...tdStyle, textAlign:"right", fontWeight:700, color:T.t1 }}>{formatVnindex(r.vnindex)}</td>
+                  <td style={{ ...tdStyle, textAlign:"right", fontWeight:700, color:T.G }}>{formatVnindex(r.increase_points)}</td>
+                  <td style={{ ...tdStyle, textAlign:"right" }}>{formatSessions(r.duration_sessions)}</td>
                   <td style={{ ...tdStyle, textAlign:"right", color:tcC, fontWeight:600 }}>{reliability}%</td>
                   <td style={{ ...tdStyle, textAlign:"right" }}>
                     <span style={{
@@ -652,7 +660,7 @@ function ChanSong({ data = [] }) {
             })}
             {!data.length && (
               <tr>
-                <td colSpan={4} style={{ padding:"18px 8px", textAlign:"center", color:T.t3, fontSize:12 }}>
+                <td colSpan={6} style={{ padding:"18px 8px", textAlign:"center", color:T.t3, fontSize:12 }}>
                   Đang chờ dữ liệu chân sóng...
                 </td>
               </tr>

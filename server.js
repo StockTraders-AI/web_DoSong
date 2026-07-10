@@ -67,7 +67,7 @@ createServer((req, res) => {
     return;
   }
 
-  if (req.method === "GET" && url.pathname === "/api/wave-bottom-confirm-pairs") {
+  if (req.method === "POST" && url.pathname === "/api/wave-bottom-confirm-pairs") {
     handleWaveBottomConfirmPairs(req, res);
     return;
   }

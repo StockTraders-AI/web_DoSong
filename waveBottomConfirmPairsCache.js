@@ -7,6 +7,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
 const CACHE_DIR = process.env.STOCK_WAVE_CACHE_DIR || path.join(__dirname, ".stock-wave-cache");
+const CACHE_VERSION = 2;
+const ZIGZAG_THRESHOLD = 0.05;
+const PAIRS_REQUEST = { dateFrom: null, dateTo: null, count: 4 };
+let memoryCache = null;
+let memoryCacheKey = "";
+let pendingRequest = null;
+
 function getTodayKey() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -14,13 +21,10 @@ function getTodayKey() {
 function cachePath() {
   return path.join(CACHE_DIR, `wave-bottom-confirm-pairs-${getTodayKey()}.json`);
 }
-const PAIRS_REQUEST = { dateFrom: null, dateTo: null, count: 4 };
-let memoryCache = null;
-let memoryCacheKey = "";
-let pendingRequest = null;
 
 function getRows(payload) {
-  return Array.isArray(payload) ? payload : [];
+  const rows = payload?.data?.rows ?? payload?.data ?? payload?.rows ?? payload;
+  return Array.isArray(rows) ? rows : [];
 }
 
 function getPairs(payload) {
@@ -34,7 +38,7 @@ function toNumber(value) {
 }
 
 function cacheIsValid(payload) {
-  return Array.isArray(payload?.rows);
+  return payload?.cacheVersion === CACHE_VERSION && Array.isArray(payload?.rows);
 }
 
 async function readDiskCache() {
@@ -51,6 +55,7 @@ async function writeDiskCache(rows) {
   await mkdir(CACHE_DIR, { recursive: true });
   const payload = {
     success: true,
+    cacheVersion: CACHE_VERSION,
     cachedAt: new Date().toISOString(),
     rows,
   };
@@ -60,12 +65,111 @@ async function writeDiskCache(rows) {
   return payload;
 }
 
-function buildVnindexLookup(rows) {
+function normalizeTradeRows(payload) {
+  return getRows(payload)
+    .map((row) => ({
+      date: String(row?.date || ""),
+      close: toNumber(row?.close),
+    }))
+    .filter((row) => row.date && row.close > 0)
+    .sort((a, b) => rowDateValue(a.date) - rowDateValue(b.date))
+    .map((row, index) => ({ ...row, index }));
+}
+
+function rowDateValue(value) {
+  const time = Date.parse(`${value}T00:00:00`);
+  return Number.isFinite(time) ? time : 0;
+}
+
+function buildQuoteLookup(rows) {
   const lookup = new Map();
-  getRows(rows).forEach((row) => {
-    if (row?.date) lookup.set(String(row.date), row);
-  });
+  rows.forEach((row) => lookup.set(row.date, row));
   return lookup;
+}
+
+function buildZigzagPivots(rows, threshold = ZIGZAG_THRESHOLD) {
+  if (!rows.length) return [];
+
+  const pivots = [];
+  let trend = 0;
+  let low = rows[0];
+  let high = rows[0];
+  let candidate = rows[0];
+
+  for (let index = 1; index < rows.length; index += 1) {
+    const row = rows[index];
+
+    if (trend === 0) {
+      if (row.close < low.close) low = row;
+      if (row.close > high.close) high = row;
+
+      if (row.close >= low.close * (1 + threshold)) {
+        pivots.push({ ...low, type: "low" });
+        trend = 1;
+        candidate = row;
+      } else if (row.close <= high.close * (1 - threshold)) {
+        pivots.push({ ...high, type: "high" });
+        trend = -1;
+        candidate = row;
+      }
+      continue;
+    }
+
+    if (trend === 1) {
+      if (row.close > candidate.close) candidate = row;
+      if (row.close <= candidate.close * (1 - threshold)) {
+        pivots.push({ ...candidate, type: "high" });
+        trend = -1;
+        candidate = row;
+      }
+      continue;
+    }
+
+    if (row.close < candidate.close) candidate = row;
+    if (row.close >= candidate.close * (1 + threshold)) {
+      pivots.push({ ...candidate, type: "low" });
+      trend = 1;
+      candidate = row;
+    }
+  }
+
+  return pivots;
+}
+
+function findLowPivot(pivots, quoteByDate, pair) {
+  const lows = pivots.filter((pivot) => pivot.type === "low");
+  if (!lows.length) return null;
+
+  const confirmDate = String(pair.confirm_wave_date || "");
+  const prepareDate = String(pair.prepare_bottom_date || "");
+  const exactConfirm = lows.find((pivot) => pivot.date === confirmDate);
+  if (exactConfirm) return exactConfirm;
+
+  const exactPrepare = lows.find((pivot) => pivot.date === prepareDate);
+  if (exactPrepare) return exactPrepare;
+
+  const confirm = quoteByDate.get(confirmDate);
+  const prepare = quoteByDate.get(prepareDate);
+  if (confirm && prepare) {
+    const from = Math.min(confirm.index, prepare.index);
+    const to = Math.max(confirm.index, prepare.index);
+    const inPairWindow = lows.filter((pivot) => pivot.index >= from && pivot.index <= to);
+    if (inPairWindow.length) {
+      return inPairWindow.reduce((best, pivot) => pivot.close < best.close ? pivot : best, inPairWindow[0]);
+    }
+  }
+
+  if (confirm) {
+    const previous = lows.filter((pivot) => pivot.index <= confirm.index);
+    if (previous.length) return previous[previous.length - 1];
+  }
+
+  return lows[0];
+}
+
+function findNextHighPivot(pivots, bottom) {
+  if (!bottom) return null;
+  return pivots.find((pivot) => pivot.type === "high" && pivot.index > bottom.index) || null;
 }
 
 async function fetchPairs() {
@@ -118,13 +222,25 @@ export async function getWaveBottomConfirmPairs() {
   if (!pendingRequest) {
     pendingRequest = Promise.all([fetchPairs(), fetchVnindexTrades()])
       .then(([pairsPayload, vnindexPayload]) => {
-        const vnindexByDate = buildVnindexLookup(vnindexPayload);
+        const vnindexRows = normalizeTradeRows(vnindexPayload);
+        const quoteByDate = buildQuoteLookup(vnindexRows);
+        const pivots = buildZigzagPivots(vnindexRows);
         const rows = getPairs(pairsPayload).map((pair) => {
           const confirmDate = String(pair.confirm_wave_date || "");
-          const vnindex = vnindexByDate.get(confirmDate);
+          const bottom = findLowPivot(pivots, quoteByDate, pair);
+          const peak = findNextHighPivot(pivots, bottom);
+          const fallbackQuote = quoteByDate.get(confirmDate);
+          const increasePoints = bottom && peak ? peak.close - bottom.close : 0;
+          const durationSessions = bottom && peak ? peak.index - bottom.index + 1 : 0;
+
           return {
             confirm_wave_date: confirmDate,
-            vnindex: toNumber(vnindex?.close),
+            prepare_bottom_date: String(pair.prepare_bottom_date || ""),
+            zigzag_bottom_date: bottom?.date || "",
+            zigzag_peak_date: peak?.date || "",
+            vnindex: toNumber(bottom?.close ?? fallbackQuote?.close),
+            increase_points: Number(increasePoints.toFixed(2)),
+            duration_sessions: durationSessions,
             reliability: toNumber(pair.reliability),
           };
         });
