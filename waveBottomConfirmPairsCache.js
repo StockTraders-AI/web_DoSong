@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
 const CACHE_DIR = process.env.STOCK_WAVE_CACHE_DIR || path.join(__dirname, ".stock-wave-cache");
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 const ZIGZAG_THRESHOLD = 0.05;
 const PAIRS_REQUEST = { dateFrom: null, dateTo: null, count: 4 };
 let memoryCache = null;
@@ -238,7 +238,7 @@ export async function getWaveBottomConfirmPairs() {
             prepare_bottom_date: String(pair.prepare_bottom_date || ""),
             zigzag_bottom_date: bottom?.date || "",
             zigzag_peak_date: peak?.date || "",
-            vnindex: toNumber(bottom?.close ?? fallbackQuote?.close),
+            vnindex: toNumber(fallbackQuote?.close ?? bottom?.close),
             increase_points: Number(increasePoints.toFixed(2)),
             duration_sessions: durationSessions,
             reliability: toNumber(pair.reliability),
