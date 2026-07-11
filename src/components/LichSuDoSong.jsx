@@ -237,8 +237,8 @@ const st = {
     transition: "background .2s",
   },
   header: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 },
-  htitle: { display: "flex", alignItems: "center", gap: 9, fontSize: 17, fontWeight: 700 },
-  hsub: { fontSize: 15, fontWeight: 400, marginLeft: 2 },
+  htitle: { display: "flex", alignItems: "center", gap: 9, fontSize: 13, fontWeight: 700 },
+  hsub: { fontSize: 10, fontWeight: 400, marginLeft: 2 },
   pager: { display: "flex", alignItems: "center", gap: 10 },
   pbtn: {
     width: 38, height: 38, borderRadius: 11,

@@ -445,10 +445,10 @@ function toHistorySampleDay(row) {
   };
 }
 
-function HistNavigator({ data }) {
+function HistNavigator({ data, totalDays: apiTotalDays }) {
   const [page, setPage] = useState(1);
   const perPage = 3;
-  const totalDays = data.length;
+  const totalDays = apiTotalDays || data.length;
   const pageCount = Math.max(1, Math.ceil(totalDays / perPage));
   const safePage = Math.min(page, pageCount);
   const days = data
@@ -902,7 +902,7 @@ export default function DoSongThiTruong() {
         <Sidebar />
         <main style={{ flex:1, minWidth:0, padding:"18px 22px 32px" }}>
           {/* 2-column equal layout */}
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"minmax(0, 1fr) minmax(0, 1fr)", gap:14 }}>
 
           {/* ── CỘT TRÁI ── */}
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -910,7 +910,7 @@ export default function DoSongThiTruong() {
             <MainDonut d={mainDonutDisplayWave} />
 
             {/* Lịch sử dò sóng */}
-            <HistNavigator data={historyDisplayWaves} />
+            <HistNavigator data={historyDisplayWaves} totalDays={historyDisplayWaves.length} />
 
             {/* Lịch sử chân sóng */}
             <ChanSong data={chanSongRows} />
