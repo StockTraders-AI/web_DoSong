@@ -5,7 +5,7 @@ import { sendJson } from "./stockWaveHistoryCache.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STOCK_WAVE_API_URL = process.env.STOCK_WAVE_API_URL || "https://stocktraders.vn/service/data/getStockWave";
-const STOCK_WAVE_ACCOUNT = process.env.STOCK_WAVE_ACCOUNT || "StockTraders";
+const STOCK_WAVE_ACCOUNT = process.env.STOCK_WAVE_ACCOUNT || "thao.dtt";
 const CACHE_DIR = process.env.STOCK_WAVE_CACHE_DIR || path.join(__dirname, ".stock-wave-cache");
 const TICKERS_REQUEST = { StockWaveRequest: { account: STOCK_WAVE_ACCOUNT } };
 const memoryCache = new Map();
