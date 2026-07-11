@@ -901,8 +901,8 @@ export default function DoSongThiTruong() {
       }}>
         <Sidebar />
         <main style={{ flex:1, minWidth:0, padding:"18px 22px 32px" }}>
-          {/* 2-column equal layout */}
-          <div style={{ display:"grid", gridTemplateColumns:"minmax(0, 1fr) minmax(0, 1fr)", gap:14 }}>
+          {/* 60/40 content layout */}
+          <div style={{ display:"grid", gridTemplateColumns:"minmax(0, 3fr) minmax(0, 2fr)", gap:14 }}>
 
           {/* ── CỘT TRÁI ── */}
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>

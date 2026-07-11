@@ -1,12 +1,7 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { sendJson } from "./stockWaveHistoryCache.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
-const CACHE_DIR = process.env.STOCK_WAVE_CACHE_DIR || path.join(__dirname, ".stock-wave-cache");
 const CACHE_VERSION = 3;
 const ZIGZAG_THRESHOLD = 0.05;
 const PAIRS_REQUEST = { dateFrom: null, dateTo: null, count: 4 };
@@ -16,10 +11,6 @@ let pendingRequest = null;
 
 function getTodayKey() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function cachePath() {
-  return path.join(CACHE_DIR, `wave-bottom-confirm-pairs-${getTodayKey()}.json`);
 }
 
 function getRows(payload) {
@@ -37,29 +28,13 @@ function toNumber(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
-function cacheIsValid(payload) {
-  return payload?.cacheVersion === CACHE_VERSION && Array.isArray(payload?.rows);
-}
-
-async function readDiskCache() {
-  try {
-    const raw = await readFile(cachePath(), "utf8");
-    const parsed = JSON.parse(raw);
-    return cacheIsValid(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-async function writeDiskCache(rows) {
-  await mkdir(CACHE_DIR, { recursive: true });
+function writeMemoryCache(rows) {
   const payload = {
     success: true,
     cacheVersion: CACHE_VERSION,
     cachedAt: new Date().toISOString(),
     rows,
   };
-  await writeFile(cachePath(), JSON.stringify(payload), "utf8");
   memoryCache = payload;
   memoryCacheKey = getTodayKey();
   return payload;
@@ -212,13 +187,6 @@ export async function getWaveBottomConfirmPairs() {
   const todayKey = getTodayKey();
   if (memoryCache && memoryCacheKey === todayKey) return { ...memoryCache, source: "memory" };
 
-  const diskCached = await readDiskCache();
-  if (diskCached) {
-    memoryCache = diskCached;
-    memoryCacheKey = todayKey;
-    return { ...diskCached, source: "disk" };
-  }
-
   if (!pendingRequest) {
     pendingRequest = Promise.all([fetchPairs(), fetchVnindexTrades()])
       .then(([pairsPayload, vnindexPayload]) => {
@@ -244,7 +212,7 @@ export async function getWaveBottomConfirmPairs() {
             reliability: toNumber(pair.reliability),
           };
         });
-        return writeDiskCache(rows);
+        return writeMemoryCache(rows);
       })
       .finally(() => {
         pendingRequest = null;
