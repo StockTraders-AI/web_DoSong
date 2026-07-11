@@ -566,10 +566,19 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
 // LỊCH SỬ CHÂN SÓNG
 // ─────────────────────────────────────────────────────────────
 function ChanSong({ data = [] }) {
+  const [showAll, setShowAll] = useState(false);
+  const sortedRows = [...data].sort((a, b) => String(b.confirm_wave_date || "").localeCompare(String(a.confirm_wave_date || "")));
+  const visibleRows = showAll ? sortedRows : sortedRows.slice(0, 5);
+  const canToggle = sortedRows.length > 5;
+  const toggleLabel = showAll ? "Thu gọn" : "Xem tất cả →";
   const tdStyle = { padding:"9px 9px", borderBottom:`0.5px solid ${T.bdrs}`, ...noWrapCellStyle, fontSize:12, color:T.t2 };
   return (
     <Card>
-      <CardHeader icon="ti-history" title="Lịch sử chân sóng tiêu biểu" right={<Clink>Xem tất cả →</Clink>} />
+      <CardHeader
+        icon="ti-history"
+        title="Lịch sử chân sóng tiêu biểu"
+        right={canToggle ? <Clink onClick={() => setShowAll((value) => !value)}>{toggleLabel}</Clink> : null}
+      />
       <div style={tableScrollStyle}>
         <table style={{ ...noWrapTableStyle, minWidth:"max(100%, 620px)" }}>
           <thead>
@@ -584,10 +593,10 @@ function ChanSong({ data = [] }) {
             </tr>
           </thead>
           <tbody>
-            {data.map((r, idx) => {
+            {visibleRows.map((r, idx) => {
               const reliability = toNumber(r.reliability);
               const tcC = reliability >= 70 ? T.G : reliability >= 55 ? T.A : T.R;
-              const isLast = idx === data.length - 1;
+              const isLast = idx === visibleRows.length - 1;
               return (
                 <tr key={`${r.confirm_wave_date}-${idx}`} style={{ borderBottom: isLast ? "none" : `0.5px solid ${T.bdrs}` }}>
                   <td style={tdStyle}>{formatWaveDate(r.confirm_wave_date)}</td>
@@ -609,7 +618,7 @@ function ChanSong({ data = [] }) {
                 </tr>
               );
             })}
-            {!data.length && (
+            {!visibleRows.length && (
               <tr>
                 <td colSpan={6} style={{ padding:"18px 8px", textAlign:"center", color:T.t3, fontSize:12 }}>
                   Đang chờ dữ liệu chân sóng...
@@ -619,13 +628,14 @@ function ChanSong({ data = [] }) {
           </tbody>
         </table>
       </div>
-      <div style={{ marginTop:10, fontSize:12, color:T.B, fontWeight:600, cursor:"pointer" }}>
-        Xem tất cả lịch sử chân sóng →
-      </div>
+      {canToggle && (
+        <div onClick={() => setShowAll((value) => !value)} style={{ marginTop:10, fontSize:12, color:T.B, fontWeight:600, cursor:"pointer" }}>
+          {showAll ? "Thu gọn" : "Xem tất cả lịch sử chân sóng →"}
+        </div>
+      )}
     </Card>
   );
 }
-
 // ─────────────────────────────────────────────────────────────
 // RIGHT PANEL: AI
 // ─────────────────────────────────────────────────────────────
