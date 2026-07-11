@@ -156,14 +156,10 @@ function DayCard({ day, T }) {
 }
 
 export default function LichSuDoSong({
-  days = [
-    { date: "10/07", week: "T.6", today: true, total: 271, trust: 50, data: { cm: 46, mu: 4, cb: 21, ba: 14 } },
-    { date: "09/07", week: "T.5", today: false, total: 269, trust: 20, data: { cm: 44, mu: 5, cb: 28, ba: 8 } },
-    { date: "08/07", week: "T.4", today: false, total: 272, trust: 21, data: { cm: 51, mu: 14, cb: 26, ba: 2 } },
-  ],
+  days = [],
   page = 1,
-  totalDays = 60,
-  pageCount = 4,
+  totalDays = 0,
+  pageCount = 1,
   onPage = () => {},
   theme = "dark", // "dark" | "light"
 }) {

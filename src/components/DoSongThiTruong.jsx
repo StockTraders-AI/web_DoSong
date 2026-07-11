@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import branchLookup from "../data/branchLookup.json";
-import VongTronDoSong from "../../VongTronDoSong_1.jsx";
-import LichSuDoSong from "../../LichSuDoSong_1.jsx";
+import VongTronDoSong from "./VongTronDoSong.jsx";
+import LichSuDoSong from "./LichSuDoSong.jsx";
+import Sidebar from "../layouts/Sidebar.jsx";
 // ─────────────────────────────────────────────────────────────
 // TOKENS
 // ─────────────────────────────────────────────────────────────
@@ -131,6 +132,7 @@ function normalizeWaveRow(row) {
     ba,
     total,
     tc:Math.max(0, Math.min(100, toNumber(row.reliability ?? row.tc))),
+    hasReliability:row.reliability !== undefined || row.tc !== undefined,
     today:isToday(rawDate),
     tickerB:Array.isArray(row.tickerB) ? row.tickerB : [],
     tickerS:Array.isArray(row.tickerS) ? row.tickerS : [],
@@ -188,9 +190,21 @@ function getWaveRows(payload) {
   return [];
 }
 
+function getPayloadReliability(payload) {
+  const root = payload?.StockWaveRequest ?? payload;
+  const waves = root?.stockWaves ?? root?.data?.stockWaves ?? root?.data ?? root;
+  const value = waves?.reliability ?? root?.reliability ?? payload?.reliability;
+  return value === undefined || value === null ? undefined : value;
+}
+
 function normalizeWavePayload(payload) {
+  const payloadReliability = getPayloadReliability(payload);
   return getWaveRows(payload)
-    .map(normalizeWaveRow)
+    .map((row) => normalizeWaveRow(
+      row?.reliability === undefined && payloadReliability !== undefined
+        ? { ...row, reliability:payloadReliability }
+        : row
+    ))
     .filter(Boolean)
     .sort((a, b) => String(b.rawDate).localeCompare(String(a.rawDate)))
     .map((item, index) => ({ ...item, today:index === 0 ? item.today : false }));
@@ -207,7 +221,7 @@ function getPreviousWaveSessions(rows, referenceDate) {
 
 function getSocketWaveData(payload) {
   if (payload?.channel && payload.channel !== WAVE_CHANNEL) return null;
-  return payload?.data ?? payload;
+  return payload?.data?.data ?? payload?.data?.payload ?? payload?.data ?? payload?.payload ?? payload;
 }
 
 function fetchStockWaveCurrent() {
@@ -388,11 +402,11 @@ function MainDonut({ d = EMPTY_WAVE }) {
   );
 }
 
-function toHistorySampleDay(row, index) {
+function toHistorySampleDay(row) {
   return {
     date:formatSampleDate(row.rawDate),
     week:formatSampleWeek(row.rawDate),
-    today:index === 0,
+    today:isToday(row.rawDate),
     total:row.total || row.cm + row.mu + row.cb + row.ba,
     trust:Math.max(0, Math.min(100, toNumber(row.tc))),
     data:{ cm:row.cm, mu:row.mu, cb:row.cb, ba:row.ba },
@@ -407,7 +421,7 @@ function HistNavigator({ data }) {
   const safePage = Math.min(page, pageCount);
   const days = data
     .slice((safePage - 1) * perPage, safePage * perPage)
-    .map((row, index) => toHistorySampleDay(row, safePage === 1 ? index : index + perPage));
+    .map((row) => toHistorySampleDay(row));
 
   useEffect(() => {
     setPage(1);
@@ -707,6 +721,12 @@ export default function DoSongThiTruong() {
   const [chanSongRows, setChanSongRows] = useState([]);
   const [tickerWave, setTickerWave] = useState(EMPTY_WAVE);
   const tickerReferenceDate = getPreviousCalendarDate(latestWave.rawDate);
+  const historySource = historyAllWaves.length ? historyAllWaves : historyWaves;
+  const historyDisplayWaves = historySource.filter((item) => !latestWave.rawDate || item.rawDate < latestWave.rawDate);
+  const matchingHistoryWave = historySource.find((item) => item.rawDate === latestWave.rawDate);
+  const realtimeDisplayWave = latestWave.hasReliability || !matchingHistoryWave
+    ? latestWave
+    : { ...latestWave, tc:matchingHistoryWave.tc, hasReliability:true };
   const danhMucWave = tickerWave.rawDate
     ? { ...latestWave, ...tickerWave }
     : latestWave;
@@ -824,19 +844,22 @@ export default function DoSongThiTruong() {
       <div style={{
         background: T.bg, color: T.t1,
         fontFamily: '-apple-system,"Inter","Segoe UI",sans-serif',
-        fontSize: 13, padding: "18px 22px 32px",
+        fontSize: 13,
+        display:"flex",
         minHeight: "100vh",
       }}>
-        {/* 2-column equal layout */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+        <Sidebar />
+        <main style={{ flex:1, minWidth:0, padding:"18px 22px 32px" }}>
+          {/* 2-column equal layout */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
 
           {/* ── CỘT TRÁI ── */}
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             {/* Vòng tròn dò sóng */}
-            <MainDonut d={latestWave} />
+            <MainDonut d={realtimeDisplayWave} />
 
             {/* Lịch sử dò sóng */}
-            <HistNavigator data={historyAllWaves.length ? historyAllWaves : historyWaves} />
+            <HistNavigator data={historyDisplayWaves} />
 
             {/* Lịch sử chân sóng */}
             <ChanSong data={chanSongRows} />
@@ -849,7 +872,8 @@ export default function DoSongThiTruong() {
             <DanhMucDoSong wave={danhMucWave} />
             <NhatKy />
           </div>
-        </div>
+          </div>
+        </main>
       </div>
     </>
   );

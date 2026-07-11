@@ -65,10 +65,10 @@ function arcP(s, e) {
 }
 
 export default function VongTronDoSong({
-  data = { cm: 46, mu: 4, cb: 21, ba: 14 },
-  total = 402,
-  trust = 50,
-  date = "2026-07-10",
+  data = { cm: 0, mu: 0, cb: 0, ba: 0 },
+  total = 0,
+  trust = 0,
+  date = "",
   theme = "dark", // "dark" | "light"
 }) {
   const T = THEMES[theme] || THEMES.dark;
