@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import branchLookup from "../data/branchLookup.json";
+import cachedWave20260710 from "../../.stock-wave-cache/tickers-2026-07-10.json";
 import VongTronDoSong from "./VongTronDoSong.jsx";
 import LichSuDoSong from "./LichSuDoSong.jsx";
 import Sidebar from "../layouts/Sidebar.jsx";
@@ -209,6 +210,8 @@ function normalizeWavePayload(payload) {
     .sort((a, b) => String(b.rawDate).localeCompare(String(a.rawDate)))
     .map((item, index) => ({ ...item, today:index === 0 ? item.today : false }));
 }
+
+const TEMP_MAIN_DONUT_WAVE = normalizeWavePayload(cachedWave20260710)[0] || EMPTY_WAVE;
 
 function getPreviousWaveSessions(rows, referenceDate) {
   return rows
@@ -471,14 +474,14 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
   const tdStyle = { padding:"9px 9px", borderBottom:`0.5px solid ${T.bdrs}`, ...noWrapCellStyle };
 
   return (
-    <Card>
+    <Card style={{ padding:"16px 17px" }}>
       <CardHeader
         icon="ti-list"
         title="Danh mục dò sóng"
         right={<Clink onClick={() => setShowAll((value) => !value)}>{showAll ? "Thu gọn" : "Xem tất cả →"}</Clink>}
       />
       {/* Tab buttons */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6, marginBottom:12 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:12 }}>
         {Object.entries(TAB_CFG).map(([key, c]) => {
           const active = key === tab;
           const tabCount = wave[c.countKey] || normalizeTickerRows(wave[c.rowsKey]).length;
@@ -617,9 +620,9 @@ function ChanSong({ data = [] }) {
 // ─────────────────────────────────────────────────────────────
 function AIPanel() {
   return (
-    <div style={{ background:"#1C1040", border:"1px solid #5B21B6", borderRadius:12, padding:14 }}>
+    <div style={{ background:"#1C1040", border:"1px solid #5B21B6", borderRadius:12, padding:"16px 17px" }}>
       {/* Header */}
-      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
         <div style={{ width:36, height:36, borderRadius:10, flexShrink:0, display:"flex",
           alignItems:"center", justifyContent:"center",
           background:"linear-gradient(135deg,#7C3AED,#4F46E5)" }}>
@@ -638,7 +641,7 @@ function AIPanel() {
           </svg>
         </div>
       </div>
-      <div style={{ fontSize:15, fontWeight:800, color:"#fff", marginBottom:7, lineHeight:1.35 }}>
+      <div style={{ fontSize:15, fontWeight:800, color:"#fff", marginBottom:8, lineHeight:1.35 }}>
         Khả năng tạo đáy cao – Chờ xác nhận !
       </div>
       <div style={{ fontSize:12, color:"#E9D5FF", lineHeight:1.65 }}>
@@ -646,7 +649,7 @@ function AIPanel() {
       </div>
       <div style={{ background:"rgba(0,0,0,.25)", border:"1px solid rgba(255,255,255,.12)",
         borderRadius:8, padding:"9px 11px", marginTop:10, fontSize:12, fontWeight:600,
-        color:"#DDD6FE", display:"flex", gap:7, alignItems:"flex-start", lineHeight:1.5 }}>
+        color:"#DDD6FE", display:"flex", gap:8, alignItems:"flex-start", lineHeight:1.5 }}>
         <i className="ti ti-info-circle" style={{ fontSize:14, flexShrink:0, marginTop:1 }} />
         <span>Khuyến nghị: Giải ngân thăm dò 30% và chờ xác nhận chân sóng.</span>
       </div>
@@ -659,9 +662,9 @@ function AIPanel() {
 // ─────────────────────────────────────────────────────────────
 function TinhHuong() {
   return (
-    <div style={{ background:T.elev, border:`0.5px solid ${T.Pb}`, borderRadius:12, padding:14 }}>
+    <div style={{ background:T.elev, border:`0.5px solid ${T.Pb}`, borderRadius:12, padding:"16px 17px" }}>
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between",
-        marginBottom:9, gap:8 }}>
+        marginBottom:12, gap:10 }}>
         <div style={{ fontSize:12, fontWeight:700, color:T.t1, textTransform:"uppercase",
           letterSpacing:".05em", lineHeight:1.4 }}>
           Xem lại tình huống tương tự trong quá khứ
@@ -672,12 +675,12 @@ function TinhHuong() {
           ✦ Đề xuất
         </button>
       </div>
-      <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
+      <div style={{ display:"flex", gap:14, alignItems:"center" }}>
         <div style={{ width:40, height:40, borderRadius:9, background:T.Ps, flexShrink:0,
           display:"flex", alignItems:"center", justifyContent:"center" }}>
           <i className="ti ti-trending-up" style={{ fontSize:20, color:T.P }} />
         </div>
-        <div style={{ flex:1 }}>
+        <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontSize:12, color:T.t2, lineHeight:1.6 }}>
             Hệ thống đã ghi nhận 3 tình huống tương tự trước đây với tỷ lệ thành công cao. Các thị trường đều bật tăng mạnh sau khi xác nhận chân sóng.
           </div>
@@ -700,7 +703,7 @@ function TinhHuong() {
 // ─────────────────────────────────────────────────────────────
 function NhatKy() {
   return (
-    <Card>
+    <Card style={{ padding:"16px 17px" }}>
       <CardHeader icon="ti-notes" title="Nhật ký tín hiệu"
         meta="19/06/2026"
         right={<Clink>Xem tất cả →</Clink>}
@@ -709,7 +712,7 @@ function NhatKy() {
       <div>
         {LOG.map((l, idx) => (
           <div key={l.time} style={{
-            display:"flex", gap:9, padding:"8px 0",
+            display:"flex", gap:10, padding:"9px 0",
             borderBottom: idx < LOG.length - 1 ? `0.5px solid ${T.bdrs}` : "none",
           }}>
             <span style={{ fontSize:10, color:T.t4, width:36, flexShrink:0, marginTop:3, fontWeight:600 }}>
@@ -745,6 +748,10 @@ export default function DoSongThiTruong() {
   const realtimeDisplayWave = latestWave.hasReliability || !matchingHistoryWave
     ? latestWave
     : { ...latestWave, tc:matchingHistoryWave.tc, hasReliability:true };
+  // TODO: remove this temporary 2026-07-10 UI override when switching main donut back to socket.
+  const mainDonutDisplayWave = TEMP_MAIN_DONUT_WAVE.rawDate === "2026-07-10"
+    ? TEMP_MAIN_DONUT_WAVE
+    : realtimeDisplayWave;
   const danhMucWave = tickerWave.rawDate
     ? { ...latestWave, ...tickerWave }
     : latestWave;
@@ -889,7 +896,7 @@ export default function DoSongThiTruong() {
           {/* ── CỘT TRÁI ── */}
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             {/* Vòng tròn dò sóng */}
-            <MainDonut d={realtimeDisplayWave} />
+            <MainDonut d={mainDonutDisplayWave} />
 
             {/* Lịch sử dò sóng */}
             <HistNavigator data={historyDisplayWaves} />
@@ -899,7 +906,7 @@ export default function DoSongThiTruong() {
           </div>
 
           {/* ── CỘT PHẢI ── */}
-          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          <div style={{ display:"flex", flexDirection:"column", gap:14, minWidth:0 }}>
             <AIPanel />
             <TinhHuong />
             <DanhMucDoSong wave={danhMucWave} />
