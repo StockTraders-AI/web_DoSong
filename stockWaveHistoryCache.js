@@ -1,11 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STOCK_WAVE_API_URL = process.env.STOCK_WAVE_API_URL || "https://stocktraders.vn/service/data/getStockWave";
 const STOCK_WAVE_ACCOUNT = process.env.STOCK_WAVE_ACCOUNT || "thao.dtt";
-const CACHE_DIR = process.env.STOCK_WAVE_CACHE_DIR || path.join(__dirname, ".stock-wave-cache");
 const HISTORY_REQUEST = { StockWaveRequest: { account: STOCK_WAVE_ACCOUNT } };
 let memoryCache = null;
 let memoryCacheKey = "";
@@ -44,29 +38,13 @@ function selectPreviousSessions(rows, before) {
     .slice(0, 3);
 }
 
-function cachePath() {
-  return path.join(CACHE_DIR, `stock-wave-history-full-${todayKey()}.json`);
-}
-
-async function readDiskCache() {
-  try {
-    const raw = await readFile(cachePath(), "utf8");
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed?.allRows) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-async function writeDiskCache(allRows) {
-  await mkdir(CACHE_DIR, { recursive: true });
+function writeMemoryCache(allRows) {
   const payload = {
     success: true,
     cacheKey: todayKey(),
     cachedAt: new Date().toISOString(),
     allRows: sortWaveRows(allRows),
   };
-  await writeFile(cachePath(), JSON.stringify(payload), "utf8");
   memoryCache = payload;
   memoryCacheKey = todayKey();
   return payload;
@@ -75,14 +53,6 @@ async function writeDiskCache(allRows) {
 async function getFullHistory() {
   const key = todayKey();
   if (memoryCache && memoryCacheKey === key) return { ...memoryCache, source: "memory" };
-
-  const diskCached = await readDiskCache();
-  if (diskCached) {
-    memoryCache = diskCached;
-    memoryCacheKey = key;
-    return { ...diskCached, source: "disk" };
-  }
-
   if (!pendingRequest) {
     pendingRequest = fetch(STOCK_WAVE_API_URL, {
       method: "POST",
@@ -92,7 +62,7 @@ async function getFullHistory() {
       .then(async (response) => {
         if (!response.ok) throw new Error(`Stock wave upstream failed: ${response.status}`);
         const payload = await response.json();
-        return writeDiskCache(getWaveRows(payload));
+        return writeMemoryCache(getWaveRows(payload));
       })
       .finally(() => {
         pendingRequest = null;

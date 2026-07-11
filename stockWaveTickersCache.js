@@ -1,12 +1,7 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { sendJson } from "./stockWaveHistoryCache.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STOCK_WAVE_API_URL = process.env.STOCK_WAVE_API_URL || "https://stocktraders.vn/service/data/getStockWave";
 const STOCK_WAVE_ACCOUNT = process.env.STOCK_WAVE_ACCOUNT || "thao.dtt";
-const CACHE_DIR = process.env.STOCK_WAVE_CACHE_DIR || path.join(__dirname, ".stock-wave-cache");
 const TICKERS_REQUEST = { StockWaveRequest: { account: STOCK_WAVE_ACCOUNT } };
 const memoryCache = new Map();
 const pendingRequests = new Map();
@@ -28,22 +23,7 @@ function getRawDate(row) {
   return String(row?.date || row?.tradingDate || row?.ngay || "");
 }
 
-function cachePath(date) {
-  return path.join(CACHE_DIR, `tickers-${date}.json`);
-}
-
-async function readDiskCache(date) {
-  try {
-    const raw = await readFile(cachePath(date), "utf8");
-    const parsed = JSON.parse(raw);
-    return !parsed?.cacheVersion && parsed?.row && getRawDate(parsed.row) <= date ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-async function writeDiskCache(date, row) {
-  await mkdir(CACHE_DIR, { recursive: true });
+function writeMemoryCache(date, row) {
   const payload = {
     success: true,
     date,
@@ -51,7 +31,6 @@ async function writeDiskCache(date, row) {
     row,
     rows: row ? [row] : [],
   };
-  await writeFile(cachePath(date), JSON.stringify(payload), "utf8");
   memoryCache.set(date, payload);
   return payload;
 }
@@ -68,13 +47,6 @@ export async function getStockWaveTickers(date) {
     if (!cached?.cacheVersion && cached?.row && getRawDate(cached.row) <= date) return { ...cached, source: "memory" };
     memoryCache.delete(date);
   }
-
-  const diskCached = await readDiskCache(date);
-  if (diskCached) {
-    memoryCache.set(date, diskCached);
-    return { ...diskCached, source: "disk" };
-  }
-
   if (!pendingRequests.has(date)) {
     const request = fetch(STOCK_WAVE_API_URL, {
       method: "POST",
@@ -88,7 +60,7 @@ export async function getStockWaveTickers(date) {
           .filter((item) => getRawDate(item))
           .sort((a, b) => getRawDate(b).localeCompare(getRawDate(a)));
         const row = rows.find((item) => getRawDate(item) <= date) || null;
-        return writeDiskCache(date, row);
+        return writeMemoryCache(date, row);
       })
       .finally(() => {
         pendingRequests.delete(date);
