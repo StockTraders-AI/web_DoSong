@@ -167,6 +167,9 @@ export default function LichSuDoSong({
   const perPage = days.length || 3;
   const from = (page - 1) * perPage + 1;
   const to = Math.min(page * perPage, totalDays);
+  const dotCount = Math.min(4, pageCount);
+  const dotStart = Math.min(Math.max(page - 1, 0), Math.max(pageCount - dotCount, 0));
+  const dotPages = Array.from({ length:dotCount }, (_, index) => dotStart + index + 1);
 
   return (
     <div style={{ ...st.card, background: T.surf, border: `.5px solid ${T.cardBdr}`, color: T.t1 }}>
@@ -210,11 +213,11 @@ export default function LichSuDoSong({
 
       {/* ===== Chấm phân trang ===== */}
       <div style={st.dots}>
-        {Array.from({ length: pageCount }, (_, i) => (
+        {dotPages.map((dotPage) => (
           <span
-            key={i}
-            onClick={() => onPage(i + 1)}
-            style={{ ...st.dot, background: i + 1 === page ? T.B : T.bdr }}
+            key={dotPage}
+            onClick={() => onPage(dotPage)}
+            style={{ ...st.dot, background: dotPage === page ? T.B : T.bdr }}
           />
         ))}
       </div>
