@@ -7,8 +7,13 @@ const STOCK_WAVE_API_URL = process.env.STOCK_WAVE_API_URL || "https://stocktrade
 const STOCK_WAVE_ACCOUNT = process.env.STOCK_WAVE_ACCOUNT || "StockTraders";
 const CACHE_DIR = process.env.STOCK_WAVE_CACHE_DIR || path.join(__dirname, ".stock-wave-cache");
 const HISTORY_REQUEST = { StockWaveRequest: { account: STOCK_WAVE_ACCOUNT } };
-const memoryCache = new Map();
-const pendingRequests = new Map();
+let memoryCache = null;
+let memoryCacheKey = "";
+let pendingRequest = null;
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 function isValidDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value || "");
@@ -27,38 +32,75 @@ function getRawDate(row) {
   return String(row?.date || row?.tradingDate || row?.ngay || "");
 }
 
-function selectPreviousSessions(payload, before) {
-  return getWaveRows(payload)
-    .filter((row) => getRawDate(row) && getRawDate(row) < before)
-    .sort((a, b) => getRawDate(b).localeCompare(getRawDate(a)))
+function sortWaveRows(rows) {
+  return [...rows]
+    .filter((row) => getRawDate(row))
+    .sort((a, b) => getRawDate(b).localeCompare(getRawDate(a)));
+}
+
+function selectPreviousSessions(rows, before) {
+  return sortWaveRows(rows)
+    .filter((row) => getRawDate(row) < before)
     .slice(0, 3);
 }
 
-function cachePath(before) {
-  return path.join(CACHE_DIR, `${before}.json`);
+function cachePath() {
+  return path.join(CACHE_DIR, `stock-wave-history-full-${todayKey()}.json`);
 }
 
-async function readDiskCache(before) {
+async function readDiskCache() {
   try {
-    const raw = await readFile(cachePath(before), "utf8");
+    const raw = await readFile(cachePath(), "utf8");
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed?.rows) ? parsed : null;
+    return Array.isArray(parsed?.allRows) ? parsed : null;
   } catch {
     return null;
   }
 }
 
-async function writeDiskCache(before, rows) {
+async function writeDiskCache(allRows) {
   await mkdir(CACHE_DIR, { recursive: true });
   const payload = {
     success: true,
-    before,
+    cacheKey: todayKey(),
     cachedAt: new Date().toISOString(),
-    rows,
+    allRows: sortWaveRows(allRows),
   };
-  await writeFile(cachePath(before), JSON.stringify(payload), "utf8");
-  memoryCache.set(before, payload);
+  await writeFile(cachePath(), JSON.stringify(payload), "utf8");
+  memoryCache = payload;
+  memoryCacheKey = todayKey();
   return payload;
+}
+
+async function getFullHistory() {
+  const key = todayKey();
+  if (memoryCache && memoryCacheKey === key) return { ...memoryCache, source: "memory" };
+
+  const diskCached = await readDiskCache();
+  if (diskCached) {
+    memoryCache = diskCached;
+    memoryCacheKey = key;
+    return { ...diskCached, source: "disk" };
+  }
+
+  if (!pendingRequest) {
+    pendingRequest = fetch(STOCK_WAVE_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(HISTORY_REQUEST),
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Stock wave upstream failed: ${response.status}`);
+        const payload = await response.json();
+        return writeDiskCache(getWaveRows(payload));
+      })
+      .finally(() => {
+        pendingRequest = null;
+      });
+  }
+
+  const payload = await pendingRequest;
+  return { ...payload, source: "upstream" };
 }
 
 export async function getStockWaveHistory(before) {
@@ -68,35 +110,12 @@ export async function getStockWaveHistory(before) {
     throw error;
   }
 
-  if (memoryCache.has(before)) return { ...memoryCache.get(before), source: "memory" };
-
-  const diskCached = await readDiskCache(before);
-  if (diskCached) {
-    memoryCache.set(before, diskCached);
-    return { ...diskCached, source: "disk" };
-  }
-
-  if (!pendingRequests.has(before)) {
-    const request = fetch(STOCK_WAVE_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(HISTORY_REQUEST),
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`Stock wave upstream failed: ${response.status}`);
-        const payload = await response.json();
-        const rows = selectPreviousSessions(payload, before);
-        return writeDiskCache(before, rows);
-      })
-      .finally(() => {
-        pendingRequests.delete(before);
-      });
-
-    pendingRequests.set(before, request);
-  }
-
-  const payload = await pendingRequests.get(before);
-  return { ...payload, source: "upstream" };
+  const payload = await getFullHistory();
+  return {
+    ...payload,
+    before,
+    rows: selectPreviousSessions(payload.allRows, before),
+  };
 }
 
 export function sendJson(res, status, payload) {

@@ -1,0 +1,160 @@
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,"Inter",sans-serif;-webkit-font-smoothing:antialiased}
+body{background:#0A0D14;padding:20px;color:#F0F4FF}
+.card{background:#111520;border:.5px solid #1E2A3E;border-radius:16px;padding:22px 24px;max-width:1000px}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.htitle{display:flex;align-items:center;gap:9px;font-size:17px;font-weight:700;color:#F0F4FF}
+.hmeta{font-size:13px;color:#3A4A60;font-weight:400;margin-left:2px}
+.trust{display:flex;align-items:center;gap:7px;background:#0D2B1A;border:1px solid #1A5C2A;
+  border-radius:30px;padding:9px 18px;font-size:15px;font-weight:700;color:#3DD68C;cursor:pointer}
+.body{display:flex;align-items:center;gap:28px;flex-wrap:wrap}
+.donut{flex-shrink:0}
+.boxes{flex:1;min-width:280px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.box{border-radius:14px;padding:18px 20px;cursor:pointer;transition:opacity .15s}
+.box:hover{opacity:.9}
+.blabel{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px}
+.bnum{font-size:40px;font-weight:800;line-height:1;letter-spacing:-1px}
+.bpct{font-size:13px;margin-top:6px;opacity:.75}
+</style>
+
+<div class="card">
+  <div class="header">
+    <div class="htitle">
+      <svg width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="10" cy="10" r="8" fill="none" stroke="#5C7090" stroke-width="1.5"/>
+        <circle cx="10" cy="10" r="4" fill="none" stroke="#5C7090" stroke-width="1.5"/>
+        <line x1="10" y1="2" x2="10" y2="6" stroke="#5C7090" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M10 2 A8 8 0 0 1 17 6.5" stroke="#3DD68C" stroke-width="2" stroke-linecap="round" fill="none"/>
+      </svg>
+      Vòng tròn dò sóng
+      <span class="hmeta">· 2026-07-10</span>
+    </div>
+    <div class="trust" id="trust-pill">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 3L4 7v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V7L12 3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"/>
+        <polyline points="9,12 11,14 15,10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Tin cậy <span id="trust-pct">50%</span>
+    </div>
+  </div>
+
+  <div class="body">
+    <div class="donut">
+      <svg width="280" height="280" viewBox="0 0 320 320" id="donut-svg" role="img"
+        aria-label="Vòng tròn dò sóng">
+        <circle cx="160" cy="160" r="120" fill="none" stroke="#161B28" stroke-width="26"/>
+        <g id="arcs"></g>
+        <g id="badges"></g>
+        <text x="160" y="176" text-anchor="middle" fill="#F0F4FF" font-size="46" font-weight="800" font-family="system-ui" id="center-num">402</text>
+      </svg>
+    </div>
+
+    <div class="boxes">
+      <div class="box" style="background:#0A2318;border:1px solid #0F3D22">
+        <div class="blabel" style="color:#3DD68C">Chờ mua</div>
+        <div class="bnum" style="color:#3DD68C" id="b-cm">46</div>
+        <div class="bpct" style="color:#3DD68C" id="b-cm-pct">11.4%</div>
+      </div>
+      <div class="box" style="background:#0F3D1A;border:1px solid #1A6628">
+        <div class="blabel" style="color:#52E88A">Mua</div>
+        <div class="bnum" style="color:#fff" id="b-mu">4</div>
+        <div class="bpct" style="color:rgba(255,255,255,.65)" id="b-mu-pct">1.0%</div>
+      </div>
+      <div class="box" style="background:#2B1800;border:1px solid #4A2E00">
+        <div class="blabel" style="color:#FF9F0A">Chờ bán</div>
+        <div class="bnum" style="color:#FF9F0A" id="b-cb">21</div>
+        <div class="bpct" style="color:#FF9F0A" id="b-cb-pct">5.2%</div>
+      </div>
+      <div class="box" style="background:#200A0E;border:1px solid #3D1018">
+        <div class="blabel" style="color:#FF2D55">Bán</div>
+        <div class="bnum" style="color:#FF2D55" id="b-ba">14</div>
+        <div class="bpct" style="color:#FF2D55" id="b-ba-pct">3.5%</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DATA  = { cm:46, mu:4, cb:21, ba:14 };   // số mã theo từng tín hiệu
+const TOTAL = 402;                              // tổng số mã theo dõi (số ở giữa, mẫu số % thẻ)
+const TRUST = 50;                               // % tin cậy: >=70 xanh, <70 màu Chờ bán
+const COLORS = { cm:'#3DD68C', mu:'#1A8A4A', cb:'#FF9F0A', ba:'#FF2D55' };
+const LABELS = { cm:'Chờ mua', mu:'Mua', cb:'Chờ bán', ba:'Bán' };
+const CX=160, CY=160, R=120, SW=26, BADGE_R=19;
+const SVGNS='http://www.w3.org/2000/svg';
+
+// Cung donut tỉ lệ theo tổng mã CÓ TÍN HIỆU (phủ kín vòng tròn),
+// xoay để tâm cung "Chờ mua" nằm ở đáy. Badge số đếm đặt giữa mỗi cung.
+
+function arcEl(pct,col,offPct,startDeg){
+  const c=2*Math.PI*R, d=c*pct/100;
+  const el=document.createElementNS(SVGNS,'circle');
+  el.setAttribute('cx',CX); el.setAttribute('cy',CY); el.setAttribute('r',R);
+  el.setAttribute('fill','none'); el.setAttribute('stroke',col);
+  el.setAttribute('stroke-width',SW);
+  el.setAttribute('stroke-dasharray',`${d.toFixed(2)} ${(c-d).toFixed(2)}`);
+  el.setAttribute('stroke-dashoffset',(-c*offPct/100).toFixed(2));
+  el.setAttribute('stroke-linecap','butt');
+  el.setAttribute('transform',`rotate(${(startDeg-90).toFixed(2)} ${CX} ${CY})`);
+  return el;
+}
+
+function badgeEl(count,col,angleDeg){
+  const a=angleDeg*Math.PI/180;
+  const x=CX+R*Math.sin(a), y=CY-R*Math.cos(a);
+  const g=document.createElementNS(SVGNS,'g');
+  const c=document.createElementNS(SVGNS,'circle');
+  c.setAttribute('cx',x.toFixed(1)); c.setAttribute('cy',y.toFixed(1));
+  c.setAttribute('r',BADGE_R); c.setAttribute('fill',col);
+  const t=document.createElementNS(SVGNS,'text');
+  t.setAttribute('x',x.toFixed(1)); t.setAttribute('y',(y+5.5).toFixed(1));
+  t.setAttribute('text-anchor','middle'); t.setAttribute('fill','#fff');
+  t.setAttribute('font-size','16'); t.setAttribute('font-weight','800');
+  t.setAttribute('font-family','system-ui');
+  t.textContent=count;
+  g.appendChild(c); g.appendChild(t);
+  return g;
+}
+
+function render(){
+  const order=['cm','mu','cb','ba'];
+  const sig=order.reduce((s,k)=>s+DATA[k],0);
+  const pct=Object.fromEntries(order.map(k=>[k,DATA[k]/sig*100]));
+  const startDeg=180 - pct.cm*3.6/2;
+
+  const arcs=document.getElementById('arcs');
+  const badges=document.getElementById('badges');
+  arcs.innerHTML=''; badges.innerHTML='';
+
+  let cum=0;
+  order.forEach(k=>{
+    arcs.appendChild(arcEl(pct[k],COLORS[k],cum,startDeg));
+    const midDeg=startDeg + (cum + pct[k]/2)*3.6;
+    badges.appendChild(badgeEl(DATA[k],COLORS[k],midDeg));
+    cum+=pct[k];
+  });
+
+  document.getElementById('center-num').textContent=TOTAL;
+
+  // Huy hiệu tin cậy: >=70% dùng bộ màu Chờ mua (xanh), <70% dùng bộ màu Chờ bán (cam)
+  const good = TRUST >= 70;
+  const pill = document.getElementById('trust-pill');
+  pill.style.background  = good ? '#0D2B1A' : '#2B1800';
+  pill.style.borderColor = good ? '#1A5C2A' : '#4A2E00';
+  pill.style.color       = good ? '#3DD68C' : '#FF9F0A';
+  document.getElementById('trust-pct').textContent = TRUST + '%';
+
+  // 4 thẻ bên phải: số đếm + % trên tổng mã theo dõi (TOTAL)
+  order.forEach(k=>{
+    const id={cm:'b-cm',mu:'b-mu',cb:'b-cb',ba:'b-ba'}[k];
+    document.getElementById(id).textContent=DATA[k];
+    document.getElementById(id+'-pct').textContent=(DATA[k]/TOTAL*100).toFixed(1)+'%';
+  });
+
+  document.getElementById('donut-svg').setAttribute('aria-label',
+    `Vòng tròn dò sóng: tổng ${TOTAL} mã theo dõi, ${sig} mã có tín hiệu — `+
+    order.map(k=>`${DATA[k]} ${LABELS[k]}`).join(', '));
+}
+
+render();
+</script>

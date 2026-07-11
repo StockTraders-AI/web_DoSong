@@ -108,6 +108,16 @@ function getPreviousCalendarDate(value) {
   return `${year}-${month}-${day}`;
 }
 
+function getNextCalendarDate(value) {
+  const date = toDate(value);
+  if (!date) return "";
+  date.setDate(date.getDate() + 1);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 
 function normalizeWaveRow(row) {
   if (!row || typeof row !== "object") return null;
@@ -179,7 +189,7 @@ function normalizeTickerRows(items) {
 function getWaveRows(payload) {
   const root = payload?.StockWaveRequest ?? payload;
   const waves = root?.stockWaves ?? root?.data?.stockWaves ?? root?.data ?? root;
-  const rows = waves?.waveDatas ?? waves?.waveData ?? waves?.rows ?? waves?.history ?? waves?.stockWaves?.waveDatas ?? waves;
+  const rows = payload?.allRows ?? waves?.waveDatas ?? waves?.waveData ?? waves?.rows ?? waves?.history ?? waves?.stockWaves?.waveDatas ?? waves;
   if (Array.isArray(rows)) return rows;
   if (rows && typeof rows === "object" && (rows.date || rows.buy !== undefined)) return [rows];
   return [];
@@ -234,7 +244,13 @@ function fetchStockWaveHistory(referenceDate) {
         if (!response.ok) throw new Error(`Stock wave history failed: ${response.status}`);
         return response.json();
       })
-      .then((payload) => getPreviousWaveSessions(normalizeWavePayload(payload), referenceDate))
+      .then((payload) => {
+        const allRows = normalizeWavePayload(payload.allRows ?? payload);
+        return {
+          rows:getPreviousWaveSessions(allRows, referenceDate),
+          allRows,
+        };
+      })
       .catch((error) => {
         stockWaveHistoryRequests.delete(referenceDate);
         throw error;
@@ -363,67 +379,135 @@ function AIIconSvg() {
 // ─────────────────────────────────────────────────────────────
 // MAIN DONUT
 // ─────────────────────────────────────────────────────────────
-function MainDonut({ d = EMPTY_WAVE }) {
-  const { cm, mu, cb, ba } = d;
-  const tot = d.total || cm + mu + cb + ba;
-  const denom = Math.max(tot, cm + mu + cb + ba, 1);
-  const pC = cm / denom * 100, pM = mu / denom * 100, pCb = cb / denom * 100, pB = ba / denom * 100;
+function MainDonut({ d = EMPTY_WAVE, meta = "" }) {
+  const data = { cm:d.cm, mu:d.mu, cb:d.cb, ba:d.ba };
+  const total = d.total || data.cm + data.mu + data.cb + data.ba;
+  const trust = Math.max(0, Math.min(100, toNumber(d.tc)));
+  const order = ["cm", "mu", "cb", "ba"];
+  const colors = { cm:T.G, mu:T.MU, cb:T.A, ba:T.R };
+  const labels = {
+    cm:"Ch\u1edd mua",
+    mu:"Mua",
+    cb:"Ch\u1edd b\u00e1n",
+    ba:"B\u00e1n",
+  };
+  const boxStyles = {
+    cm:{ bg:"#0A2318", border:"#0F3D22", label:T.G, num:T.G, pct:T.G },
+    mu:{ bg:"#0F3D1A", border:"#1A6628", label:"#52E88A", num:T.t1, pct:"rgba(255,255,255,.65)" },
+    cb:{ bg:"#2B1800", border:"#4A2E00", label:T.A, num:T.A, pct:T.A },
+    ba:{ bg:"#200A0E", border:"#3D1018", label:T.R, num:T.R, pct:T.R },
+  };
+  const cx = 160, cy = 160, r = 120, sw = 26, badgeR = 19;
+  const circ = 2 * Math.PI * r;
+  const signalTotal = order.reduce((sum, key) => sum + data[key], 0);
+  const pct = Object.fromEntries(order.map((key) => [key, signalTotal ? data[key] / signalTotal * 100 : 0]));
+  const startDeg = 180 - pct.cm * 3.6 / 2;
+  const trustStyle = trust >= 70
+    ? { bg:"#0D2B1A", border:"#1A5C2A", color:T.G }
+    : { bg:"#2B1800", border:"#4A2E00", color:T.A };
 
-  const corners = [
-    { val:cm,  pct:(pC).toFixed(1),  color:T.G,  pos:{ top:2, left:2 }, align:"left" },
-    { val:mu,  pct:(pM).toFixed(1),  color:T.MU, pos:{ top:2, right:2 }, align:"right" },
-    { val:ba,  pct:(pB).toFixed(1),  color:T.R,  pos:{ bottom:2, left:2 }, align:"left" },
-    { val:cb,  pct:(pCb).toFixed(1), color:T.A,  pos:{ bottom:2, right:2 }, align:"right" },
-  ];
+  let cum = 0;
+  const segments = order.map((key) => {
+    const segment = {
+      key,
+      dash:circ * pct[key] / 100,
+      offset:-circ * cum / 100,
+      midDeg:startDeg + (cum + pct[key] / 2) * 3.6,
+    };
+    cum += pct[key];
+    return segment;
+  });
 
   return (
-    <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-      {/* Info boxes */}
-      <div style={{ display:"flex", flexDirection:"column", gap:8, width:120, flexShrink:0 }}>
-        <div style={{ background:T.elev, border:`0.5px solid ${T.bdr}`, borderRadius:9, padding:"10px 12px" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:5, fontSize:10, color:T.t3, marginBottom:5 }}>
-            <i className="ti ti-calendar" style={{ fontSize:12 }} />Ngày gần nhất
-          </div>
-          <div style={{ fontSize:15, fontWeight:800, color:T.t1, lineHeight:1.2 }}>{d.date}</div>
-          {d.dow && <div style={{ fontSize:10, color:T.t3, marginTop:2 }}>({d.dow})</div>}
+    <div style={waveCircleStyle.card}>
+      <div style={waveCircleStyle.header}>
+        <div style={waveCircleStyle.title}>
+          <svg width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="10" cy="10" r="8" fill="none" stroke={T.t3} strokeWidth="1.5" />
+            <circle cx="10" cy="10" r="4" fill="none" stroke={T.t3} strokeWidth="1.5" />
+            <line x1="10" y1="2" x2="10" y2="6" stroke={T.t3} strokeWidth="1.5" strokeLinecap="round" />
+            <path d="M10 2 A8 8 0 0 1 17 6.5" stroke={T.G} strokeWidth="2" strokeLinecap="round" fill="none" />
+          </svg>
+          <span>{"V\u00f2ng tr\u00f2n d\u00f2 s\u00f3ng"}</span>
+          {meta && <span style={waveCircleStyle.meta}>{meta}</span>}
         </div>
-        <div style={{ background:T.elev, border:`0.5px solid ${T.bdr}`, borderRadius:9, padding:"10px 12px" }}>
-          <div style={{ fontSize:10, color:T.t3, marginBottom:4, lineHeight:1.4 }}>Tổng số mã hệ thống</div>
-          <div style={{ fontSize:22, fontWeight:800, color:T.t1, lineHeight:1 }}>{tot}</div>
-          <div style={{ fontSize:10, color:T.t3, marginTop:2 }}>mã cổ phiếu</div>
-        </div>
-        {/* Legend */}
-        <div style={{ display:"flex", flexDirection:"column", gap:5, marginTop:2 }}>
-          {[["Chờ mua",T.G],["Mua",T.MU],["Chờ bán",T.A],["Bán",T.R]].map(([n,c])=>(
-            <div key={n} style={{ display:"flex", alignItems:"center", gap:6 }}>
-              <span style={{ width:9, height:9, borderRadius:"50%", background:c, flexShrink:0 }} />
-              <span style={{ fontSize:11, color:T.t2 }}>{n}</span>
-            </div>
-          ))}
+        <div style={{ ...waveCircleStyle.trust, background:trustStyle.bg, border:`1px solid ${trustStyle.border}`, color:trustStyle.color }}>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 3L4 7v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V7L12 3z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="none" />
+            <polyline points="9,12 11,14 15,10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {"Tin c\u1eady"} {trust}%
         </div>
       </div>
 
-      {/* Donut + corner numbers */}
-      <div style={{ flex:1, position:"relative", display:"flex", alignItems:"center", justifyContent:"center", minHeight:190 }}>
-        <svg width="190" height="190" viewBox="0 0 190 190"
-          role="img" aria-label={`Vòng tròn dò sóng: ${cm} Chờ mua, ${mu} Mua, ${cb} Chờ bán, ${ba} Bán`}>
-          <circle cx="95" cy="95" r="72" fill="none" stroke={T.bdr} strokeWidth="24"/>
-          {arcPath(95,95,72,24,pC,T.G,0)}
-          {arcPath(95,95,72,24,pM,T.MU,pC)}
-          {arcPath(95,95,72,24,pCb,T.A,pC+pM)}
-          {arcPath(95,95,72,24,pB,T.R,pC+pM+pCb)}
-          <text x="95" y="88" textAnchor="middle" fill={T.t1} fontSize="34" fontWeight="800" fontFamily="system-ui">{tot}</text>
+      <div style={waveCircleStyle.body}>
+        <svg
+          width="248" height="248" viewBox="0 0 320 320" style={waveCircleStyle.donut}
+          role="img"
+          aria-label={`V\u00f2ng tr\u00f2n d\u00f2 s\u00f3ng: ${data.cm} ${labels.cm}, ${data.mu} ${labels.mu}, ${data.cb} ${labels.cb}, ${data.ba} ${labels.ba}`}
+        >
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#161B28" strokeWidth={sw} />
+          {segments.map((segment) => (
+            <circle
+              key={segment.key}
+              cx={cx} cy={cy} r={r} fill="none"
+              stroke={colors[segment.key]} strokeWidth={sw} strokeLinecap="butt"
+              strokeDasharray={`${segment.dash.toFixed(2)} ${(circ - segment.dash).toFixed(2)}`}
+              strokeDashoffset={segment.offset.toFixed(2)}
+              transform={`rotate(${(startDeg - 90).toFixed(2)} ${cx} ${cy})`}
+            />
+          ))}
+          {segments.map((segment) => {
+            const angle = segment.midDeg * Math.PI / 180;
+            const x = cx + r * Math.sin(angle);
+            const y = cy - r * Math.cos(angle);
+            return (
+              <g key={`badge-${segment.key}`}>
+                <circle cx={x} cy={y} r={badgeR} fill={colors[segment.key]} />
+                <text x={x} y={y + 5.5} textAnchor="middle" fill="#fff" fontSize="16" fontWeight="800" fontFamily="system-ui">
+                  {data[segment.key]}
+                </text>
+              </g>
+            );
+          })}
+          <text x={cx} y={cy + 16} textAnchor="middle" fill={T.t1} fontSize="46" fontWeight="800" fontFamily="system-ui">
+            {total}
+          </text>
         </svg>
-        {corners.map((c,i) => (
-          <div key={i} style={{ position:"absolute", textAlign:c.align, ...c.pos }}>
-            <div style={{ fontSize:18, fontWeight:800, color:c.color, lineHeight:1 }}>{c.val}</div>
-            <div style={{ fontSize:10, color:c.color, opacity:.8 }}>{c.pct}%</div>
-          </div>
-        ))}
+
+        <div style={waveCircleStyle.boxes}>
+          {order.map((key) => {
+            const box = boxStyles[key];
+            return (
+              <div key={key} style={{ ...waveCircleStyle.box, background:box.bg, border:`1px solid ${box.border}` }}>
+                <div style={{ ...waveCircleStyle.boxLabel, color:box.label }}>{labels[key]}</div>
+                <div style={{ ...waveCircleStyle.boxNumber, color:box.num }}>{data[key]}</div>
+                <div style={{ ...waveCircleStyle.boxPercent, color:box.pct }}>
+                  {total ? (data[key] / total * 100).toFixed(1) : "0.0"}%
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
 }
+
+const waveCircleStyle = {
+  card:{ background:T.surf, border:`0.5px solid ${T.bdr}`, borderRadius:16, padding:"18px 20px", color:T.t1 },
+  header:{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginBottom:16, flexWrap:"wrap" },
+  title:{ display:"flex", alignItems:"center", gap:9, fontSize:15, fontWeight:700, color:T.t1 },
+  meta:{ fontSize:11, color:T.t4, fontWeight:400, marginLeft:2 },
+  trust:{ display:"flex", alignItems:"center", gap:7, borderRadius:30, padding:"7px 14px", fontSize:13, fontWeight:700 },
+  body:{ display:"flex", alignItems:"center", gap:18, flexWrap:"wrap" },
+  donut:{ flexShrink:0, margin:"0 auto" },
+  boxes:{ flex:1, minWidth:230, display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 },
+  box:{ borderRadius:12, padding:"13px 15px" },
+  boxLabel:{ fontSize:11, fontWeight:800, textTransform:"uppercase", letterSpacing:".08em", marginBottom:7 },
+  boxNumber:{ fontSize:30, fontWeight:800, lineHeight:1, letterSpacing:-0.5 },
+  boxPercent:{ fontSize:12, marginTop:5, opacity:.8 },
+};
 // ─────────────────────────────────────────────────────────────
 // HIST DONUT CARD (single)
 // ─────────────────────────────────────────────────────────────
@@ -496,13 +580,77 @@ function HistDonutCard({ d, active }) {
 // ─────────────────────────────────────────────────────────────
 // HIST NAVIGATOR
 // ─────────────────────────────────────────────────────────────
-function HistNavigator({ data }) {
-  const slice = data.slice(0, 3);
+function HistNavigator({ data, selectedDate, selectedData, loading, onDateChange }) {
+  const slice = (selectedDate ? selectedData : data).slice(0, 3);
+  const meta = selectedDate ? `(${formatWaveDate(selectedDate)})` : "(3 ngày gần nhất)";
+  const right = (
+    <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+      <label title="Chọn ngày" style={{
+        position:"relative",
+        width:30,
+        height:30,
+        borderRadius:8,
+        border:`0.5px solid ${T.bdr}`,
+        background:T.elev,
+        display:"inline-flex",
+        alignItems:"center",
+        justifyContent:"center",
+        color:T.t2,
+        cursor:"pointer",
+        overflow:"hidden",
+      }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ pointerEvents:"none" }}>
+          <rect x="4" y="5" width="16" height="15" rx="2" stroke="currentColor" strokeWidth="2" />
+          <path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+        <input
+          aria-label="Chọn ngày lịch sử dò sóng"
+          type="date"
+          value={selectedDate}
+          onChange={(event) => onDateChange(event.target.value)}
+          style={{
+            position:"absolute",
+            inset:0,
+            opacity:0,
+            cursor:"pointer",
+            colorScheme:"dark",
+          }}
+        />
+      </label>
+      {selectedDate && (
+        <button
+          type="button"
+          title="Xem mới nhất"
+          onClick={() => onDateChange("")}
+          style={{
+            width:30,
+            height:30,
+            borderRadius:8,
+            border:`0.5px solid ${T.bdr}`,
+            background:T.elev,
+            color:T.t2,
+            cursor:"pointer",
+            display:"inline-flex",
+            alignItems:"center",
+            justifyContent:"center",
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+          </svg>
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <Card>
-      <CardHeader icon="ti-clock" title="Lịch sử dò sóng" meta="(3 ngày gần nhất)" />
-      {slice.length ? (
+      <CardHeader icon="ti-clock" title="Lịch sử dò sóng" meta={meta} right={right} />
+      {loading ? (
+        <div style={{ color:T.t3, fontSize:12, padding:"18px 0", textAlign:"center" }}>
+          Đang tải lịch sử dò sóng...
+        </div>
+      ) : slice.length ? (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:9 }}>
           {slice.map((d, i) => (
             <HistDonutCard key={d.rawDate || d.date} d={d} active={i === 0} />
@@ -510,7 +658,7 @@ function HistNavigator({ data }) {
         </div>
       ) : (
         <div style={{ color:T.t3, fontSize:12, padding:"18px 0", textAlign:"center" }}>
-          Đang chờ dữ liệu dò sóng...
+          Chưa có dữ liệu dò sóng cho ngày đã chọn.
         </div>
       )}
     </Card>
@@ -799,6 +947,8 @@ export default function DoSongThiTruong() {
   const [latestWave, setLatestWave] = useState(EMPTY_WAVE);
   const [waveStatus, setWaveStatus] = useState("loading");
   const [historyWaves, setHistoryWaves] = useState([]);
+  const [historyAllWaves, setHistoryAllWaves] = useState([]);
+  const [selectedHistoryDate, setSelectedHistoryDate] = useState("");
   const [chanSongRows, setChanSongRows] = useState([]);
   const [tickerWave, setTickerWave] = useState(EMPTY_WAVE);
   const latestTotal = latestWave.total || latestWave.cm + latestWave.mu + latestWave.cb + latestWave.ba;
@@ -811,6 +961,10 @@ export default function DoSongThiTruong() {
     : waveStatus === "loading"
       ? "· đang chờ realtime"
       : "· chưa có dữ liệu";
+  const selectedHistoryWaves = selectedHistoryDate
+    ? getPreviousWaveSessions(historyAllWaves, getNextCalendarDate(selectedHistoryDate))
+    : [];
+  const selectedHistoryLoading = Boolean(selectedHistoryDate && !historyAllWaves.length && latestWave.rawDate);
 
   useEffect(() => {
     let active = true;
@@ -880,8 +1034,10 @@ export default function DoSongThiTruong() {
     let active = true;
 
     fetchStockWaveHistory(latestWave.rawDate)
-      .then((rows) => {
-        if (active) setHistoryWaves(rows);
+      .then(({ rows, allRows }) => {
+        if (!active) return;
+        setHistoryWaves(rows);
+        setHistoryAllWaves(allRows);
       })
       .catch((error) => {
         console.error("Load stock wave history failed", error);
@@ -891,6 +1047,7 @@ export default function DoSongThiTruong() {
       active = false;
     };
   }, [latestWave.rawDate]);
+
 
   useEffect(() => {
     if (!tickerReferenceDate) return;
@@ -934,13 +1091,16 @@ export default function DoSongThiTruong() {
           {/* ── CỘT TRÁI ── */}
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             {/* Vòng tròn dò sóng */}
-            <Card>
-              <CardHeader icon="ti-chart-donut" title="Vòng tròn dò sóng" meta={waveMeta} />
-              <MainDonut d={latestWave} />
-            </Card>
+            <MainDonut d={latestWave} meta={waveMeta} />
 
             {/* Lịch sử dò sóng */}
-            <HistNavigator data={historyWaves} />
+            <HistNavigator
+              data={historyWaves}
+              selectedDate={selectedHistoryDate}
+              selectedData={selectedHistoryWaves}
+              loading={selectedHistoryLoading}
+              onDateChange={setSelectedHistoryDate}
+            />
 
             {/* Lịch sử chân sóng */}
             <ChanSong data={chanSongRows} />
