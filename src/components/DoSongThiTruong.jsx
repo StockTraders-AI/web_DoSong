@@ -108,15 +108,6 @@ function getPreviousCalendarDate(value) {
   return `${year}-${month}-${day}`;
 }
 
-function getNextCalendarDate(value) {
-  const date = toDate(value);
-  if (!date) return "";
-  date.setDate(date.getDate() + 1);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
 
 
 function normalizeWaveRow(row) {
@@ -209,6 +200,7 @@ function getPreviousWaveSessions(rows, referenceDate) {
     .slice(0, 3)
     .map((item) => ({ ...item, today:false }));
 }
+
 
 function getSocketWaveData(payload) {
   if (payload?.channel && payload.channel !== WAVE_CHANNEL) return null;
@@ -304,23 +296,6 @@ function fetchWaveBottomConfirmPairs() {
   return waveBottomConfirmPairsRequest;
 }
 
-function arcPath(cx, cy, r, sw, pct, color, off) {
-  const c = 2 * Math.PI * r, d = c * pct / 100, g = c - d;
-  return (
-    <circle key={`${color}-${off}`}
-      cx={cx} cy={cy} r={r} fill="none"
-      stroke={color} strokeWidth={sw}
-      strokeDasharray={`${d.toFixed(1)} ${g.toFixed(1)}`}
-      strokeDashoffset={`${(-c * off / 100).toFixed(1)}`}
-      strokeLinecap="butt"
-      style={{ transform:`rotate(-90deg)`, transformOrigin:`${cx}px ${cy}px` }}
-    />
-  );
-}
-
-function tcColor(tc) {
-  return tc >= 70 ? T.G : tc >= 55 ? T.MU : T.t3;
-}
 
 // ─────────────────────────────────────────────────────────────
 // PRIMITIVES
@@ -405,7 +380,6 @@ function MainDonut({ d = EMPTY_WAVE, meta = "" }) {
   const trustStyle = trust >= 70
     ? { bg:"#0D2B1A", border:"#1A5C2A", color:T.G }
     : { bg:"#2B1800", border:"#4A2E00", color:T.A };
-
   let cum = 0;
   const segments = order.map((key) => {
     const segment = {
@@ -442,7 +416,7 @@ function MainDonut({ d = EMPTY_WAVE, meta = "" }) {
 
       <div style={waveCircleStyle.body}>
         <svg
-          width="248" height="248" viewBox="0 0 320 320" style={waveCircleStyle.donut}
+          width="260" height="260" viewBox="0 0 320 320" style={waveCircleStyle.donut}
           role="img"
           aria-label={`V\u00f2ng tr\u00f2n d\u00f2 s\u00f3ng: ${data.cm} ${labels.cm}, ${data.mu} ${labels.mu}, ${data.cb} ${labels.cb}, ${data.ba} ${labels.ba}`}
         >
@@ -495,178 +469,259 @@ function MainDonut({ d = EMPTY_WAVE, meta = "" }) {
 }
 
 const waveCircleStyle = {
-  card:{ background:T.surf, border:`0.5px solid ${T.bdr}`, borderRadius:16, padding:"18px 20px", color:T.t1 },
+  card:{ background:T.surf, border:`0.5px solid ${T.bdr}`, borderRadius:16, padding:"20px 22px", color:T.t1 },
   header:{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginBottom:16, flexWrap:"wrap" },
-  title:{ display:"flex", alignItems:"center", gap:9, fontSize:15, fontWeight:700, color:T.t1 },
-  meta:{ fontSize:11, color:T.t4, fontWeight:400, marginLeft:2 },
-  trust:{ display:"flex", alignItems:"center", gap:7, borderRadius:30, padding:"7px 14px", fontSize:13, fontWeight:700 },
+  title:{ display:"flex", alignItems:"center", gap:9, fontSize:16, fontWeight:700, color:T.t1 },
+  meta:{ fontSize:12, color:T.t4, fontWeight:400, marginLeft:2 },
+  trust:{ display:"flex", alignItems:"center", gap:7, borderRadius:30, padding:"7px 14px", fontSize:14, fontWeight:700 },
   body:{ display:"flex", alignItems:"center", gap:18, flexWrap:"wrap" },
   donut:{ flexShrink:0, margin:"0 auto" },
   boxes:{ flex:1, minWidth:230, display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 },
   box:{ borderRadius:12, padding:"13px 15px" },
-  boxLabel:{ fontSize:11, fontWeight:800, textTransform:"uppercase", letterSpacing:".08em", marginBottom:7 },
-  boxNumber:{ fontSize:30, fontWeight:800, lineHeight:1, letterSpacing:-0.5 },
-  boxPercent:{ fontSize:12, marginTop:5, opacity:.8 },
+  boxLabel:{ fontSize:12, fontWeight:800, textTransform:"uppercase", letterSpacing:".08em", marginBottom:7 },
+  boxNumber:{ fontSize:34, fontWeight:800, lineHeight:1, letterSpacing:-0.5 },
+  boxPercent:{ fontSize:13, marginTop:5, opacity:.8 },
 };
 // ─────────────────────────────────────────────────────────────
 // HIST DONUT CARD (single)
 // ─────────────────────────────────────────────────────────────
+const HIST_ORDER = ["cm", "mu", "cb", "ba"];
+const HIST_LABELS = { cm:"C.MUA", mu:"MUA", cb:"C.BAN", ba:"BAN" };
+const HIST_COLORS = { cm:T.G, mu:T.MU, cb:T.A, ba:T.R };
+const HIST_TILES = {
+  cm: { bg:"#0A2318", bd:"#0F3D22", lab:T.G, num:T.G },
+  mu: { bg:"#0F3D1A", bd:"#1A6628", lab:"#52E88A", num:T.t1 },
+  cb: { bg:"#2B1800", bd:"#4A2E00", lab:T.A, num:T.A },
+  ba: { bg:"#200A0E", bd:"#3D1018", lab:T.R, num:T.R },
+};
+const HIST_DONUT = { cx:85, cy:85, r:62, sw:13, badge:11 };
+
+function MiniHistoryDonut({ d }) {
+  const total = d.total || d.cm + d.mu + d.cb + d.ba;
+  const signalTotal = Math.max(d.cm + d.mu + d.cb + d.ba, 1);
+  const circ = 2 * Math.PI * HIST_DONUT.r;
+  const pct = Object.fromEntries(HIST_ORDER.map((key) => [key, (d[key] / signalTotal) * 100]));
+  const startDeg = 180 - (pct.cm * 3.6) / 2;
+  let cumulative = 0;
+  const segments = HIST_ORDER.map((key) => {
+    const segment = {
+      key,
+      dash:(circ * pct[key]) / 100,
+      offset:(-circ * cumulative) / 100,
+      midDeg:startDeg + (cumulative + pct[key] / 2) * 3.6,
+    };
+    cumulative += pct[key];
+    return segment;
+  });
+
+  return (
+    <svg
+      width="170"
+      height="170"
+      viewBox="0 0 170 170"
+      style={{ display:"block", margin:"10px auto 6px" }}
+      role="img"
+      aria-label={`Ngay ${d.date}: tong ${total} ma`}
+    >
+      <circle cx={HIST_DONUT.cx} cy={HIST_DONUT.cy} r={HIST_DONUT.r} fill="none" stroke="#161B28" strokeWidth={HIST_DONUT.sw} />
+      {segments.map((segment) => (
+        <circle
+          key={segment.key}
+          cx={HIST_DONUT.cx}
+          cy={HIST_DONUT.cy}
+          r={HIST_DONUT.r}
+          fill="none"
+          stroke={HIST_COLORS[segment.key]}
+          strokeWidth={HIST_DONUT.sw}
+          strokeLinecap="butt"
+          strokeDasharray={`${segment.dash.toFixed(2)} ${(circ - segment.dash).toFixed(2)}`}
+          strokeDashoffset={segment.offset.toFixed(2)}
+          transform={`rotate(${(startDeg - 90).toFixed(2)} ${HIST_DONUT.cx} ${HIST_DONUT.cy})`}
+        />
+      ))}
+      {segments.map((segment) => {
+        const angle = (segment.midDeg * Math.PI) / 180;
+        const x = HIST_DONUT.cx + HIST_DONUT.r * Math.sin(angle);
+        const y = HIST_DONUT.cy - HIST_DONUT.r * Math.cos(angle);
+        return (
+          <g key={`badge-${segment.key}`}>
+            <circle cx={x} cy={y} r={HIST_DONUT.badge} fill={HIST_COLORS[segment.key]} />
+            <text x={x} y={y + 3.8} textAnchor="middle" fill="#fff" fontSize="11" fontWeight="800" fontFamily="system-ui">
+              {d[segment.key]}
+            </text>
+          </g>
+        );
+      })}
+      <text x={HIST_DONUT.cx} y={HIST_DONUT.cy + 9} textAnchor="middle" fill={T.t1} fontSize="27" fontWeight="800" fontFamily="system-ui">
+        {total}
+      </text>
+    </svg>
+  );
+}
+
 function HistDonutCard({ d, active }) {
-  const tot = d.total || d.cm + d.mu + d.cb + d.ba;
-  const denom = Math.max(tot, d.cm + d.mu + d.cb + d.ba, 1);
-  const pC = d.cm/denom*100, pM = d.mu/denom*100, pCb = d.cb/denom*100, pB = d.ba/denom*100;
-  const tc = tcColor(d.tc);
+  const trust = Math.max(0, Math.min(100, toNumber(d.tc)));
+  const trustColor = trust >= 70 ? T.G : T.A;
 
   return (
     <div style={{
-      background: active ? T.Bs : T.elev,
-      border: `0.5px solid ${active ? T.Bb : T.bdr}`,
-      borderRadius:10, padding:"11px 9px",
-      display:"flex", flexDirection:"column", gap:0,
+      background: active ? "#1A1230" : "#141926",
+      border: `1px solid ${active ? T.Bb : T.bdr}`,
+      borderRadius:14,
+      padding:"16px 14px",
+      textAlign:"center",
+      color:T.t1,
     }}>
-      {/* Date header */}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-        <span style={{ fontSize:11, fontWeight:600, color:T.t2 }}>{d.date}</span>
-        {d.today && (
-          <span style={{ fontSize:9, background:`rgba(124,58,237,.25)`, color:"#C4B5FD",
-            borderRadius:4, padding:"2px 5px", fontWeight:600 }}>Hôm nay</span>
-        )}
+      <div style={{
+        fontSize:15,
+        fontWeight:700,
+        color:active ? "#C9B8F0" : T.t2,
+        display:"flex",
+        alignItems:"center",
+        justifyContent:"center",
+        gap:8,
+      }}>
+        {d.date}
+        {d.today && <span style={{ fontSize:11, fontWeight:700, color:"#B788FF", background:"#2E1B52", borderRadius:6, padding:"3px 8px" }}>{"H\u00f4m nay"}</span>}
       </div>
-      <div style={{ fontSize:10, color:T.t3, marginBottom:8 }}>{d.dow}</div>
+      <div style={{ fontSize:12, color:T.t4, marginTop:3 }}>{d.dow}</div>
 
-      {/* Donut */}
-      <div style={{ display:"flex", justifyContent:"center", marginBottom:8 }}>
-        <svg width="96" height="96" viewBox="0 0 96 96"
-          role="img" aria-label={`Donut ${d.date}: ${d.cm} Chờ mua, ${d.mu} Mua, ${d.cb} Chờ bán, ${d.ba} Bán`}>
-          <circle cx="48" cy="48" r="36" fill="none" stroke={T.bdr} strokeWidth="13"/>
-          {arcPath(48,48,36,13,pC,T.G,0)}
-          {arcPath(48,48,36,13,pM,T.MU,pC)}
-          {arcPath(48,48,36,13,pCb,T.A,pC+pM)}
-          {arcPath(48,48,36,13,pB,T.R,pC+pM+pCb)}
-          <text x="48" y="43" textAnchor="middle" fill={T.t1} fontSize="17" fontWeight="800" fontFamily="system-ui">{tot}</text>
-          <text x="48" y="56" textAnchor="middle" fill={T.t3} fontSize="9" fontFamily="system-ui">mã</text>
-        </svg>
-      </div>
+      <MiniHistoryDonut d={d} />
 
-      {/* 4 numbers 2x2 */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"4px 0", marginBottom:8 }}>
-        {[
-          [d.cm, pC, T.G,  "C.MUA", "left"],
-          [d.mu, pM, T.MU, "MUA",   "right"],
-          [d.ba, pB, T.R,  "BÁN",   "left"],
-          [d.cb, pCb,T.A,  "C.BÁN", "right"],
-        ].map(([v, p, c, lbl, align]) => (
-          <div key={lbl} style={{ textAlign:align }}>
-            <div style={{ fontSize:15, fontWeight:800, color:c, lineHeight:1 }}>{v}</div>
-            <div style={{ fontSize:8, color:T.t4, textTransform:"uppercase", letterSpacing:".04em" }}>
-              {p.toFixed(1)}% {lbl}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7, margin:"8px 0 12px" }}>
+        {HIST_ORDER.map((key) => {
+          const tile = HIST_TILES[key];
+          return (
+            <div key={key} style={{
+              display:"flex",
+              alignItems:"center",
+              justifyContent:"space-between",
+              gap:8,
+              borderRadius:9,
+              padding:"7px 11px",
+              background:tile.bg,
+              border:`1px solid ${tile.bd}`,
+            }}>
+              <span style={{ fontSize:10, fontWeight:800, letterSpacing:".07em", textTransform:"uppercase", color:tile.lab }}>{HIST_LABELS[key]}</span>
+              <span style={{ fontSize:17, fontWeight:800, lineHeight:1, color:tile.num, fontFamily:'"JetBrains Mono",ui-monospace,monospace' }}>{d[key]}</span>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Trust bar */}
-      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-        <span style={{ fontSize:10, color:T.t4 }}>Độ tin cậy:</span>
-        <div style={{ flex:1, height:3, background:T.bdr, borderRadius:2, overflow:"hidden" }}>
-          <div style={{ height:"100%", width:`${d.tc}%`, background:tc, borderRadius:2 }} />
+      <div style={{ display:"flex", alignItems:"center", gap:9, padding:"0 4px" }}>
+        <span style={{ fontSize:12, color:T.t4, fontWeight:700 }}>TC</span>
+        <div style={{ flex:1, height:5, borderRadius:3, background:T.bdr, overflow:"hidden" }}>
+          <div style={{ height:"100%", width:`${trust}%`, borderRadius:3, background:trustColor }} />
         </div>
-        <span style={{ fontSize:11, fontWeight:700, color:tc }}>{d.tc}%</span>
+        <span style={{ fontSize:14, fontWeight:800, color:trustColor }}>{trust}%</span>
       </div>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// HIST NAVIGATOR
-// ─────────────────────────────────────────────────────────────
-function HistNavigator({ data, selectedDate, selectedData, loading, onDateChange }) {
-  const slice = (selectedDate ? selectedData : data).slice(0, 3);
-  const meta = selectedDate ? `(${formatWaveDate(selectedDate)})` : "(3 ngày gần nhất)";
-  const right = (
-    <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-      <label title="Chọn ngày" style={{
-        position:"relative",
-        width:30,
-        height:30,
-        borderRadius:8,
-        border:`0.5px solid ${T.bdr}`,
-        background:T.elev,
-        display:"inline-flex",
-        alignItems:"center",
-        justifyContent:"center",
-        color:T.t2,
-        cursor:"pointer",
-        overflow:"hidden",
-      }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ pointerEvents:"none" }}>
-          <rect x="4" y="5" width="16" height="15" rx="2" stroke="currentColor" strokeWidth="2" />
-          <path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-        <input
-          aria-label="Chọn ngày lịch sử dò sóng"
-          type="date"
-          value={selectedDate}
-          onChange={(event) => onDateChange(event.target.value)}
-          style={{
-            position:"absolute",
-            inset:0,
-            opacity:0,
-            cursor:"pointer",
-            colorScheme:"dark",
-          }}
-        />
-      </label>
-      {selectedDate && (
-        <button
-          type="button"
-          title="Xem mới nhất"
-          onClick={() => onDateChange("")}
-          style={{
-            width:30,
-            height:30,
-            borderRadius:8,
-            border:`0.5px solid ${T.bdr}`,
-            background:T.elev,
-            color:T.t2,
-            cursor:"pointer",
-            display:"inline-flex",
-            alignItems:"center",
-            justifyContent:"center",
-          }}
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-          </svg>
-        </button>
-      )}
+function HistNavigator({ data }) {
+  const [page, setPage] = useState(1);
+  const perPage = 3;
+  const totalDays = data.length;
+  const pageCount = Math.max(1, Math.ceil(totalDays / perPage));
+  const safePage = Math.min(page, pageCount);
+  const from = totalDays ? (safePage - 1) * perPage + 1 : 0;
+  const to = Math.min(safePage * perPage, totalDays);
+  const slice = data.slice((safePage - 1) * perPage, safePage * perPage);
+
+  useEffect(() => {
+    setPage(1);
+  }, [data]);
+
+  const pager = totalDays > perPage && (
+    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+      <button
+        type="button"
+        disabled={safePage <= 1}
+        onClick={() => setPage((value) => Math.max(1, value - 1))}
+        aria-label="Trang truoc"
+        style={{
+          width:38,
+          height:38,
+          borderRadius:11,
+          background:T.elev,
+          border:`1px solid ${T.bdr}`,
+          display:"flex",
+          alignItems:"center",
+          justifyContent:"center",
+          cursor:safePage <= 1 ? "default" : "pointer",
+          color:T.t1,
+          opacity:safePage <= 1 ? .35 : 1,
+        }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><polyline points="15,6 9,12 15,18" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
+      <span style={{ fontSize:14, color:T.t3 }}>{from}-{to}/{totalDays}</span>
+      <button
+        type="button"
+        disabled={safePage >= pageCount}
+        onClick={() => setPage((value) => Math.min(pageCount, value + 1))}
+        aria-label="Trang sau"
+        style={{
+          width:38,
+          height:38,
+          borderRadius:11,
+          background:T.elev,
+          border:`1px solid ${T.bdr}`,
+          display:"flex",
+          alignItems:"center",
+          justifyContent:"center",
+          cursor:safePage >= pageCount ? "default" : "pointer",
+          color:T.t1,
+          opacity:safePage >= pageCount ? .35 : 1,
+        }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><polyline points="9,6 15,12 9,18" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
     </div>
   );
 
   return (
     <Card>
-      <CardHeader icon="ti-clock" title="Lịch sử dò sóng" meta={meta} right={right} />
-      {loading ? (
-        <div style={{ color:T.t3, fontSize:12, padding:"18px 0", textAlign:"center" }}>
-          Đang tải lịch sử dò sóng...
-        </div>
-      ) : slice.length ? (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:9 }}>
-          {slice.map((d, i) => (
-            <HistDonutCard key={d.rawDate || d.date} d={d} active={i === 0} />
-          ))}
-        </div>
+      <CardHeader icon="ti-clock" title={"L\u1ecbch s\u1eed d\u00f2 s\u00f3ng"} meta={`(${perPage} ng\u00e0y / trang)`} right={pager} />
+      {slice.length ? (
+        <>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(230px, 1fr))", gap:14 }}>
+            {slice.map((d, i) => (
+              <HistDonutCard key={d.rawDate || d.date} d={d} active={safePage === 1 && i === 0} />
+            ))}
+          </div>
+          {pageCount > 1 && (
+            <div style={{ display:"flex", justifyContent:"center", gap:9, marginTop:16 }}>
+              {Array.from({ length:pageCount }, (_, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  aria-label={`Trang ${index + 1}`}
+                  onClick={() => setPage(index + 1)}
+                  style={{
+                    width:9,
+                    height:9,
+                    borderRadius:"50%",
+                    border:0,
+                    padding:0,
+                    background:index + 1 === safePage ? T.B : "#2A3244",
+                    cursor:"pointer",
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </>
       ) : (
         <div style={{ color:T.t3, fontSize:12, padding:"18px 0", textAlign:"center" }}>
-          Chưa có dữ liệu dò sóng cho ngày đã chọn.
+          {"\u0110ang ch\u1edd d\u1eef li\u1ec7u d\u00f2 s\u00f3ng..."}
         </div>
       )}
     </Card>
   );
 }
-// ─────────────────────────────────────────────────────────────
-// DANH MỤC DÒ SÓNG
-// ─────────────────────────────────────────────────────────────
 function DanhMucDoSong({ wave = EMPTY_WAVE }) {
   const [tab, setTab] = useState("cm");
   const [showAll, setShowAll] = useState(false);
@@ -679,7 +734,7 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
     setShowAll(false);
   }, [tab]);
 
-  const tdStyle = { padding:"8px 8px", borderBottom:`0.5px solid ${T.bdrs}`, whiteSpace:"nowrap" };
+  const tdStyle = { padding:"9px 9px", borderBottom:`0.5px solid ${T.bdrs}`, whiteSpace:"nowrap" };
 
   return (
     <Card>
@@ -689,18 +744,18 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
         right={<Clink onClick={() => setShowAll((value) => !value)}>{showAll ? "Thu gọn" : "Xem tất cả →"}</Clink>}
       />
       {/* Tab buttons */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:5, marginBottom:11 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6, marginBottom:12 }}>
         {Object.entries(TAB_CFG).map(([key, c]) => {
           const active = key === tab;
           const tabCount = wave[c.countKey] || normalizeTickerRows(wave[c.rowsKey]).length;
           return (
             <button key={key} onClick={() => setTab(key)} style={{
-              textAlign:"center", padding:"7px 3px", borderRadius:8, cursor:"pointer",
+              textAlign:"center", padding:"8px 4px", borderRadius:8, cursor:"pointer",
               background: active ? c.bg : T.elev,
               border: `0.5px solid ${active ? c.border : T.bdr}`,
               fontFamily:"inherit",
             }}>
-              <div style={{ fontSize:12, fontWeight: active ? 700 : 500, color: active ? c.color : T.t2 }}>{c.label}</div>
+              <div style={{ fontSize:13, fontWeight: active ? 700 : 500, color: active ? c.color : T.t2 }}>{c.label}</div>
               <div style={{ fontSize:11, color: active ? c.color : T.t4, opacity: active ? .8 : 1 }}>({tabCount})</div>
             </button>
           );
@@ -714,7 +769,7 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
             {["Mã","Ngành","Giá","Độ tin cậy"].map((h,i) => (
               <th key={h} style={{
                 fontSize:10, fontWeight:700, color:T.t4, textTransform:"uppercase",
-                letterSpacing:".06em", padding:"7px 8px", borderBottom:`0.5px solid ${T.bdr}`,
+                letterSpacing:".07em", padding:"7px 9px", borderBottom:`0.5px solid ${T.bdr}`,
                 textAlign: i >= 2 ? "right" : "left", background:T.elev, whiteSpace:"nowrap",
               }}>{h}</th>
             ))}
@@ -763,7 +818,7 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
 // LỊCH SỬ CHÂN SÓNG
 // ─────────────────────────────────────────────────────────────
 function ChanSong({ data = [] }) {
-  const tdStyle = { padding:"8px 8px", borderBottom:`0.5px solid ${T.bdrs}`, whiteSpace:"nowrap", fontSize:12, color:T.t2 };
+  const tdStyle = { padding:"9px 9px", borderBottom:`0.5px solid ${T.bdrs}`, whiteSpace:"nowrap", fontSize:12, color:T.t2 };
   return (
     <Card>
       <CardHeader icon="ti-history" title="Lịch sử chân sóng tiêu biểu" right={<Clink>Xem tất cả →</Clink>} />
@@ -774,7 +829,7 @@ function ChanSong({ data = [] }) {
               {["Ngày xác nhận","VNINDEX","Tăng điểm","Độ dài","Độ tin cậy","Loại sóng"].map((h,i) => (
                 <th key={h} style={{
                   fontSize:10, fontWeight:700, color:T.t4, textTransform:"uppercase",
-                  letterSpacing:".06em", padding:"7px 8px", borderBottom:`0.5px solid ${T.bdr}`,
+                  letterSpacing:".07em", padding:"7px 9px", borderBottom:`0.5px solid ${T.bdr}`,
                   textAlign: i >= 1 ? "right" : "left", background:T.elev, whiteSpace:"nowrap",
                 }}>{h}</th>
               ))}
@@ -870,10 +925,10 @@ function AIPanel() {
 // ─────────────────────────────────────────────────────────────
 function TinhHuong() {
   return (
-    <div style={{ background:T.elev, border:`0.5px solid ${T.Pb}`, borderRadius:12, padding:13 }}>
+    <div style={{ background:T.elev, border:`0.5px solid ${T.Pb}`, borderRadius:12, padding:14 }}>
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between",
         marginBottom:9, gap:8 }}>
-        <div style={{ fontSize:11, fontWeight:700, color:T.t1, textTransform:"uppercase",
+        <div style={{ fontSize:12, fontWeight:700, color:T.t1, textTransform:"uppercase",
           letterSpacing:".05em", lineHeight:1.4 }}>
           Xem lại tình huống tương tự trong quá khứ
         </div>
@@ -892,7 +947,7 @@ function TinhHuong() {
           <div style={{ fontSize:12, color:T.t2, lineHeight:1.6 }}>
             Hệ thống đã ghi nhận 3 tình huống tương tự trước đây với tỷ lệ thành công cao. Các thị trường đều bật tăng mạnh sau khi xác nhận chân sóng.
           </div>
-          <div style={{ fontSize:14, fontWeight:800, color:T.G, marginTop:6 }}>
+          <div style={{ fontSize:15, fontWeight:800, color:T.G, marginTop:7 }}>
             +217 điểm (82% thành công)
           </div>
         </div>
@@ -948,7 +1003,6 @@ export default function DoSongThiTruong() {
   const [waveStatus, setWaveStatus] = useState("loading");
   const [historyWaves, setHistoryWaves] = useState([]);
   const [historyAllWaves, setHistoryAllWaves] = useState([]);
-  const [selectedHistoryDate, setSelectedHistoryDate] = useState("");
   const [chanSongRows, setChanSongRows] = useState([]);
   const [tickerWave, setTickerWave] = useState(EMPTY_WAVE);
   const latestTotal = latestWave.total || latestWave.cm + latestWave.mu + latestWave.cb + latestWave.ba;
@@ -961,10 +1015,6 @@ export default function DoSongThiTruong() {
     : waveStatus === "loading"
       ? "· đang chờ realtime"
       : "· chưa có dữ liệu";
-  const selectedHistoryWaves = selectedHistoryDate
-    ? getPreviousWaveSessions(historyAllWaves, getNextCalendarDate(selectedHistoryDate))
-    : [];
-  const selectedHistoryLoading = Boolean(selectedHistoryDate && !historyAllWaves.length && latestWave.rawDate);
 
   useEffect(() => {
     let active = true;
@@ -1037,7 +1087,7 @@ export default function DoSongThiTruong() {
       .then(({ rows, allRows }) => {
         if (!active) return;
         setHistoryWaves(rows);
-        setHistoryAllWaves(allRows);
+        setHistoryAllWaves(allRows?.length ? allRows : rows);
       })
       .catch((error) => {
         console.error("Load stock wave history failed", error);
@@ -1094,13 +1144,7 @@ export default function DoSongThiTruong() {
             <MainDonut d={latestWave} meta={waveMeta} />
 
             {/* Lịch sử dò sóng */}
-            <HistNavigator
-              data={historyWaves}
-              selectedDate={selectedHistoryDate}
-              selectedData={selectedHistoryWaves}
-              loading={selectedHistoryLoading}
-              onDateChange={setSelectedHistoryDate}
-            />
+            <HistNavigator data={historyAllWaves.length ? historyAllWaves : historyWaves} />
 
             {/* Lịch sử chân sóng */}
             <ChanSong data={chanSongRows} />
