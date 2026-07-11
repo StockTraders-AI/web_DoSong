@@ -349,6 +349,24 @@ function Clink({ children, onClick }) {
   );
 }
 
+const tableScrollStyle = {
+  overflowX:"auto",
+  WebkitOverflowScrolling:"touch",
+};
+
+const noWrapTableStyle = {
+  width:"max-content",
+  minWidth:"100%",
+  borderCollapse:"collapse",
+  tableLayout:"auto",
+  whiteSpace:"nowrap",
+};
+
+const noWrapCellStyle = {
+  whiteSpace:"nowrap",
+  overflowWrap:"normal",
+  wordBreak:"keep-all",
+};
 // ─────────────────────────────────────────────────────────────
 // AI ICON SVG
 // ─────────────────────────────────────────────────────────────
@@ -450,7 +468,7 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
     setShowAll(false);
   }, [tab]);
 
-  const tdStyle = { padding:"9px 9px", borderBottom:`0.5px solid ${T.bdrs}`, whiteSpace:"nowrap" };
+  const tdStyle = { padding:"9px 9px", borderBottom:`0.5px solid ${T.bdrs}`, ...noWrapCellStyle };
 
   return (
     <Card>
@@ -478,15 +496,15 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
         })}
       </div>
       {/* Table */}
-      <div style={{ maxHeight:showAll ? 260 : "none", overflowY:showAll ? "auto" : "visible", overflowX:"auto" }}>
-      <table style={{ width:"100%", borderCollapse:"collapse" }}>
+      <div style={{ ...tableScrollStyle, maxHeight:showAll ? 260 : "none", overflowY:showAll ? "auto" : "visible" }}>
+      <table style={{ ...noWrapTableStyle, minWidth:"max(100%, 430px)" }}>
         <thead>
           <tr>
             {["Mã","Ngành","Giá","Độ tin cậy"].map((h,i) => (
               <th key={h} style={{
                 fontSize:10, fontWeight:700, color:T.t4, textTransform:"uppercase",
                 letterSpacing:".07em", padding:"7px 9px", borderBottom:`0.5px solid ${T.bdr}`,
-                textAlign: i >= 2 ? "right" : "left", background:T.elev, whiteSpace:"nowrap",
+                textAlign: i >= 2 ? "right" : "left", background:T.elev, ...noWrapCellStyle,
               }}>{h}</th>
             ))}
           </tr>
@@ -534,19 +552,19 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
 // LỊCH SỬ CHÂN SÓNG
 // ─────────────────────────────────────────────────────────────
 function ChanSong({ data = [] }) {
-  const tdStyle = { padding:"9px 9px", borderBottom:`0.5px solid ${T.bdrs}`, whiteSpace:"nowrap", fontSize:12, color:T.t2 };
+  const tdStyle = { padding:"9px 9px", borderBottom:`0.5px solid ${T.bdrs}`, ...noWrapCellStyle, fontSize:12, color:T.t2 };
   return (
     <Card>
       <CardHeader icon="ti-history" title="Lịch sử chân sóng tiêu biểu" right={<Clink>Xem tất cả →</Clink>} />
-      <div style={{ overflowX:"auto" }}>
-        <table style={{ width:"100%", borderCollapse:"collapse", minWidth:620 }}>
+      <div style={tableScrollStyle}>
+        <table style={{ ...noWrapTableStyle, minWidth:"max(100%, 620px)" }}>
           <thead>
             <tr>
               {["Ngày xác nhận","VNINDEX","Tăng điểm","Độ dài","Độ tin cậy","Loại sóng"].map((h,i) => (
                 <th key={h} style={{
                   fontSize:10, fontWeight:700, color:T.t4, textTransform:"uppercase",
                   letterSpacing:".07em", padding:"7px 9px", borderBottom:`0.5px solid ${T.bdr}`,
-                  textAlign: i >= 1 ? "right" : "left", background:T.elev, whiteSpace:"nowrap",
+                  textAlign: i >= 1 ? "right" : "left", background:T.elev, ...noWrapCellStyle,
                 }}>{h}</th>
               ))}
             </tr>

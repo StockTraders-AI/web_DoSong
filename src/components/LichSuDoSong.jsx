@@ -205,10 +205,12 @@ export default function LichSuDoSong({
       </div>
 
       {/* ===== 3 thẻ ngày ===== */}
-      <div style={st.days}>
-        {days.map((d) => (
-          <DayCard key={d.date} day={d} T={T} />
-        ))}
+      <div style={st.daysScroll}>
+        <div style={st.days}>
+          {days.map((d) => (
+            <DayCard key={d.date} day={d} T={T} />
+          ))}
+        </div>
       </div>
 
       {/* ===== Chấm phân trang ===== */}
@@ -244,8 +246,9 @@ const st = {
   },
   pbtnOff: { opacity: 0.35, cursor: "default" },
   prange: { fontSize: 14 },
-  days: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 14 },
-  day: { borderRadius: 14, padding: "16px 14px", textAlign: "center" },
+  daysScroll: { overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch" },
+  days: { display: "grid", gridTemplateColumns: "repeat(3, minmax(190px, 1fr))", gap: 14, minWidth: "max(100%, 598px)" },
+  day: { borderRadius: 14, padding: "16px 12px", textAlign: "center", minWidth: 0 },
   ddate: { fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 },
   dtoday: { fontSize: 11, fontWeight: 700, borderRadius: 6, padding: "3px 8px" },
   dweek: { fontSize: 12, marginTop: 3 },
