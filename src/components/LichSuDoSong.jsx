@@ -1,18 +1,5 @@
 import React from "react";
 
-/**
- * LichSuDoSong — card "Lịch sử dò sóng" (3 ngày / trang)
- *
- * Donut mini vẽ theo kỹ thuật donut Dashboard (stocktraders_pc, bản nhỏ drawDonut):
- * - SVG <path> arc, khe hở 5°, đầu cung bo tròn, bắt đầu 12h theo chiều kim đồng hồ
- * - Đĩa nền 2 lớp đổi theo theme; bảng màu donut: #1baf7a / #0ca30c / #eda100 / #e34948
- * - Badge r=12, chữ 11px weight 500, chỉ hiện khi cung >12°, kẹp trong viewBox
- * - Số giữa = tổng mã theo dõi của ngày, fs 22 weight 700
- *
- * Thanh TC: >=70% xanh Chờ mua, <70% cam Chờ bán (token theo theme).
- * Prop theme="dark"|"light" — token 2 theme lấy từ stocktraders_pc.
- */
-
 const ORDER = ["cm", "mu", "cb", "ba"];
 const LABELS = { cm: "C.MUA", mu: "MUA", cb: "C.BÁN", ba: "BÁN" };
 const DCOL = { cm: "#1baf7a", mu: "#0ca30c", cb: "#eda100", ba: "#e34948" };

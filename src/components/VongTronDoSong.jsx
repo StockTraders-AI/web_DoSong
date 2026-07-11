@@ -1,20 +1,5 @@
 import React from "react";
 
-/**
- * VongTronDoSong — card "Vòng tròn dò sóng"
- *
- * Donut vẽ theo đúng kỹ thuật donut Dashboard (stocktraders_pc):
- * - SVG <path> arc, khe hở 5° giữa các cung, đầu cung bo tròn (linecap round)
- * - Đĩa nền 2 lớp (elev ngoài + surf trong) tạo cảm giác donut "chìm"
- * - Bảng màu dashboard: #1baf7a / #0ca30c / #eda100 / #e34948
- * - Badge r=15 chỉ hiện khi cung >15°, cỡ chữ co theo số chữ số, kẹp trong viewBox
- * - Cung bắt đầu từ 12h, chiều kim đồng hồ: Chờ mua → Mua → Chờ bán → Bán
- *
- * Số giữa donut: tổng mã theo dõi (total). 4 thẻ bên phải: số đếm + % trên total.
- * Huy hiệu tin cậy: >=70% xanh Chờ mua, <70% cam Chờ bán.
- * Prop theme="dark"|"light" — token 2 theme lấy từ stocktraders_pc.
- */
-
 const ORDER = ["cm", "mu", "cb", "ba"];
 const LABELS = { cm: "Chờ mua", mu: "Mua", cb: "Chờ bán", ba: "Bán" };
 // Bảng màu donut theo dashboard
