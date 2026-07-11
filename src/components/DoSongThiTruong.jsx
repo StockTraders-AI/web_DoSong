@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import branchLookup from "../data/branchLookup.json";
+import VongTronDoSong from "../../VongTronDoSong_1.jsx";
+import LichSuDoSong from "../../LichSuDoSong_1.jsx";
 // ─────────────────────────────────────────────────────────────
 // TOKENS
 // ─────────────────────────────────────────────────────────────
@@ -201,10 +203,6 @@ function getPreviousWaveSessions(rows, referenceDate) {
     .map((item) => ({ ...item, today:false }));
 }
 
-function getWaveSessionOnOrBefore(rows, referenceDate) {
-  if (!referenceDate) return null;
-  return rows.find((item) => item.rawDate && item.rawDate <= referenceDate) || null;
-}
 
 
 function getSocketWaveData(payload) {
@@ -359,322 +357,46 @@ function AIIconSvg() {
 // ─────────────────────────────────────────────────────────────
 // MAIN DONUT
 // ─────────────────────────────────────────────────────────────
-function MainDonut({ d = EMPTY_WAVE, meta = "", selectedDate = "", onDateChange }) {
+function formatSampleDate(value) {
+  const date = toDate(value);
+  if (!date) return "--/--";
+  return new Intl.DateTimeFormat("vi-VN", {
+    day:"2-digit",
+    month:"2-digit",
+  }).format(date);
+}
+
+function formatSampleWeek(value) {
+  const date = toDate(value);
+  if (!date) return "";
+  const day = date.getDay();
+  if (day === 0) return "CN";
+  return `T.${day + 1}`;
+}
+
+function MainDonut({ d = EMPTY_WAVE }) {
   const data = { cm:d.cm, mu:d.mu, cb:d.cb, ba:d.ba };
-  const total = d.total || data.cm + data.mu + data.cb + data.ba;
-  const trust = Math.max(0, Math.min(100, toNumber(d.tc)));
-  const order = ["cm", "mu", "cb", "ba"];
-  const colors = { cm:"#1baf7a", mu:"#0ca30c", cb:"#eda100", ba:"#e34948" };
-  const labels = {
-    cm:"Ch\u1edd mua",
-    mu:"Mua",
-    cb:"Ch\u1edd b\u00e1n",
-    ba:"B\u00e1n",
-  };
-  const boxStyles = {
-    cm:{ bg:"#0A2318", border:"#0F3D22", label:T.G, num:T.G, pct:T.G },
-    mu:{ bg:"#0F3D1A", border:"#1A6628", label:"#52E88A", num:T.t1, pct:"rgba(255,255,255,.65)" },
-    cb:{ bg:"#2B1800", border:"#4A2E00", label:T.A, num:T.A, pct:T.A },
-    ba:{ bg:"#200A0E", border:"#3D1018", label:T.R, num:T.R, pct:T.R },
-  };
-  const cx = 110, cy = 110, r = 95, sw = 22, gap = 5;
-  const signalTotal = order.reduce((sum, key) => sum + data[key], 0);
-  const drawableDeg = 360 - order.length * gap;
-  const trustStyle = trust >= 70
-    ? { bg:"#0D2B1A", border:"#1A5C2A", color:T.G }
-    : { bg:"#2B1800", border:"#4A2E00", color:T.A };
-
-  const pointAt = (deg) => {
-    const angle = (deg - 90) * Math.PI / 180;
-    return { x:cx + r * Math.cos(angle), y:cy + r * Math.sin(angle) };
-  };
-  const arcPath = (startDeg, endDeg) => {
-    const start = pointAt(startDeg);
-    const end = pointAt(endDeg);
-    const largeArc = endDeg - startDeg > 180 ? 1 : 0;
-    return `M${start.x.toFixed(2)} ${start.y.toFixed(2)}A${r} ${r} 0 ${largeArc} 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
-  };
-
-  let currentDeg = 0;
-  const segments = order.map((key) => {
-    if (!data[key] || !signalTotal) {
-      currentDeg += gap;
-      return { key, d:null, badge:null };
-    }
-    const span = data[key] / signalTotal * drawableDeg;
-    const startDeg = currentDeg + gap / 2;
-    const endDeg = startDeg + span;
-    const midDeg = (startDeg + endDeg) / 2;
-    currentDeg += span + gap;
-    let badge = null;
-    if (span > 15) {
-      const point = pointAt(midDeg);
-      badge = {
-        x:Math.max(17, Math.min(203, point.x)),
-        y:Math.max(17, Math.min(203, point.y)),
-        fs:data[key] >= 100 ? 10 : data[key] >= 10 ? 13 : 15,
-      };
-    }
-    return { key, d:arcPath(startDeg, endDeg), badge };
-  });
-
-  return (
-    <div style={waveCircleStyle.card}>
-      <div style={waveCircleStyle.header}>
-        <div style={waveCircleStyle.title}>
-          <svg width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <circle cx="10" cy="10" r="8" fill="none" stroke={T.t3} strokeWidth="1.5" />
-            <circle cx="10" cy="10" r="4" fill="none" stroke={T.t3} strokeWidth="1.5" />
-            <line x1="10" y1="2" x2="10" y2="6" stroke={T.t3} strokeWidth="1.5" strokeLinecap="round" />
-            <path d="M10 2 A8 8 0 0 1 17 6.5" stroke={T.G} strokeWidth="2" strokeLinecap="round" fill="none" />
-          </svg>
-          <span>{"V\u00f2ng tr\u00f2n d\u00f2 s\u00f3ng"}</span>
-          {meta && <span style={waveCircleStyle.meta}>{meta}</span>}
-        </div>
-        <div style={waveCircleStyle.headerTools}>
-          {onDateChange && (
-            <label title="Ch\u1ecdn ng\u00e0y" style={waveCircleStyle.calendarButton}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ pointerEvents:"none" }}>
-                <rect x="4" y="5" width="16" height="15" rx="2" stroke="currentColor" strokeWidth="2" />
-                <path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-              <input
-                aria-label="Ch\u1ecdn ng\u00e0y v\u00f2ng tr\u00f2n d\u00f2 s\u00f3ng"
-                type="date"
-                value={selectedDate}
-                onChange={(event) => onDateChange(event.target.value)}
-                style={waveCircleStyle.calendarInput}
-              />
-            </label>
-          )}
-          {selectedDate && onDateChange && (
-            <button type="button" title="Xem realtime" onClick={() => onDateChange("")} style={waveCircleStyle.clearDateButton}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-              </svg>
-            </button>
-          )}
-          <div style={{ ...waveCircleStyle.trust, background:trustStyle.bg, border:`1px solid ${trustStyle.border}`, color:trustStyle.color }}>
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 3L4 7v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V7L12 3z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="none" />
-              <polyline points="9,12 11,14 15,10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            {"Tin c\u1eady"} {trust}%
-          </div>
-        </div>
-      </div>
-
-      <div style={waveCircleStyle.body}>
-        <svg
-          width="280" height="280" viewBox="0 0 220 220" style={waveCircleStyle.donut}
-          role="img"
-          aria-label={`V\u00f2ng tr\u00f2n d\u00f2 s\u00f3ng: t\u1ed5ng ${total} m\u00e3 theo d\u00f5i, ${signalTotal} m\u00e3 c\u00f3 t\u00edn hi\u1ec7u`}
-        >
-          <circle cx={cx} cy={cy} r={r} fill={T.elev} stroke={T.bdr} strokeWidth="0.5" />
-          {segments.map((segment) => segment.d ? (
-            <path key={segment.key} d={segment.d} stroke={colors[segment.key]} strokeWidth={sw} fill="none" strokeLinecap="round" />
-          ) : null)}
-          <circle cx={cx} cy={cy} r="57" fill={T.surf} stroke={T.bdr} strokeWidth="0.5" />
-          {segments.map((segment) => segment.badge ? (
-            <g key={`badge-${segment.key}`}>
-              <circle cx={segment.badge.x.toFixed(1)} cy={segment.badge.y.toFixed(1)} r="15" fill={colors[segment.key]} />
-              <text
-                x={segment.badge.x.toFixed(1)} y={(segment.badge.y + 5).toFixed(1)} textAnchor="middle"
-                fill="#fff" fontSize={segment.badge.fs} fontWeight="500" fontFamily="inherit"
-              >
-                {data[segment.key]}
-              </text>
-            </g>
-          ) : null)}
-          <text x={cx} y={cy + 11} textAnchor="middle" fill={T.t1} fontSize="30" fontWeight="700" fontFamily="inherit">
-            {total}
-          </text>
-        </svg>
-
-        <div style={waveCircleStyle.boxes}>
-          {order.map((key) => {
-            const box = boxStyles[key];
-            return (
-              <div key={key} style={{ ...waveCircleStyle.box, background:box.bg, border:`1px solid ${box.border}` }}>
-                <div style={{ ...waveCircleStyle.boxLabel, color:box.label }}>{labels[key]}</div>
-                <div style={{ ...waveCircleStyle.boxNumber, color:box.num }}>{data[key]}</div>
-                <div style={{ ...waveCircleStyle.boxPercent, color:box.pct }}>
-                  {total ? (data[key] / total * 100).toFixed(1) : "0.0"}%
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const waveCircleStyle = {
-  card:{ background:T.surf, border:`0.5px solid ${T.bdr}`, borderRadius:16, padding:"22px 24px", color:T.t1, transition:"background .2s" },
-  header:{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginBottom:20, flexWrap:"wrap" },
-  title:{ display:"flex", alignItems:"center", gap:9, fontSize:17, fontWeight:700, color:T.t1 },
-  meta:{ fontSize:13, color:T.t4, fontWeight:400, marginLeft:2 },
-  trust:{ display:"flex", alignItems:"center", gap:7, borderRadius:30, padding:"9px 18px", fontSize:15, fontWeight:700, cursor:"pointer" },
-  headerTools:{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" },
-  calendarButton:{ position:"relative", width:38, height:38, borderRadius:11, border:`1px solid ${T.bdr}`, background:T.elev, display:"inline-flex", alignItems:"center", justifyContent:"center", color:T.t2, cursor:"pointer", overflow:"hidden" },
-  calendarInput:{ position:"absolute", inset:0, opacity:0, cursor:"pointer", colorScheme:"dark" },
-  clearDateButton:{ width:38, height:38, borderRadius:11, border:`1px solid ${T.bdr}`, background:T.elev, color:T.t2, cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", padding:0 },
-  body:{ display:"flex", alignItems:"center", gap:28, flexWrap:"wrap" },
-  donut:{ flexShrink:0 },
-  boxes:{ flex:1, minWidth:280, display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 },
-  box:{ borderRadius:14, padding:"18px 20px", cursor:"pointer", transition:"opacity .15s" },
-  boxLabel:{ fontSize:12, fontWeight:800, textTransform:"uppercase", letterSpacing:".1em", marginBottom:8 },
-  boxNumber:{ fontSize:40, fontWeight:800, lineHeight:1, letterSpacing:-1 },
-  boxPercent:{ fontSize:13, marginTop:6, opacity:.75 },
-};
-// ─────────────────────────────────────────────────────────────
-// HIST DONUT CARD (single)
-// ─────────────────────────────────────────────────────────────
-const HIST_ORDER = ["cm", "mu", "cb", "ba"];
-const HIST_LABELS = { cm:"C.MUA", mu:"MUA", cb:"C.BAN", ba:"BAN" };
-const HIST_COLORS = { cm:"#1baf7a", mu:"#0ca30c", cb:"#eda100", ba:"#e34948" };
-const HIST_TILES = {
-  cm: { bg:"#0A2318", bd:"#0F3D22", lab:T.G, num:T.G },
-  mu: { bg:"#0F3D1A", bd:"#1A6628", lab:"#52E88A", num:T.t1 },
-  cb: { bg:"#2B1800", bd:"#4A2E00", lab:T.A, num:T.A },
-  ba: { bg:"#200A0E", bd:"#3D1018", lab:T.R, num:T.R },
-};
-const HIST_GEOM = { cx:80, cy:80, r:68, sw:18, gap:5, inner:41 };
-
-function historyPointAt(deg) {
-  const angle = (deg - 90) * Math.PI / 180;
-  return {
-    x:HIST_GEOM.cx + HIST_GEOM.r * Math.cos(angle),
-    y:HIST_GEOM.cy + HIST_GEOM.r * Math.sin(angle),
-  };
-}
-
-function historyArcPath(startDeg, endDeg) {
-  const start = historyPointAt(startDeg);
-  const end = historyPointAt(endDeg);
-  const largeArc = endDeg - startDeg > 180 ? 1 : 0;
-  return `M${start.x.toFixed(2)} ${start.y.toFixed(2)}A${HIST_GEOM.r} ${HIST_GEOM.r} 0 ${largeArc} 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
-}
-
-function MiniHistoryDonut({ d, dayBg }) {
   const total = d.total || d.cm + d.mu + d.cb + d.ba;
-  const signalTotal = HIST_ORDER.reduce((sum, key) => sum + d[key], 0);
-  const drawableDeg = 360 - HIST_ORDER.length * HIST_GEOM.gap;
-  let currentDeg = 0;
-  const segments = HIST_ORDER.map((key) => {
-    if (!d[key] || !signalTotal) {
-      currentDeg += HIST_GEOM.gap;
-      return { key, d:null, badge:null };
-    }
-    const span = d[key] / signalTotal * drawableDeg;
-    const startDeg = currentDeg + HIST_GEOM.gap / 2;
-    const endDeg = startDeg + span;
-    const midDeg = (startDeg + endDeg) / 2;
-    currentDeg += span + HIST_GEOM.gap;
-    let badge = null;
-    if (span > 12) {
-      const point = historyPointAt(midDeg);
-      badge = {
-        x:Math.max(13, Math.min(147, point.x)),
-        y:Math.max(13, Math.min(147, point.y)),
-      };
-    }
-    return { key, d:historyArcPath(startDeg, endDeg), badge };
-  });
-
   return (
-    <svg
-      width="176"
-      height="176"
-      viewBox="0 0 160 160"
-      style={{ display:"block", margin:"10px auto 6px" }}
-      role="img"
-      aria-label={`Ngay ${d.date}: tong ${total} ma`}
-    >
-      <circle cx={HIST_GEOM.cx} cy={HIST_GEOM.cy} r={HIST_GEOM.r} fill={T.surf} stroke={T.bdr} strokeWidth="0.5" />
-      {segments.map((segment) => segment.d ? (
-        <path key={segment.key} d={segment.d} stroke={HIST_COLORS[segment.key]} strokeWidth={HIST_GEOM.sw} fill="none" strokeLinecap="round" />
-      ) : null)}
-      <circle cx={HIST_GEOM.cx} cy={HIST_GEOM.cy} r={HIST_GEOM.inner} fill={dayBg} stroke={T.bdr} strokeWidth="0.5" />
-      {segments.map((segment) => segment.badge ? (
-        <g key={`b-${segment.key}`}>
-          <circle cx={segment.badge.x.toFixed(1)} cy={segment.badge.y.toFixed(1)} r="12" fill={HIST_COLORS[segment.key]} />
-          <text
-            x={segment.badge.x.toFixed(1)} y={(segment.badge.y + 4).toFixed(1)} textAnchor="middle"
-            fill="#fff" fontSize="11" fontWeight="500" fontFamily="inherit"
-          >
-            {d[segment.key]}
-          </text>
-        </g>
-      ) : null)}
-      <text x={HIST_GEOM.cx} y={HIST_GEOM.cy + 8} textAnchor="middle" fill={T.t1} fontSize="22" fontWeight="700" fontFamily="inherit">
-        {total}
-      </text>
-    </svg>
+    <VongTronDoSong
+      data={data}
+      total={total}
+      trust={Math.max(0, Math.min(100, toNumber(d.tc)))}
+      date={d.rawDate || d.date}
+      theme="dark"
+    />
   );
 }
 
-function HistDonutCard({ d, active }) {
-  const trust = Math.max(0, Math.min(100, toNumber(d.tc)));
-  const trustColor = trust >= 70 ? T.G : T.A;
-  const dayBg = active ? "#1A1230" : "#141926";
-
-  return (
-    <div style={{
-      background:dayBg,
-      border:`1px solid ${active ? "#4A2E8A" : T.bdr}`,
-      borderRadius:14,
-      padding:"16px 14px",
-      textAlign:"center",
-      color:T.t1,
-    }}>
-      <div style={{
-        fontSize:15,
-        fontWeight:700,
-        color:active ? "#C9B8F0" : T.t2,
-        display:"flex",
-        alignItems:"center",
-        justifyContent:"center",
-        gap:8,
-      }}>
-        {d.date}
-        {d.today && <span style={{ fontSize:11, fontWeight:700, color:"#B788FF", background:"#2E1B52", borderRadius:6, padding:"3px 8px" }}>{"H\u00f4m nay"}</span>}
-      </div>
-      <div style={{ fontSize:12, color:T.t4, marginTop:3 }}>{d.dow}</div>
-
-      <MiniHistoryDonut d={d} dayBg={dayBg} />
-
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7, margin:"8px 0 12px" }}>
-        {HIST_ORDER.map((key) => {
-          const tile = HIST_TILES[key];
-          return (
-            <div key={key} style={{
-              display:"flex",
-              alignItems:"center",
-              justifyContent:"space-between",
-              gap:8,
-              borderRadius:9,
-              padding:"7px 11px",
-              background:tile.bg,
-              border:`1px solid ${tile.bd}`,
-            }}>
-              <span style={{ fontSize:10, fontWeight:800, letterSpacing:".07em", textTransform:"uppercase", color:tile.lab }}>{HIST_LABELS[key]}</span>
-              <span style={{ fontSize:17, fontWeight:800, lineHeight:1, color:tile.num, fontFamily:'"JetBrains Mono",ui-monospace,monospace' }}>{d[key]}</span>
-            </div>
-          );
-        })}
-      </div>
-
-      <div style={{ display:"flex", alignItems:"center", gap:9, padding:"0 4px" }}>
-        <span style={{ fontSize:12, color:T.t4, fontWeight:700 }}>TC</span>
-        <div style={{ flex:1, height:5, borderRadius:3, background:T.bdr, overflow:"hidden" }}>
-          <div style={{ height:"100%", width:`${trust}%`, borderRadius:3, background:trustColor }} />
-        </div>
-        <span style={{ fontSize:14, fontWeight:800, color:trustColor }}>{trust}%</span>
-      </div>
-    </div>
-  );
+function toHistorySampleDay(row, index) {
+  return {
+    date:formatSampleDate(row.rawDate),
+    week:formatSampleWeek(row.rawDate),
+    today:index === 0,
+    total:row.total || row.cm + row.mu + row.cb + row.ba,
+    trust:Math.max(0, Math.min(100, toNumber(row.tc))),
+    data:{ cm:row.cm, mu:row.mu, cb:row.cb, ba:row.ba },
+  };
 }
 
 function HistNavigator({ data }) {
@@ -683,95 +405,26 @@ function HistNavigator({ data }) {
   const totalDays = data.length;
   const pageCount = Math.max(1, Math.ceil(totalDays / perPage));
   const safePage = Math.min(page, pageCount);
-  const from = totalDays ? (safePage - 1) * perPage + 1 : 0;
-  const to = Math.min(safePage * perPage, totalDays);
-  const slice = data.slice((safePage - 1) * perPage, safePage * perPage);
+  const days = data
+    .slice((safePage - 1) * perPage, safePage * perPage)
+    .map((row, index) => toHistorySampleDay(row, safePage === 1 ? index : index + perPage));
 
   useEffect(() => {
     setPage(1);
   }, [data]);
 
-  const pageButton = (disabled, onClick, label, points) => (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      aria-label={label}
-      style={{
-        width:38,
-        height:38,
-        borderRadius:11,
-        background:T.elev,
-        border:`1px solid ${T.bdr}`,
-        display:"flex",
-        alignItems:"center",
-        justifyContent:"center",
-        cursor:disabled ? "default" : "pointer",
-        color:T.t1,
-        opacity:disabled ? .35 : 1,
-      }}
-    >
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><polyline points={points} stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-    </button>
-  );
-
   return (
-    <Card style={{ borderRadius:16, padding:"22px 24px" }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:9, fontSize:17, fontWeight:700, color:T.t1 }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle cx="12" cy="12" r="9" stroke={T.t3} strokeWidth="1.8" />
-            <polyline points="12,7 12,12 15.5,14" stroke={T.t3} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          {"L\u1ecbch s\u1eed d\u00f2 s\u00f3ng"}
-          <span style={{ fontSize:15, color:T.t3, fontWeight:400, marginLeft:2 }}>{`(${perPage} ng\u00e0y g\u1ea7n nh\u1ea5t)`}</span>
-        </div>
-        {totalDays > perPage && (
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            {pageButton(safePage <= 1, () => setPage((value) => Math.max(1, value - 1)), "Trang truoc", "15,6 9,12 15,18")}
-            <span style={{ fontSize:14, color:T.t3 }}>{from}-{to}/{totalDays}</span>
-            {pageButton(safePage >= pageCount, () => setPage((value) => Math.min(pageCount, value + 1)), "Trang sau", "9,6 15,12 9,18")}
-          </div>
-        )}
-      </div>
-
-      {slice.length ? (
-        <>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(230px, 1fr))", gap:14 }}>
-            {slice.map((d, i) => (
-              <HistDonutCard key={d.rawDate || d.date} d={d} active={safePage === 1 && i === 0} />
-            ))}
-          </div>
-          {pageCount > 1 && (
-            <div style={{ display:"flex", justifyContent:"center", gap:9, marginTop:16 }}>
-              {Array.from({ length:pageCount }, (_, index) => (
-                <button
-                  key={index}
-                  type="button"
-                  aria-label={`Trang ${index + 1}`}
-                  onClick={() => setPage(index + 1)}
-                  style={{
-                    width:9,
-                    height:9,
-                    borderRadius:"50%",
-                    border:0,
-                    padding:0,
-                    background:index + 1 === safePage ? T.B : T.bdr,
-                    cursor:"pointer",
-                  }}
-                />
-              ))}
-            </div>
-          )}
-        </>
-      ) : (
-        <div style={{ color:T.t3, fontSize:12, padding:"18px 0", textAlign:"center" }}>
-          {"\u0110ang ch\u1edd d\u1eef li\u1ec7u d\u00f2 s\u00f3ng..."}
-        </div>
-      )}
-    </Card>
+    <LichSuDoSong
+      days={days}
+      page={safePage}
+      totalDays={totalDays || days.length}
+      pageCount={pageCount}
+      onPage={setPage}
+      theme="dark"
+    />
   );
-}function DanhMucDoSong({ wave = EMPTY_WAVE }) {
+}
+function DanhMucDoSong({ wave = EMPTY_WAVE }) {
   const [tab, setTab] = useState("cm");
   const [showAll, setShowAll] = useState(false);
   const cfg = TAB_CFG[tab];
@@ -1049,25 +702,14 @@ function NhatKy() {
 // ─────────────────────────────────────────────────────────────
 export default function DoSongThiTruong() {
   const [latestWave, setLatestWave] = useState(EMPTY_WAVE);
-  const [waveStatus, setWaveStatus] = useState("loading");
   const [historyWaves, setHistoryWaves] = useState([]);
   const [historyAllWaves, setHistoryAllWaves] = useState([]);
-  const [selectedRealtimeDate, setSelectedRealtimeDate] = useState("");
   const [chanSongRows, setChanSongRows] = useState([]);
   const [tickerWave, setTickerWave] = useState(EMPTY_WAVE);
-  const selectedRealtimeWave = selectedRealtimeDate
-    ? getWaveSessionOnOrBefore(historyAllWaves, selectedRealtimeDate) || (latestWave.rawDate && latestWave.rawDate <= selectedRealtimeDate ? latestWave : EMPTY_WAVE)
-    : latestWave;
-  const latestTotal = selectedRealtimeWave.total || selectedRealtimeWave.cm + selectedRealtimeWave.mu + selectedRealtimeWave.cb + selectedRealtimeWave.ba;
   const tickerReferenceDate = getPreviousCalendarDate(latestWave.rawDate);
   const danhMucWave = tickerWave.rawDate
     ? { ...latestWave, ...tickerWave }
     : latestWave;
-  const waveMeta = selectedRealtimeWave.rawDate
-    ? `· ${latestTotal} mã · ${selectedRealtimeWave.date}${selectedRealtimeWave.dow ? ` (${selectedRealtimeWave.dow})` : ""}`
-    : waveStatus === "loading"
-      ? "· đang chờ realtime"
-      : "· chưa có dữ liệu";
 
   useEffect(() => {
     let active = true;
@@ -1076,7 +718,6 @@ export default function DoSongThiTruong() {
       .then((row) => {
         if (!active || !row) return;
         setLatestWave(row);
-        setWaveStatus("cached");
       })
       .catch((error) => {
         console.error("Load stock wave current cache failed", error);
@@ -1101,12 +742,10 @@ export default function DoSongThiTruong() {
       if (!rows.length) return;
 
       setLatestWave(rows[0]);
-      setWaveStatus("live");
     });
 
     socket.on("connect_error", (error) => {
       console.error("Realtime wave socket failed", error);
-      setWaveStatus((current) => current === "loading" ? "error" : current);
     });
 
     return () => {
@@ -1194,12 +833,7 @@ export default function DoSongThiTruong() {
           {/* ── CỘT TRÁI ── */}
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             {/* Vòng tròn dò sóng */}
-            <MainDonut
-              d={selectedRealtimeWave}
-              meta={waveMeta}
-              selectedDate={selectedRealtimeDate}
-              onDateChange={setSelectedRealtimeDate}
-            />
+            <MainDonut d={latestWave} />
 
             {/* Lịch sử dò sóng */}
             <HistNavigator data={historyAllWaves.length ? historyAllWaves : historyWaves} />
