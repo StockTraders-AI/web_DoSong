@@ -201,6 +201,11 @@ function getPreviousWaveSessions(rows, referenceDate) {
     .map((item) => ({ ...item, today:false }));
 }
 
+function getWaveSessionOnOrBefore(rows, referenceDate) {
+  if (!referenceDate) return null;
+  return rows.find((item) => item.rawDate && item.rawDate <= referenceDate) || null;
+}
+
 
 function getSocketWaveData(payload) {
   if (payload?.channel && payload.channel !== WAVE_CHANNEL) return null;
@@ -354,7 +359,7 @@ function AIIconSvg() {
 // ─────────────────────────────────────────────────────────────
 // MAIN DONUT
 // ─────────────────────────────────────────────────────────────
-function MainDonut({ d = EMPTY_WAVE, meta = "" }) {
+function MainDonut({ d = EMPTY_WAVE, meta = "", selectedDate = "", onDateChange }) {
   const data = { cm:d.cm, mu:d.mu, cb:d.cb, ba:d.ba };
   const total = d.total || data.cm + data.mu + data.cb + data.ba;
   const trust = Math.max(0, Math.min(100, toNumber(d.tc)));
@@ -405,12 +410,36 @@ function MainDonut({ d = EMPTY_WAVE, meta = "" }) {
           <span>{"V\u00f2ng tr\u00f2n d\u00f2 s\u00f3ng"}</span>
           {meta && <span style={waveCircleStyle.meta}>{meta}</span>}
         </div>
-        <div style={{ ...waveCircleStyle.trust, background:trustStyle.bg, border:`1px solid ${trustStyle.border}`, color:trustStyle.color }}>
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 3L4 7v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V7L12 3z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="none" />
-            <polyline points="9,12 11,14 15,10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          {"Tin c\u1eady"} {trust}%
+        <div style={waveCircleStyle.headerTools}>
+          {onDateChange && (
+            <label title="Chọn ngày" style={waveCircleStyle.calendarButton}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ pointerEvents:"none" }}>
+                <rect x="4" y="5" width="16" height="15" rx="2" stroke="currentColor" strokeWidth="2" />
+                <path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              <input
+                aria-label="Chọn ngày vòng tròn dò sóng"
+                type="date"
+                value={selectedDate}
+                onChange={(event) => onDateChange(event.target.value)}
+                style={waveCircleStyle.calendarInput}
+              />
+            </label>
+          )}
+          {selectedDate && onDateChange && (
+            <button type="button" title="Xem realtime" onClick={() => onDateChange("")} style={waveCircleStyle.clearDateButton}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+              </svg>
+            </button>
+          )}
+          <div style={{ ...waveCircleStyle.trust, background:trustStyle.bg, border:`1px solid ${trustStyle.border}`, color:trustStyle.color }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 3L4 7v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V7L12 3z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="none" />
+              <polyline points="9,12 11,14 15,10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            {"Tin c\u1eady"} {trust}%
+          </div>
         </div>
       </div>
 
@@ -474,6 +503,10 @@ const waveCircleStyle = {
   title:{ display:"flex", alignItems:"center", gap:9, fontSize:16, fontWeight:700, color:T.t1 },
   meta:{ fontSize:12, color:T.t4, fontWeight:400, marginLeft:2 },
   trust:{ display:"flex", alignItems:"center", gap:7, borderRadius:30, padding:"7px 14px", fontSize:14, fontWeight:700 },
+  headerTools:{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" },
+  calendarButton:{ position:"relative", width:34, height:34, borderRadius:10, border:`1px solid ${T.bdr}`, background:T.elev, display:"inline-flex", alignItems:"center", justifyContent:"center", color:T.t2, cursor:"pointer", overflow:"hidden" },
+  calendarInput:{ position:"absolute", inset:0, opacity:0, cursor:"pointer", colorScheme:"dark" },
+  clearDateButton:{ width:34, height:34, borderRadius:10, border:`1px solid ${T.bdr}`, background:T.elev, color:T.t2, cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", padding:0 },
   body:{ display:"flex", alignItems:"center", gap:18, flexWrap:"wrap" },
   donut:{ flexShrink:0, margin:"0 auto" },
   boxes:{ flex:1, minWidth:230, display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 },
@@ -1003,15 +1036,19 @@ export default function DoSongThiTruong() {
   const [waveStatus, setWaveStatus] = useState("loading");
   const [historyWaves, setHistoryWaves] = useState([]);
   const [historyAllWaves, setHistoryAllWaves] = useState([]);
+  const [selectedRealtimeDate, setSelectedRealtimeDate] = useState("");
   const [chanSongRows, setChanSongRows] = useState([]);
   const [tickerWave, setTickerWave] = useState(EMPTY_WAVE);
-  const latestTotal = latestWave.total || latestWave.cm + latestWave.mu + latestWave.cb + latestWave.ba;
+  const selectedRealtimeWave = selectedRealtimeDate
+    ? getWaveSessionOnOrBefore(historyAllWaves, selectedRealtimeDate) || (latestWave.rawDate && latestWave.rawDate <= selectedRealtimeDate ? latestWave : EMPTY_WAVE)
+    : latestWave;
+  const latestTotal = selectedRealtimeWave.total || selectedRealtimeWave.cm + selectedRealtimeWave.mu + selectedRealtimeWave.cb + selectedRealtimeWave.ba;
   const tickerReferenceDate = getPreviousCalendarDate(latestWave.rawDate);
   const danhMucWave = tickerWave.rawDate
     ? { ...latestWave, ...tickerWave }
     : latestWave;
-  const waveMeta = latestWave.rawDate
-    ? `· ${latestTotal} mã · ${latestWave.date}${latestWave.dow ? ` (${latestWave.dow})` : ""}`
+  const waveMeta = selectedRealtimeWave.rawDate
+    ? `· ${latestTotal} mã · ${selectedRealtimeWave.date}${selectedRealtimeWave.dow ? ` (${selectedRealtimeWave.dow})` : ""}`
     : waveStatus === "loading"
       ? "· đang chờ realtime"
       : "· chưa có dữ liệu";
@@ -1141,7 +1178,12 @@ export default function DoSongThiTruong() {
           {/* ── CỘT TRÁI ── */}
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             {/* Vòng tròn dò sóng */}
-            <MainDonut d={latestWave} meta={waveMeta} />
+            <MainDonut
+              d={selectedRealtimeWave}
+              meta={waveMeta}
+              selectedDate={selectedRealtimeDate}
+              onDateChange={setSelectedRealtimeDate}
+            />
 
             {/* Lịch sử dò sóng */}
             <HistNavigator data={historyAllWaves.length ? historyAllWaves : historyWaves} />
