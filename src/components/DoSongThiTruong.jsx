@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import branchLookup from "../data/branchLookup.json";
-import cachedWave20260710 from "../../.stock-wave-cache/tickers-2026-07-10.json";
 import VongTronDoSong from "./VongTronDoSong.jsx";
 import LichSuDoSong from "./LichSuDoSong.jsx";
 import Sidebar from "../layouts/Sidebar.jsx";
@@ -211,7 +210,19 @@ function normalizeWavePayload(payload) {
     .map((item, index) => ({ ...item, today:index === 0 ? item.today : false }));
 }
 
-const TEMP_MAIN_DONUT_WAVE = normalizeWavePayload(cachedWave20260710)[0] || EMPTY_WAVE;
+const TEMP_MAIN_DONUT_WAVE = {
+  ...EMPTY_WAVE,
+  rawDate:"2026-07-10",
+  date:formatWaveDate("2026-07-10"),
+  dow:formatWaveDow("2026-07-10"),
+  cm:50,
+  mu:4,
+  cb:25,
+  ba:16,
+  total:313,
+  tc:50,
+  hasReliability:true,
+};
 
 function getPreviousWaveSessions(rows, referenceDate) {
   return rows
