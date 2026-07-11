@@ -82,7 +82,7 @@ function MiniDonut({ day, T, dayBg }) {
 
   return (
     <svg
-      width="176" height="176" viewBox="0 0 160 160" style={{ display: "block", margin: "10px auto 6px" }}
+      width="124" height="124" viewBox="0 0 160 160" style={{ display: "block", margin: "10px auto 6px" }}
       role="img"
       aria-label={`Ngày ${day.date}: tổng ${total} mã, ${ORDER.map((k) => `${data[k]} ${LABELS[k]}`).join(", ")}, tin cậy ${day.trust}%`}
     >

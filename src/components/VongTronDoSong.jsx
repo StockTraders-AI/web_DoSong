@@ -139,7 +139,7 @@ export default function VongTronDoSong({
       {/* ===== Body: donut trái + 4 thẻ phải ===== */}
       <div style={st.body}>
         <svg
-          width="280" height="280" viewBox="0 0 220 220" style={{ flexShrink: 0 }} role="img"
+          width="190" height="190" viewBox="0 0 220 220" style={{ flexShrink: 0 }} role="img"
           aria-label={`Vòng tròn dò sóng: tổng ${total} mã theo dõi, ${sig} mã có tín hiệu — ${ORDER.map(
             (k) => `${data[k]} ${LABELS[k]}`
           ).join(", ")}`}
@@ -219,20 +219,20 @@ const st = {
     cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, },
   body: { display: "flex", alignItems: "center", gap: 28, flexWrap: "nowrap", overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch" },
   boxes: {
-    flex: "0 0 280px",
-    minWidth: 280,
+    flex: "0 0 540px",
+    minWidth: 540,
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
     gap: 12,
   },
-  box: { borderRadius: 14, padding: "18px 20px", cursor: "pointer", transition: "opacity .15s" },
+  box: { borderRadius: 9, padding: "13px 18px", minHeight: 82, cursor: "pointer", transition: "opacity .15s" },
   blabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 800,
     textTransform: "uppercase",
     letterSpacing: ".1em",
-    marginBottom: 8,
+    marginBottom: 6,
   },
-  bnum: { fontSize: 40, fontWeight: 800, lineHeight: 1, letterSpacing: -1 },
-  bpct: { fontSize: 13, marginTop: 6, opacity: 0.75 },
+  bnum: { fontSize: 30, fontWeight: 800, lineHeight: 1, letterSpacing: -1 },
+  bpct: { fontSize: 12, marginTop: 6, opacity: 0.75 },
 };
