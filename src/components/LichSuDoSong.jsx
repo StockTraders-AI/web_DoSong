@@ -168,7 +168,7 @@ export default function LichSuDoSong({
   const from = (page - 1) * perPage + 1;
   const to = Math.min(page * perPage, totalDays);
   const dotCount = Math.min(4, pageCount);
-  const dotStart = Math.min(Math.max(page - 1, 0), Math.max(pageCount - dotCount, 0));
+  const dotStart = Math.floor(Math.max(page - 1, 0) / 4) * 4;
   const dotPages = Array.from({ length:dotCount }, (_, index) => dotStart + index + 1);
 
   return (
