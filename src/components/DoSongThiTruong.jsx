@@ -3,6 +3,8 @@ import { io } from "socket.io-client";
 import branchLookup from "../data/branchLookup.json";
 import VongTronDoSong from "./VongTronDoSong.jsx";
 import LichSuDoSong from "./LichSuDoSong.jsx";
+import KhuyenNghiTuVanAI from "./KhuyenNghiTuVanAI.jsx";
+import TuVanAiCard from "./TuVanAiCard.jsx";
 import Sidebar from "../layouts/Sidebar.jsx";
 // ─────────────────────────────────────────────────────────────
 // TOKENS
@@ -61,6 +63,7 @@ const TAB_CFG = {
   cb: { label:"Chờ bán", countKey:"cb", rowsKey:"tickerWS", bg:T.As, border:T.Ab, color:T.A },
   ba: { label:"Bán",     countKey:"ba", rowsKey:"tickerS",  bg:T.Rs, border:T.Rb, color:T.R },
 };
+
 
 // ─────────────────────────────────────────────────────────────
 // HELPERS
@@ -380,24 +383,6 @@ const noWrapCellStyle = {
   overflowWrap:"normal",
   wordBreak:"keep-all",
 };
-// ─────────────────────────────────────────────────────────────
-// AI ICON SVG
-// ─────────────────────────────────────────────────────────────
-function AIIconSvg() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 22 22" fill="none" aria-hidden="true">
-      <circle cx="11" cy="11" r="10" stroke="rgba(255,255,255,.25)" strokeWidth="1"/>
-      <circle cx="11" cy="11" r="5.5" fill="white" opacity="0.95"/>
-      {[[11,5.5,11,2],[11,16.5,11,20],[5.5,11,2,11],[16.5,11,20,11]].map(([x1,y1,x2,y2],i)=>(
-        <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="white" strokeWidth="1.4" strokeLinecap="round"/>
-      ))}
-      {[[7.1,7.1,4.5,4.5],[14.9,7.1,17.5,4.5],[7.1,14.9,4.5,17.5],[14.9,14.9,17.5,17.5]].map(([x1,y1,x2,y2],i)=>(
-        <line key={i+4} x1={x1} y1={y1} x2={x2} y2={y2} stroke="white" strokeWidth="1.2" strokeLinecap="round"/>
-      ))}
-      <circle cx="11" cy="11" r="2.5" fill="#7C3AED"/>
-    </svg>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────
 // MAIN DONUT
@@ -476,6 +461,8 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
   const count = wave[cfg.countKey] || rows.length;
   const visibleRows = showAll ? rows : rows.slice(0, 5);
   const showReliability = tab === "mu";
+  const codeColWidth = showReliability ? undefined : 42;
+  const branchColWidth = showReliability ? 80 : 140;
 
   useEffect(() => {
     setShowAll(false);
@@ -510,14 +497,14 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
       </div>
       {/* Table */}
       <div style={{ ...tableScrollStyle, maxHeight:showAll ? 260 : "none", overflowY:showAll ? "auto" : "visible" }}>
-      <table style={{ ...noWrapTableStyle, minWidth:showReliability ? "max(100%, 520px)" : "max(100%, 430px)" }}>
+      <table style={{ ...noWrapTableStyle, minWidth:showReliability ? "max(100%, 460px)" : "max(100%, 390px)" }}>
         <thead>
           <tr>
             {["Mã","Ngành","Giá","Khối lượng", ...(showReliability ? ["Độ tin cậy"] : [])].map((h,i) => (
               <th key={h} style={{
                 fontSize:10, fontWeight:700, color:T.t4, textTransform:"uppercase",
                 letterSpacing:".07em", padding:"7px 9px", borderBottom:`0.5px solid ${T.bdr}`,
-                textAlign: i >= 2 ? "right" : "left", background:T.elev, ...noWrapCellStyle,
+                textAlign: i >= 2 ? "right" : "left", width:h === "Mã" ? codeColWidth : h === "Ngành" ? branchColWidth : undefined, maxWidth:h === "Mã" ? codeColWidth : h === "Ngành" ? branchColWidth : undefined, background:T.elev, ...noWrapCellStyle,
               }}>{h}</th>
             ))}
           </tr>
@@ -528,8 +515,8 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
             const barColor = r.tc >= 70 ? T.G : r.tc >= 55 ? T.A : T.R;
             return (
               <tr key={`${r.ma}-${idx}`} style={{ borderBottom: isLast ? "none" : `0.5px solid ${T.bdrs}` }}>
-                <td style={{ ...tdStyle, fontWeight:700, color:T.B, fontSize:13 }}>{r.ma}</td>
-                <td style={{ ...tdStyle, fontSize:11, color:T.t3, maxWidth:160, overflow:"hidden", textOverflow:"ellipsis" }}>{r.nganh}</td>
+                <td style={{ ...tdStyle, fontWeight:700, color:T.B, fontSize:13, width:codeColWidth, maxWidth:codeColWidth }}>{r.ma}</td>
+                <td style={{ ...tdStyle, fontSize:11, color:T.t3, width:branchColWidth, maxWidth:branchColWidth, whiteSpace:"normal", wordBreak:"break-word", overflowWrap:"anywhere", lineHeight:1.35 }}>{r.nganh}</td>
                 <td style={{ ...tdStyle, textAlign:"right", fontWeight:700, color:T.t1 }}>{r.gia}</td>
                 <td style={{ ...tdStyle, textAlign:"right", fontWeight:600, color:T.t2 }}>{r.vol}</td>
                 {showReliability && (
@@ -636,88 +623,6 @@ function ChanSong({ data = [] }) {
         </div>
       )}
     </Card>
-  );
-}
-// ─────────────────────────────────────────────────────────────
-// RIGHT PANEL: AI
-// ─────────────────────────────────────────────────────────────
-function AIPanel() {
-  return (
-    <div style={{ background:"#1C1040", border:"1px solid #5B21B6", borderRadius:12, padding:"16px 17px" }}>
-      {/* Header */}
-      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
-        <div style={{ width:36, height:36, borderRadius:10, flexShrink:0, display:"flex",
-          alignItems:"center", justifyContent:"center",
-          background:"linear-gradient(135deg,#7C3AED,#4F46E5)" }}>
-          <AIIconSvg />
-        </div>
-        <div style={{ fontSize:11, fontWeight:800, color:"#C4B5FD", textTransform:"uppercase", letterSpacing:".07em" }}>
-          Khuyến nghị từ AI
-        </div>
-        {/* Pulse icon */}
-        <div style={{ marginLeft:"auto", width:48, height:48, borderRadius:"50%",
-          background:"rgba(61,214,140,.12)", border:"1.5px solid rgba(61,214,140,.3)",
-          display:"flex", alignItems:"center", justifyContent:"center" }}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <polyline points="2,12 5,12 7.5,5 10.5,19 13,9 15.5,15 18,12 22,12"
-              stroke={T.G} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </div>
-      </div>
-      <div style={{ fontSize:15, fontWeight:800, color:"#fff", marginBottom:8, lineHeight:1.35 }}>
-        Khả năng tạo đáy cao – Chờ xác nhận !
-      </div>
-      <div style={{ fontSize:12, color:"#E9D5FF", lineHeight:1.65 }}>
-        Số lượng mã Chờ mua đang chiếm tỷ trọng cao 40.5% trên tổng số 402 mã. Dòng tiền bắt đầu quay lại, thị trường đang ở vùng đỡ đáy.
-      </div>
-      <div style={{ background:"rgba(0,0,0,.25)", border:"1px solid rgba(255,255,255,.12)",
-        borderRadius:8, padding:"9px 11px", marginTop:10, fontSize:12, fontWeight:600,
-        color:"#DDD6FE", display:"flex", gap:8, alignItems:"flex-start", lineHeight:1.5 }}>
-        <i className="ti ti-info-circle" style={{ fontSize:14, flexShrink:0, marginTop:1 }} />
-        <span>Khuyến nghị: Giải ngân thăm dò 30% và chờ xác nhận chân sóng.</span>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// RIGHT PANEL: Tình huống tương tự
-// ─────────────────────────────────────────────────────────────
-function TinhHuong() {
-  return (
-    <div style={{ background:T.elev, border:`0.5px solid ${T.Pb}`, borderRadius:12, padding:"16px 17px" }}>
-      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between",
-        marginBottom:12, gap:10 }}>
-        <div style={{ fontSize:12, fontWeight:700, color:T.t1, textTransform:"uppercase",
-          letterSpacing:".05em", lineHeight:1.4 }}>
-          Xem lại tình huống tương tự trong quá khứ
-        </div>
-        <button style={{ background:T.B, border:"none", borderRadius:7, padding:"5px 9px",
-          fontSize:11, fontWeight:700, color:"#fff", cursor:"pointer", whiteSpace:"nowrap",
-          flexShrink:0, fontFamily:"inherit" }}>
-          ✦ Đề xuất
-        </button>
-      </div>
-      <div style={{ display:"flex", gap:14, alignItems:"center" }}>
-        <div style={{ width:40, height:40, borderRadius:9, background:T.Ps, flexShrink:0,
-          display:"flex", alignItems:"center", justifyContent:"center" }}>
-          <i className="ti ti-trending-up" style={{ fontSize:20, color:T.P }} />
-        </div>
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontSize:12, color:T.t2, lineHeight:1.6 }}>
-            Hệ thống đã ghi nhận 3 tình huống tương tự trước đây với tỷ lệ thành công cao. Các thị trường đều bật tăng mạnh sau khi xác nhận chân sóng.
-          </div>
-          <div style={{ fontSize:15, fontWeight:800, color:T.G, marginTop:7 }}>
-            +217 điểm (82% thành công)
-          </div>
-        </div>
-        <button style={{ background:T.P, border:"none", borderRadius:8, padding:"7px 11px",
-          fontSize:11, fontWeight:700, color:"#fff", cursor:"pointer", whiteSpace:"nowrap",
-          flexShrink:0, fontFamily:"inherit" }}>
-          Xem ngay →
-        </button>
-      </div>
-    </div>
   );
 }
 
@@ -930,8 +835,8 @@ export default function DoSongThiTruong() {
 
           {/* ── CỘT PHẢI ── */}
           <div style={{ display:"flex", flexDirection:"column", gap:14, minWidth:0 }}>
-            <AIPanel />
-            <TinhHuong />
+            <KhuyenNghiTuVanAI />
+            <TuVanAiCard />
             <DanhMucDoSong wave={danhMucWave} />
             <NhatKy />
           </div>
