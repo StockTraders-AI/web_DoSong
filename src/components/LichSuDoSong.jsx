@@ -1,143 +1,241 @@
-import React from "react";
+import React, { useMemo } from "react";
 
-const ORDER = ["cm", "mu", "cb", "ba"];
-const LABELS = { cm: "C.MUA", mu: "MUA", cb: "C.BÁN", ba: "BÁN" };
-const DCOL = { cm: "#1baf7a", mu: "#0ca30c", cb: "#eda100", ba: "#e34948" };
+const DCOL = ["#1baf7a", "#0ca30c", "#eda100", "#e34948"];
+const VALUE_COL = ["#3DD68C", "#52E88A", "#FF9F0A", "#FF2D55"];
+const KEYS = ["cm", "mu", "cb", "ba"];
 
-const THEMES = {
-  dark: {
-    surf: "#111520", elev: "#171D2E", bdr: "#242E42", cardBdr: "#1E2A3E",
-    t1: "#F0F4FF", t2: "#A8B8D0", t3: "#5C7090", t4: "#3A4A60", B: "#7C3AED",
-    dayBg: "#141926", dayBd: "#1E2A3E", tdyBg: "#1A1230", tdyBd: "#4A2E8A",
-    tdyDate: "#C9B8F0", tdyPillC: "#B788FF", tdyPillBg: "#2E1B52",
-    trustGood: "#3DD68C", trustLow: "#FF9F0A",
-    tile: {
-      cm: { bg: "#0A2318", bd: "#0F3D22", lab: "#3DD68C", num: "#3DD68C" },
-      mu: { bg: "#0F3D1A", bd: "#1A6628", lab: "#52E88A", num: "#fff" },
-      cb: { bg: "#2B1800", bd: "#4A2E00", lab: "#FF9F0A", num: "#FF9F0A" },
-      ba: { bg: "#200A0E", bd: "#3D1018", lab: "#FF2D55", num: "#FF2D55" },
-    },
-  },
-  light: {
-    surf: "#fff", elev: "#F7F6FC", bdr: "#E0DEEA", cardBdr: "#E0DEEA",
-    t1: "#0A0A0A", t2: "#3A4250", t3: "#6B737F", t4: "#9FA5AE", B: "#6D28D9",
-    dayBg: "#F7F6FC", dayBd: "#E0DEEA", tdyBg: "#F5F3FF", tdyBd: "#DDD6FE",
-    tdyDate: "#6D28D9", tdyPillC: "#6D28D9", tdyPillBg: "rgba(109,40,217,.10)",
-    trustGood: "#16A34A", trustLow: "#D97706",
-    tile: {
-      cm: { bg: "#F0FDF4", bd: "#A7F3C4", lab: "#16A34A", num: "#16A34A" },
-      mu: { bg: "#DCFCE7", bd: "#86EFAC", lab: "#15803D", num: "#0A0A0A" },
-      cb: { bg: "#FFFBEB", bd: "#FCD34D", lab: "#D97706", num: "#D97706" },
-      ba: { bg: "#FFF1F2", bd: "#FECDD3", lab: "#E11D48", num: "#E11D48" },
-    },
-  },
-};
+const LEGEND = [
+  { label: "Chờ mua", color: "#1baf7a" },
+  { label: "Mua", color: "#0ca30c" },
+  { label: "Chờ bán", color: "#eda100" },
+  { label: "Bán", color: "#e34948" },
+];
 
-// Hình học drawDonut bản nhỏ
-const CX = 80, CY = 80, R = 68, SW = 18, GAP = 5, INNER = 41;
+function buildDonut(vals) {
+  const C = 80;
+  const R = 68;
+  const SW = 16;
+  const GAP = 5;
 
-function xy(deg) {
-  const a = ((deg - 90) * Math.PI) / 180;
-  return { x: CX + R * Math.cos(a), y: CY + R * Math.sin(a) };
-}
-function arcP(s, e) {
-  const p = xy(s), q = xy(e), lg = e - s > 180 ? 1 : 0;
-  return `M${p.x.toFixed(2)} ${p.y.toFixed(2)}A${R} ${R} 0 ${lg} 1 ${q.x.toFixed(2)} ${q.y.toFixed(2)}`;
-}
+  const sig = vals.reduce((a, b) => a + b, 0);
+  const tDeg = 360 - vals.length * GAP;
 
-function MiniDonut({ day, T, dayBg }) {
-  const { data, total } = day;
-  const sig = ORDER.reduce((s, k) => s + data[k], 0);
-  const tDeg = 360 - ORDER.length * GAP;
+  const xy = (deg) => {
+    const a = ((deg - 90) * Math.PI) / 180;
+    return [C + R * Math.cos(a), C + R * Math.sin(a)];
+  };
 
+  const arcs = [];
+  const badges = [];
   let cur = 0;
-  const segs = ORDER.map((k) => {
-    if (!data[k] || !sig) {
+
+  vals.forEach((v, i) => {
+    if (!v || !sig) {
       cur += GAP;
-      return { key: k, d: null, badge: null };
+      return;
     }
-    const span = (data[k] / sig) * tDeg;
-    const s = cur + GAP / 2, e = s + span, mid = (s + e) / 2;
+    const span = (v / sig) * tDeg;
+    const st = cur + GAP / 2;
+    const en = st + span;
+    const mid = (st + en) / 2;
+    const [px, py] = xy(st);
+    const [qx, qy] = xy(en);
+    const lg = span > 180 ? 1 : 0;
+
+    arcs.push(
+      <path
+        key={`arc-${i}`}
+        d={`M${px.toFixed(1)} ${py.toFixed(1)}A68 68 0 ${lg} 1 ${qx.toFixed(1)} ${qy.toFixed(1)}`}
+        stroke={DCOL[i]}
+        strokeWidth={SW}
+        fill="none"
+        strokeLinecap="round"
+      />
+    );
+
+    if (span > 15) {
+      const [mx, my] = xy(mid);
+      const bx = Math.max(14, Math.min(146, mx));
+      const by = Math.max(14, Math.min(146, my));
+      const fs = v >= 100 ? 9 : v >= 10 ? 11 : 12;
+      badges.push(
+        <g key={`badge-${i}`}>
+          <circle cx={bx.toFixed(1)} cy={by.toFixed(1)} r={12} fill={DCOL[i]} />
+          <text
+            x={bx.toFixed(1)}
+            y={(by + 4).toFixed(1)}
+            textAnchor="middle"
+            fill="#fff"
+            fontSize={fs}
+            fontWeight={500}
+          >
+            {v}
+          </text>
+        </g>
+      );
+    }
+
     cur += span + GAP;
-    let badge = null;
-    if (span > 12) {
-      const p = xy(mid);
-      badge = { x: Math.max(13, Math.min(147, p.x)), y: Math.max(13, Math.min(147, p.y)) };
-    }
-    return { key: k, d: arcP(s, e), badge };
   });
+
+  return { arcs, badges };
+}
+
+function Donut({ vals, total, dbg }) {
+  const { arcs, badges } = useMemo(() => buildDonut(vals), [vals]);
 
   return (
     <svg
-      width="124" height="124" viewBox="0 0 160 160" style={{ display: "block", margin: "10px auto 6px" }}
+      width={124}
+      height={124}
+      viewBox="0 0 160 160"
       role="img"
-      aria-label={`Ngày ${day.date}: tổng ${total} mã, ${ORDER.map((k) => `${data[k]} ${LABELS[k]}`).join(", ")}, tin cậy ${day.trust}%`}
+      aria-label={`Donut ${total} mã`}
+      style={{ display: "block", margin: "8px auto 4px" }}
     >
-      <circle cx={CX} cy={CY} r={R} fill={T.surf} stroke={T.bdr} strokeWidth="0.5" />
-      {segs.map((s) =>
-        s.d ? <path key={s.key} d={s.d} stroke={DCOL[s.key]} strokeWidth={SW} fill="none" strokeLinecap="round" /> : null
-      )}
-      <circle cx={CX} cy={CY} r={INNER} fill={dayBg} stroke={T.bdr} strokeWidth="0.5" />
-      {segs.map((s) =>
-        s.badge ? (
-          <g key={`b-${s.key}`}>
-            <circle cx={s.badge.x.toFixed(1)} cy={s.badge.y.toFixed(1)} r={12} fill={DCOL[s.key]} />
-            <text
-              x={s.badge.x.toFixed(1)} y={(s.badge.y + 4).toFixed(1)} textAnchor="middle"
-              fill="#fff" fontSize="11" fontWeight="500" fontFamily="inherit"
-            >
-              {data[s.key]}
-            </text>
-          </g>
-        ) : null
-      )}
-      <text x={CX} y={CY + 8} textAnchor="middle" fill={T.t1} fontSize="22" fontWeight="700" fontFamily="inherit">
+      <circle cx={80} cy={80} r={68} fill="#111520" stroke="#242E42" strokeWidth={0.5} />
+      {arcs}
+      <circle cx={80} cy={80} r={41} fill={dbg} stroke="#242E42" strokeWidth={0.5} />
+      {badges}
+      <text x={80} y={88} textAnchor="middle" fill="#F0F4FF" fontSize={22} fontWeight={700}>
         {total}
       </text>
     </svg>
   );
 }
 
-function DayCard({ day, T }) {
-  const trustColor = day.trust >= 70 ? T.trustGood : T.trustLow;
-  const dayBg = day.today ? T.tdyBg : T.dayBg;
+function DayCard({ x }) {
+  const tv = x.tc >= 70 ? "#3DD68C" : "#FF9F0A";
+  const dbg = x.tdy ? "#1A1230" : "#141926";
+
   return (
     <div
       style={{
-        ...st.day,
-        background: dayBg,
-        border: `1px solid ${day.today ? T.tdyBd : T.dayBd}`,
+        borderRadius: 14,
+        padding: "13px 11px",
+        background: dbg,
+        border: `1px solid ${x.tdy ? "#4A2E8A" : "#1E2A3E"}`,
+        textAlign: "center",
       }}
     >
-      <div style={{ ...st.ddate, color: day.today ? T.tdyDate : T.t2 }}>
-        {day.date}
-        {day.today && (
-          <span style={{ ...st.dtoday, color: T.tdyPillC, background: T.tdyPillBg }}>Hôm nay</span>
+      <div style={{ fontSize: 14, fontWeight: 500, color: x.tdy ? "#C9B8F0" : "#A8B8D0" }}>
+        {x.d}
+        {x.tdy && (
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 500,
+              color: "#B788FF",
+              background: "#2E1B52",
+              borderRadius: 6,
+              padding: "2px 7px",
+              verticalAlign: "middle",
+              marginLeft: 6,
+            }}
+          >
+            Hôm nay
+          </span>
         )}
       </div>
-      <div style={{ ...st.dweek, color: T.t4 }}>{day.week}</div>
+      <div style={{ fontSize: 11, color: "#3A4A60", marginTop: 2 }}>{x.w}</div>
 
-      <MiniDonut day={day} T={T} dayBg={dayBg} />
+      <Donut vals={x.v} total={x.tot} dbg={dbg} />
 
-      <div style={st.dstats}>
-        {ORDER.map((k) => {
-          const t = T.tile[k];
-          return (
-            <div key={k} style={{ ...st.dstat, background: t.bg, border: `1px solid ${t.bd}` }}>
-              <span style={{ ...st.dlab, color: t.lab }}>{LABELS[k]}</span>
-              <span style={{ ...st.dnum, color: t.num }}>{day.data[k]}</span>
-            </div>
-          );
-        })}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 6,
+          margin: "7px 0 9px",
+        }}
+      >
+        {x.v.map((n, i) => (
+          <div
+            key={KEYS[i]}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              borderRadius: 8,
+              padding: "7px 9px",
+              background: "#171D2E",
+              border: "1px solid #1E2A3E",
+            }}
+          >
+            <span
+              style={{
+                width: 9,
+                height: 9,
+                borderRadius: "50%",
+                background: DCOL[i],
+                display: "inline-block",
+              }}
+            />
+            <span
+              style={{
+                fontSize: 16,
+                fontWeight: 500,
+                color: VALUE_COL[i],
+                fontFamily: "var(--font-mono, monospace)",
+              }}
+            >
+              {n}
+            </span>
+          </div>
+        ))}
       </div>
 
-      <div style={st.trow}>
-        <span style={{ ...st.tlab, color: T.t4 }}>TC</span>
-        <div style={{ ...st.tbar, background: T.bdr }}>
-          <div style={{ ...st.tfill, width: `${day.trust}%`, background: trustColor }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+        <span style={{ fontSize: 11, color: "#3A4A60", fontWeight: 500 }}>TC</span>
+        <div
+          style={{
+            flex: 1,
+            height: 4,
+            borderRadius: 2,
+            background: "#242E42",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              height: "100%",
+              width: `${x.tc}%`,
+              background: tv,
+              borderRadius: 2,
+            }}
+          />
         </div>
-        <span style={{ ...st.tpct, color: trustColor }}>{day.trust}%</span>
+        <span style={{ fontSize: 12, fontWeight: 500, color: tv }}>{x.tc}%</span>
       </div>
+    </div>
+  );
+}
+
+function Pager({ page, totalDays, pageCount, perPage, onPage }) {
+  if (!totalDays || pageCount <= 1) return null;
+  const from = (page - 1) * perPage + 1;
+  const to = Math.min(page * perPage, totalDays);
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
+      <button
+        style={{ ...styles.pbtn, opacity: page <= 1 ? 0.35 : 1, cursor: page <= 1 ? "default" : "pointer" }}
+        disabled={page <= 1}
+        onClick={() => onPage(page - 1)}
+        aria-label="Trang trước"
+      >
+        ‹
+      </button>
+      <span style={{ fontSize: 13, color: "#5C7090" }}>{from}-{to}/{totalDays}</span>
+      <button
+        style={{ ...styles.pbtn, opacity: to >= totalDays ? 0.35 : 1, cursor: to >= totalDays ? "default" : "pointer" }}
+        disabled={to >= totalDays}
+        onClick={() => onPage(page + 1)}
+        aria-label="Trang sau"
+      >
+        ›
+      </button>
     </div>
   );
 }
@@ -148,106 +246,160 @@ export default function LichSuDoSong({
   totalDays = 0,
   pageCount = 1,
   onPage = () => {},
-  theme = "dark", // "dark" | "light"
 }) {
-  const T = THEMES[theme] || THEMES.dark;
+  const viewDays = days.map((day) => ({
+    d: day.date,
+    w: day.week,
+    tdy: Boolean(day.today),
+    tot: Number(day.total) || 0,
+    tc: Math.max(0, Math.min(100, Number(day.trust) || 0)),
+    v: KEYS.map((key) => Number(day.data?.[key]) || 0),
+  }));
   const perPage = days.length || 3;
-  const from = (page - 1) * perPage + 1;
-  const to = Math.min(page * perPage, totalDays);
   const dotCount = Math.min(4, pageCount);
   const dotStart = Math.floor(Math.max(page - 1, 0) / 4) * 4;
-  const dotPages = Array.from({ length:dotCount }, (_, index) => dotStart + index + 1);
+  const dotPages = Array.from({ length: dotCount }, (_, index) => dotStart + index + 1).filter((dotPage) => dotPage <= pageCount);
 
   return (
-    <div style={{ ...st.card, background: T.surf, border: `.5px solid ${T.cardBdr}`, color: T.t1 }}>
-      {/* ===== Header ===== */}
-      <div style={st.header}>
-        <div style={st.htitle}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle cx="12" cy="12" r="9" stroke={T.t3} strokeWidth="1.8" />
-            <polyline points="12,7 12,12 15.5,14" stroke={T.t3} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          Lịch sử dò sóng
-          <span style={{ ...st.hsub, color: T.t3 }}>({perPage} ngày gần nhất)</span>
+    <div style={styles.outer}>
+      <div style={styles.card}>
+        <div style={styles.header}>
+          <div style={styles.title}>
+            <i className="ti ti-clock" style={{ color: "#5C7090" }} aria-hidden="true" />
+            Lịch sử dò sóng
+          </div>
+          <Pager page={page} totalDays={totalDays} pageCount={pageCount} perPage={perPage} onPage={onPage} />
         </div>
-        <div style={st.pager}>
-          <button
-            style={{ ...st.pbtn, background: T.elev, border: `1px solid ${T.cardBdr}`, color: T.t1, ...(page <= 1 ? st.pbtnOff : null) }}
-            disabled={page <= 1}
-            onClick={() => onPage(page - 1)}
-            aria-label="Trang trước"
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><polyline points="15,6 9,12 15,18" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          </button>
-          <span style={{ ...st.prange, color: T.t3 }}>{from}-{to}/{totalDays}</span>
-          <button
-            style={{ ...st.pbtn, background: T.elev, border: `1px solid ${T.cardBdr}`, color: T.t1, ...(to >= totalDays ? st.pbtnOff : null) }}
-            disabled={to >= totalDays}
-            onClick={() => onPage(page + 1)}
-            aria-label="Trang sau"
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><polyline points="9,6 15,12 9,18" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          </button>
-        </div>
-      </div>
 
-      {/* ===== 3 thẻ ngày ===== */}
-      <div style={st.daysScroll}>
-        <div style={st.days}>
-          {days.map((d) => (
-            <DayCard key={d.date} day={d} T={T} />
+        <div style={styles.legend}>
+          {LEGEND.map((item) => (
+            <span key={item.label} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <span
+                style={{
+                  width: 9,
+                  height: 9,
+                  borderRadius: "50%",
+                  background: item.color,
+                  display: "inline-block",
+                }}
+              />
+              {item.label}
+            </span>
           ))}
         </div>
-      </div>
 
-      {/* ===== Chấm phân trang ===== */}
-      <div style={st.dots}>
-        {dotPages.map((dotPage) => (
-          <span
-            key={dotPage}
-            onClick={() => onPage(dotPage)}
-            style={{ ...st.dot, background: dotPage === page ? T.B : T.bdr }}
-          />
-        ))}
+        {viewDays.length ? (
+          <div style={styles.daysScroll}>
+            <div style={styles.daysGrid}>
+              {viewDays.map((x) => (
+                <DayCard key={`${x.d}-${x.w}`} x={x} />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={styles.empty}>Đang chờ dữ liệu dò sóng...</div>
+        )}
+
+        {dotPages.length > 1 && (
+          <div style={styles.dots}>
+            {dotPages.map((dotPage) => (
+              <span
+                key={dotPage}
+                onClick={() => onPage(dotPage)}
+                style={{ ...styles.dot, background: dotPage === page ? "#7C3AED" : "#242E42" }}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-const st = {
+const styles = {
+  outer: {
+    background: "var(--surface-1, #0B0E15)",
+    borderRadius: 12,
+    padding: 20,
+    display: "flex",
+    justifyContent: "center",
+  },
   card: {
+    width: "100%",
+    maxWidth: 640,
+    background: "#111520",
+    border: "0.5px solid #1E2A3E",
     borderRadius: 16,
-    padding: "22px 24px",
-    maxWidth: 1000,
-    fontFamily: '-apple-system,"Inter",sans-serif',
-    WebkitFontSmoothing: "antialiased",
-    transition: "background .2s",
+    padding: 18,
+    fontFamily: "var(--font-sans, sans-serif)",
+    color: "#F0F4FF",
   },
-  header: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 },
-  htitle: { display: "flex", alignItems: "center", gap: 9, fontSize: 13, fontWeight: 700 },
-  hsub: { fontSize: 10, fontWeight: 400, marginLeft: 2 },
-  pager: { display: "flex", alignItems: "center", gap: 10 },
+  header: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 10,
+  },
+  title: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 15,
+    fontWeight: 500,
+  },
+  legend: {
+    display: "flex",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: "6px 16px",
+    marginBottom: 12,
+    fontSize: 13,
+    fontWeight: 500,
+    color: "#A8B8D0",
+  },
+  daysScroll: {
+    overflowX: "auto",
+    overflowY: "hidden",
+    WebkitOverflowScrolling: "touch",
+  },
+  daysGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3,minmax(0,1fr))",
+    gap: 12,
+    minWidth: "max(100%, 590px)",
+  },
   pbtn: {
-    width: 38, height: 38, borderRadius: 11,
-    display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    border: "1px solid #1E2A3E",
+    background: "#171D2E",
+    color: "#F0F4FF",
+    fontSize: 22,
+    lineHeight: 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  pbtnOff: { opacity: 0.35, cursor: "default" },
-  prange: { fontSize: 14 },
-  daysScroll: { overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch" },
-  days: { display: "grid", gridTemplateColumns: "repeat(3, minmax(190px, 1fr))", gap: 14, minWidth: "max(100%, 598px)" },
-  day: { borderRadius: 14, padding: "14px 12px", textAlign: "center", minWidth: 0 },
-  ddate: { fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 7 },
-  dtoday: { fontSize: 10, fontWeight: 700, borderRadius: 6, padding: "2px 7px" },
-  dweek: { fontSize: 11, marginTop: 2 },
-  dstats: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, margin: "7px 0 10px" },
-  dstat: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 7, borderRadius: 8, padding: "6px 10px" },
-  dlab: { fontSize: 9, fontWeight: 800, letterSpacing: ".07em", textTransform: "uppercase" },
-  dnum: { fontSize: 15, fontWeight: 800, lineHeight: 1, fontFamily: '"JetBrains Mono",ui-monospace,monospace' },
-  trow: { display: "flex", alignItems: "center", gap: 8, padding: "0 4px" },
-  tlab: { fontSize: 11, fontWeight: 700 },
-  tbar: { flex: 1, height: 5, borderRadius: 3, overflow: "hidden" },
-  tfill: { height: "100%", borderRadius: 3 },
-  tpct: { fontSize: 13, fontWeight: 800 },
-  dots: { display: "flex", justifyContent: "center", gap: 9, marginTop: 16 },
-  dot: { width: 9, height: 9, borderRadius: "50%", cursor: "pointer" },
+  dots: {
+    display: "flex",
+    justifyContent: "center",
+    gap: 9,
+    marginTop: 14,
+  },
+  dot: {
+    width: 9,
+    height: 9,
+    borderRadius: "50%",
+    cursor: "pointer",
+  },
+  empty: {
+    borderRadius: 14,
+    border: "1px solid #1E2A3E",
+    background: "#141926",
+    color: "#5C7090",
+    padding: "28px 12px",
+    textAlign: "center",
+    fontSize: 13,
+  },
 };
