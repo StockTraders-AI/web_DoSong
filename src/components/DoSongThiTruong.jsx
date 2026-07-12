@@ -79,11 +79,10 @@ function toDate(value) {
 function formatWaveDate(value) {
   const date = toDate(value);
   if (!date) return "--/--/----";
-  return new Intl.DateTimeFormat("vi-VN", {
-    day:"2-digit",
-    month:"2-digit",
-    year:"numeric",
-  }).format(date);
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 function formatWaveDow(value) {
@@ -406,10 +405,9 @@ function AIIconSvg() {
 function formatSampleDate(value) {
   const date = toDate(value);
   if (!date) return "--/--";
-  return new Intl.DateTimeFormat("vi-VN", {
-    day:"2-digit",
-    month:"2-digit",
-  }).format(date);
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month}`;
 }
 
 function formatSampleWeek(value) {
@@ -428,7 +426,7 @@ function MainDonut({ d = EMPTY_WAVE }) {
       data={data}
       total={total}
       trust={Math.max(0, Math.min(100, toNumber(d.tc)))}
-      date={d.rawDate || d.date}
+      date={d.rawDate ? formatWaveDate(d.rawDate) : d.date}
       theme="dark"
     />
   );
@@ -477,6 +475,7 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
   const rows = normalizeTickerRows(wave[cfg.rowsKey]);
   const count = wave[cfg.countKey] || rows.length;
   const visibleRows = showAll ? rows : rows.slice(0, 5);
+  const showReliability = tab === "mu";
 
   useEffect(() => {
     setShowAll(false);
@@ -511,10 +510,10 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
       </div>
       {/* Table */}
       <div style={{ ...tableScrollStyle, maxHeight:showAll ? 260 : "none", overflowY:showAll ? "auto" : "visible" }}>
-      <table style={{ ...noWrapTableStyle, minWidth:"max(100%, 430px)" }}>
+      <table style={{ ...noWrapTableStyle, minWidth:showReliability ? "max(100%, 520px)" : "max(100%, 430px)" }}>
         <thead>
           <tr>
-            {["Mã","Ngành","Giá","Độ tin cậy"].map((h,i) => (
+            {["Mã","Ngành","Giá","Khối lượng", ...(showReliability ? ["Độ tin cậy"] : [])].map((h,i) => (
               <th key={h} style={{
                 fontSize:10, fontWeight:700, color:T.t4, textTransform:"uppercase",
                 letterSpacing:".07em", padding:"7px 9px", borderBottom:`0.5px solid ${T.bdr}`,
@@ -532,19 +531,22 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
                 <td style={{ ...tdStyle, fontWeight:700, color:T.B, fontSize:13 }}>{r.ma}</td>
                 <td style={{ ...tdStyle, fontSize:11, color:T.t3, maxWidth:160, overflow:"hidden", textOverflow:"ellipsis" }}>{r.nganh}</td>
                 <td style={{ ...tdStyle, textAlign:"right", fontWeight:700, color:T.t1 }}>{r.gia}</td>
-                <td style={{ ...tdStyle, textAlign:"right" }}>
-                  <span style={{ fontWeight:700, color:barColor }}>{r.tc}%</span>
-                  <span style={{ display:"inline-block", width:40, height:3, background:T.bdr,
-                    borderRadius:2, overflow:"hidden", verticalAlign:"middle", marginLeft:6 }}>
-                    <span style={{ display:"block", height:"100%", width:`${r.tc}%`, background:barColor, borderRadius:2 }} />
-                  </span>
-                </td>
+                <td style={{ ...tdStyle, textAlign:"right", fontWeight:600, color:T.t2 }}>{r.vol}</td>
+                {showReliability && (
+                  <td style={{ ...tdStyle, textAlign:"right" }}>
+                    <span style={{ fontWeight:700, color:barColor }}>{r.tc}%</span>
+                    <span style={{ display:"inline-block", width:40, height:3, background:T.bdr,
+                      borderRadius:2, overflow:"hidden", verticalAlign:"middle", marginLeft:6 }}>
+                      <span style={{ display:"block", height:"100%", width:`${r.tc}%`, background:barColor, borderRadius:2 }} />
+                    </span>
+                  </td>
+                )}
               </tr>
             );
           })}
           {!rows.length && (
             <tr>
-              <td colSpan={4} style={{ padding:"18px 8px", textAlign:"center", color:T.t3, fontSize:12 }}>
+              <td colSpan={showReliability ? 5 : 4} style={{ padding:"18px 8px", textAlign:"center", color:T.t3, fontSize:12 }}>
                 Chưa có danh sách mã cho nhóm {cfg.label.toLowerCase()}.
               </td>
             </tr>
