@@ -9,7 +9,7 @@ import Sidebar from "../layouts/Sidebar.jsx";
 // ─────────────────────────────────────────────────────────────
 // TOKENS
 // ─────────────────────────────────────────────────────────────
-const T = {
+const DARK_T = {
   bg:"#0A0D14", surf:"#111520", elev:"#171D2E", bdr:"#242E42", bdrs:"#1C2538",
   t1:"#F0F4FF", t2:"#A8B8D0", t3:"#5C7090", t4:"#3A4A60",
   G:"#3DD68C",  Gs:"rgba(61,214,140,.13)",  Gb:"rgba(61,214,140,.32)",
@@ -19,6 +19,19 @@ const T = {
   R:"#FF2D55",  Rs:"rgba(255,45,85,.10)",   Rb:"rgba(255,45,85,.26)",
   P:"#C084FC",  Ps:"rgba(192,132,252,.10)", Pb:"rgba(192,132,252,.28)",
 };
+
+const LIGHT_T = {
+  bg:"#F0EFF5", surf:"#FFFFFF", elev:"#F7F6FC", bdr:"#E0DEEA", bdrs:"#ECEAF4",
+  t1:"#0A0A0A", t2:"#3A4250", t3:"#6B737F", t4:"#9FA5AE",
+  G:"#16A34A",  Gs:"rgba(22,163,74,.10)",   Gb:"rgba(22,163,74,.28)",
+  MU:"#15803D", MUs:"rgba(21,128,61,.12)",  MUb:"rgba(21,128,61,.28)",
+  B:"#6D28D9",  Bs:"rgba(109,40,217,.10)",  Bb:"rgba(109,40,217,.25)",
+  A:"#D97706",  As:"rgba(217,119,6,.10)",   Ab:"rgba(217,119,6,.28)",
+  R:"#E11D48",  Rs:"rgba(225,29,72,.10)",   Rb:"rgba(225,29,72,.25)",
+  P:"#7C3AED",  Ps:"rgba(124,58,237,.10)",  Pb:"rgba(124,58,237,.24)",
+};
+
+let T = DARK_T;
 
 // ─────────────────────────────────────────────────────────────
 // DATA
@@ -57,12 +70,14 @@ const LOG = [
   { time:"09:15", icon:"ti-info-circle", color:T.B,  bg:"rgba(124,58,237,.12)",  txt:"VNINDEX giảm về vùng hỗ trợ mạnh 1.210 – 1.220 điểm. Khả năng xuất hiện nhịp hồi kỹ thuật." },
 ];
 
-const TAB_CFG = {
+function getTabCfg() {
+  return {
   cm: { label:"Chờ mua", countKey:"cm", rowsKey:"tickerWB", bg:T.Gs, border:T.Gb, color:T.G },
   mu: { label:"Mua",     countKey:"mu", rowsKey:"tickerB",  bg:T.MUs,border:T.MUb,color:T.MU },
   cb: { label:"Chờ bán", countKey:"cb", rowsKey:"tickerWS", bg:T.As, border:T.Ab, color:T.A },
   ba: { label:"Bán",     countKey:"ba", rowsKey:"tickerS",  bg:T.Rs, border:T.Rb, color:T.R },
-};
+  };
+}
 
 
 // ─────────────────────────────────────────────────────────────
@@ -403,7 +418,7 @@ function formatSampleWeek(value) {
   return `T.${day + 1}`;
 }
 
-function MainDonut({ d = EMPTY_WAVE }) {
+function MainDonut({ d = EMPTY_WAVE, theme = "dark" }) {
   const data = { cm:d.cm, mu:d.mu, cb:d.cb, ba:d.ba };
   const total = d.total || d.cm + d.mu + d.cb + d.ba;
   return (
@@ -412,7 +427,7 @@ function MainDonut({ d = EMPTY_WAVE }) {
       total={total}
       trust={Math.max(0, Math.min(100, toNumber(d.tc)))}
       date={d.rawDate ? formatWaveDate(d.rawDate) : d.date}
-      theme="dark"
+      theme={theme}
     />
   );
 }
@@ -428,7 +443,7 @@ function toHistorySampleDay(row) {
   };
 }
 
-function HistNavigator({ data, totalDays: apiTotalDays }) {
+function HistNavigator({ data, totalDays: apiTotalDays, theme = "dark" }) {
   const [page, setPage] = useState(1);
   const perPage = 3;
   const totalDays = apiTotalDays || data.length;
@@ -449,26 +464,25 @@ function HistNavigator({ data, totalDays: apiTotalDays }) {
       totalDays={totalDays || days.length}
       pageCount={pageCount}
       onPage={setPage}
-      theme="dark"
+      theme={theme}
     />
   );
 }
 function DanhMucDoSong({ wave = EMPTY_WAVE }) {
   const [tab, setTab] = useState("cm");
   const [showAll, setShowAll] = useState(false);
-  const cfg = TAB_CFG[tab];
+  const tabCfg = getTabCfg();
+  const cfg = tabCfg[tab];
   const rows = normalizeTickerRows(wave[cfg.rowsKey]);
   const count = wave[cfg.countKey] || rows.length;
   const visibleRows = showAll ? rows : rows.slice(0, 5);
   const showReliability = tab === "mu";
-  const codeColWidth = showReliability ? undefined : 42;
-  const branchColWidth = showReliability ? 80 : 140;
 
   useEffect(() => {
     setShowAll(false);
   }, [tab]);
 
-  const tdStyle = { padding:"9px 9px", borderBottom:`0.5px solid ${T.bdrs}`, ...noWrapCellStyle };
+  const tdStyle = { padding:"8px 5px", borderBottom:`0.5px solid ${T.bdrs}`, ...noWrapCellStyle };
 
   return (
     <Card style={{ padding:"16px 17px" }}>
@@ -479,7 +493,7 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
       />
       {/* Tab buttons */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:12 }}>
-        {Object.entries(TAB_CFG).map(([key, c]) => {
+        {Object.entries(tabCfg).map(([key, c]) => {
           const active = key === tab;
           const tabCount = wave[c.countKey] || normalizeTickerRows(wave[c.rowsKey]).length;
           return (
@@ -497,14 +511,21 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
       </div>
       {/* Table */}
       <div style={{ ...tableScrollStyle, maxHeight:showAll ? 260 : "none", overflowY:showAll ? "auto" : "visible" }}>
-      <table style={{ ...noWrapTableStyle, minWidth:showReliability ? "max(100%, 460px)" : "max(100%, 390px)" }}>
+      <table style={{ ...noWrapTableStyle, width:"100%", minWidth:"100%", tableLayout:"fixed" }}>
+        <colgroup>
+          <col style={{ width:44 }} />
+          <col />
+          <col style={{ width:52 }} />
+          <col style={{ width:88 }} />
+          {showReliability && <col style={{ width:94 }} />}
+        </colgroup>
         <thead>
           <tr>
             {["Mã","Ngành","Giá","Khối lượng", ...(showReliability ? ["Độ tin cậy"] : [])].map((h,i) => (
               <th key={h} style={{
                 fontSize:10, fontWeight:700, color:T.t4, textTransform:"uppercase",
-                letterSpacing:".07em", padding:"7px 9px", borderBottom:`0.5px solid ${T.bdr}`,
-                textAlign: i >= 2 ? "right" : "left", width:h === "Mã" ? codeColWidth : h === "Ngành" ? branchColWidth : undefined, maxWidth:h === "Mã" ? codeColWidth : h === "Ngành" ? branchColWidth : undefined, background:T.elev, ...noWrapCellStyle,
+                letterSpacing:".07em", padding:"7px 5px", borderBottom:`0.5px solid ${T.bdr}`,
+                textAlign: i >= 2 ? "right" : "left", background:T.elev, ...noWrapCellStyle,
               }}>{h}</th>
             ))}
           </tr>
@@ -515,8 +536,8 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
             const barColor = r.tc >= 70 ? T.G : r.tc >= 55 ? T.A : T.R;
             return (
               <tr key={`${r.ma}-${idx}`} style={{ borderBottom: isLast ? "none" : `0.5px solid ${T.bdrs}` }}>
-                <td style={{ ...tdStyle, fontWeight:700, color:T.B, fontSize:13, width:codeColWidth, maxWidth:codeColWidth }}>{r.ma}</td>
-                <td style={{ ...tdStyle, fontSize:11, color:T.t3, width:branchColWidth, maxWidth:branchColWidth, whiteSpace:"normal", wordBreak:"break-word", overflowWrap:"anywhere", lineHeight:1.35 }}>{r.nganh}</td>
+                <td style={{ ...tdStyle, fontWeight:700, color:T.B, fontSize:13 }}>{r.ma}</td>
+                <td style={{ ...tdStyle, fontSize:11, color:T.t3, overflow:"hidden", textOverflow:"ellipsis" }}>{r.nganh}</td>
                 <td style={{ ...tdStyle, textAlign:"right", fontWeight:700, color:T.t1 }}>{r.gia}</td>
                 <td style={{ ...tdStyle, textAlign:"right", fontWeight:600, color:T.t2 }}>{r.vol}</td>
                 {showReliability && (
@@ -664,6 +685,8 @@ function NhatKy() {
 // ROOT COMPONENT
 // ─────────────────────────────────────────────────────────────
 export default function DoSongThiTruong() {
+  const [theme, setTheme] = useState("dark");
+  T = theme === "light" ? LIGHT_T : DARK_T;
   const [latestWave, setLatestWave] = useState(EMPTY_WAVE);
   const [historyWaves, setHistoryWaves] = useState([]);
   const [historyAllWaves, setHistoryAllWaves] = useState([]);
@@ -809,13 +832,47 @@ export default function DoSongThiTruong() {
         ::-webkit-scrollbar-thumb{background:${T.bdr};border-radius:3px}
       `}</style>
 
-      <div style={{
+      <div data-theme={theme} style={{
+        "--bg": T.bg,
+        "--surf": T.surf,
+        "--elev": T.elev,
+        "--bdr": T.bdr,
+        "--bdrs": T.bdrs,
+        "--t1": T.t1,
+        "--t2": T.t2,
+        "--t3": T.t3,
+        "--t4": T.t4,
+        "--B": T.B,
+        "--Bs": T.Bs,
+        "--Bb": T.Bb,
         background: T.bg, color: T.t1,
         fontFamily: '-apple-system,"Inter","Segoe UI",sans-serif',
         fontSize: 13,
         display:"flex",
         minHeight: "100vh",
       }}>
+        <button
+          type="button"
+          onClick={() => setTheme((value) => value === "dark" ? "light" : "dark")}
+          style={{
+            position:"fixed",
+            top:14,
+            right:18,
+            zIndex:1000,
+            background:T.elev,
+            color:T.t1,
+            border:`0.5px solid ${T.bdr}`,
+            borderRadius:8,
+            padding:"8px 12px",
+            fontSize:12,
+            fontWeight:700,
+            lineHeight:1,
+            cursor:"pointer",
+            boxShadow:theme === "dark" ? "0 8px 24px rgba(0,0,0,.22)" : "0 8px 24px rgba(20,20,30,.10)",
+          }}
+        >
+          {theme === "dark" ? "Light" : "Dark"}
+        </button>
         <Sidebar />
         <main style={{ flex:1, minWidth:0, padding:"18px 22px 32px" }}>
           {/* 60/40 content layout */}
@@ -824,10 +881,10 @@ export default function DoSongThiTruong() {
           {/* ── CỘT TRÁI ── */}
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             {/* Vòng tròn dò sóng */}
-            <MainDonut d={mainDonutDisplayWave} />
+            <MainDonut d={mainDonutDisplayWave} theme={theme} />
 
             {/* Lịch sử dò sóng */}
-            <HistNavigator data={historyDisplayWaves} totalDays={historyDisplayWaves.length} />
+            <HistNavigator data={historyDisplayWaves} totalDays={historyDisplayWaves.length} theme={theme} />
 
             {/* Lịch sử chân sóng */}
             <ChanSong data={chanSongRows} />
