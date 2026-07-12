@@ -1,0 +1,145 @@
+:root {
+  --page-bg: #F4F1EA;
+  --card-bg: #FFFFFF;
+  --text-primary: #1A1A18;
+  --text-secondary: #7A7A74;
+  --text-placeholder: #A8A79E;
+  --border: #E4E2D8;
+  --btn-bg: #171614;
+  --btn-text: #FFFFFF;
+  --radius-card: 20px;
+  --radius-input: 12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page-bg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: var(--text-primary);
+}
+
+.au-page {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 3rem 1.5rem;
+}
+
+.au-card {
+  background: var(--card-bg);
+  border-radius: var(--radius-card);
+  padding: 2.5rem;
+  width: 100%;
+  max-width: 900px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.au-title {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.au-subtitle {
+  font-size: 15px;
+  color: var(--text-secondary);
+  margin: 0 0 24px;
+}
+
+.au-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.au-input {
+  height: 52px;
+  border-radius: var(--radius-input);
+  border: 1.5px solid var(--border);
+  padding: 0 18px;
+  font-size: 15px;
+  color: var(--text-primary);
+  background: var(--card-bg);
+  outline: none;
+  width: 100%;
+}
+
+.au-input::placeholder {
+  color: var(--text-placeholder);
+}
+
+.au-input:focus {
+  border-color: var(--text-primary);
+}
+
+.au-btn {
+  height: 52px;
+  border-radius: var(--radius-input);
+  border: none;
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.au-btn:hover {
+  opacity: 0.92;
+}
+
+.au-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.au-error {
+  font-size: 13px;
+  color: #C0392B;
+  margin: -20px 0 20px;
+}
+
+.au-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.au-table thead th {
+  text-align: left;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  padding: 0 0 14px;
+  border-bottom: 1.5px solid var(--border);
+}
+
+.au-table tbody td {
+  padding: 16px 0;
+  font-size: 15px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+.au-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.au-empty {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 24px 0;
+}
+
+.au-delete-btn {
+  border: none;
+  background: transparent;
+  color: #C0392B;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px 8px;
+}

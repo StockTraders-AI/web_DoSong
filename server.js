@@ -6,6 +6,7 @@ import { handleStockWaveHistory, sendJson } from "./stockWaveHistoryCache.js";
 import { handleStockWaveCurrent, startStockWaveCurrentSocket } from "./stockWaveCurrentCache.js";
 import { handleStockWaveTickers } from "./stockWaveTickersCache.js";
 import { handleWaveBottomConfirmPairs } from "./waveBottomConfirmPairsCache.js";
+import { handleUsersRequest } from "./usersApi.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 5173);
@@ -54,7 +55,9 @@ function serveStatic(req, res, url) {
   createReadStream(filePath).pipe(res);
 }
 
-createServer((req, res) => {
+createServer(async (req, res) => {
+  if (await handleUsersRequest(req, res, req.url)) return;
+
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
 
   if (req.method === "GET" && url.pathname === "/api/stock-wave-current") {

@@ -4,6 +4,7 @@ import { handleStockWaveHistory } from './stockWaveHistoryCache.js'
 import { handleStockWaveCurrent, startStockWaveCurrentSocket } from './stockWaveCurrentCache.js'
 import { handleStockWaveTickers } from './stockWaveTickersCache.js'
 import { handleWaveBottomConfirmPairs } from './waveBottomConfirmPairsCache.js'
+import { handleUsersRequest } from './usersApi.js'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -13,7 +14,9 @@ export default defineConfig({
       name: 'stock-wave-history-cache',
       configureServer(server) {
         startStockWaveCurrentSocket()
-        server.middlewares.use((req, res, next) => {
+        server.middlewares.use(async (req, res, next) => {
+          if (await handleUsersRequest(req, res, req.url)) return
+
           const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`)
           if (req.method === 'GET' && url.pathname === '/api/stock-wave-current') {
             handleStockWaveCurrent(req, res)
