@@ -71,6 +71,7 @@ export default function TuVanAiCard() {
               alignItems: "center",
               justifyContent: "center",
               flexShrink: 0,
+              whiteSpace: "nowrap",
             }}
           >
             <i className="ti ti-sparkles" style={{ color: "#E4D4FF", fontSize: 18 }} aria-hidden="true" />

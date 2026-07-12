@@ -16,7 +16,7 @@ export default function KhuyenNghiTuVanAI() {
           padding: "10px 12px",
           fontSize: 11.5,
           fontWeight: 700,
-          color: "#F0F4FF",
+          color: "var(--t1, #0A0A0A)",
           background: "rgba(124,58,237,.14)",
         }}
       >
