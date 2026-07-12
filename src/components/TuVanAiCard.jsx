@@ -51,7 +51,7 @@ export default function TuVanAiCard() {
   };
 
   return (
-    <div style={{ background: "#111520", border: "1px solid #1E2A3E", borderRadius: 16, padding: "15px 16px" }}>
+    <div style={{ background: "var(--surf, #111520)", border: "1px solid var(--cbdr, var(--bdr, #1E2A3E))", borderRadius: 16, padding: "15px 16px" }}>
       <style>{`
         @keyframes portfolioAiDot {
           0%, 80%, 100% { opacity: .32; transform: translateY(0); }
@@ -76,8 +76,8 @@ export default function TuVanAiCard() {
             <i className="ti ti-sparkles" style={{ color: "#E4D4FF", fontSize: 18 }} aria-hidden="true" />
           </div>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#F0F4FF" }}>Tư vấn AI</div>
-            <div style={{ fontSize: 12, color: "#5C7090", marginTop: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t1, #F0F4FF)" }}>Tư vấn AI</div>
+            <div style={{ fontSize: 12, color: "var(--t3, #5C7090)", marginTop: 1 }}>
               Hỏi về danh mục, sóng ngành, chiến lược
             </div>
           </div>
@@ -118,9 +118,9 @@ export default function TuVanAiCard() {
             type="button"
             onClick={() => setQuestion(chip)}
             style={{
-              background: "#171D2E",
-              border: "1px solid #1E2A3E",
-              color: "#C7D2E6",
+              background: "var(--elev, #171D2E)",
+              border: "1px solid var(--cbdr, var(--bdr, #1E2A3E))",
+              color: "var(--t2, #C7D2E6)",
               fontSize: 12.5,
               fontWeight: 500,
               borderRadius: 20,
@@ -146,8 +146,8 @@ export default function TuVanAiCard() {
                 border: `1px solid ${message.role === "user" ? "#3A2670" : "#1E2A3E"}`,
                 borderRadius: 12,
                 padding: "8px 10px",
-                background: message.role === "user" ? "#1C1440" : "#171D2E",
-                color: message.role === "user" ? "#F0F4FF" : "#C7D2E6",
+                background: message.role === "user" ? "var(--Bs, #1C1440)" : "var(--elev, #171D2E)",
+                color: message.role === "user" ? "var(--t1, #F0F4FF)" : "var(--t2, #C7D2E6)",
                 fontSize: 12.5,
                 lineHeight: 1.55,
                 whiteSpace: "pre-wrap",
@@ -159,10 +159,10 @@ export default function TuVanAiCard() {
           {loading && (
             <div style={{
               alignSelf: "flex-start",
-              border: "1px solid #1E2A3E",
+              border: "1px solid var(--cbdr, var(--bdr, #1E2A3E))",
               borderRadius: 12,
               padding: "10px 12px",
-              background: "#171D2E",
+              background: "var(--elev, #171D2E)",
               display: "flex",
               alignItems: "center",
               gap: 5,
@@ -174,7 +174,7 @@ export default function TuVanAiCard() {
                     width: 6,
                     height: 6,
                     borderRadius: "50%",
-                    background: "#A8B8D0",
+                    background: "var(--t2, #A8B8D0)",
                     display: "inline-block",
                     animation: "portfolioAiDot 1.1s infinite ease-in-out",
                     animationDelay: `${dot * 0.16}s`,
@@ -188,7 +188,7 @@ export default function TuVanAiCard() {
 
       {error && <div style={{ marginTop: 10, color: "#FF2D55", fontSize: 12, lineHeight: 1.4 }}>{error}</div>}
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14, background: "#171D2E", border: "1px solid #1E2A3E", borderRadius: 12, padding: "5px 6px 5px 14px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14, background: "var(--elev, #171D2E)", border: "1px solid var(--cbdr, var(--bdr, #1E2A3E))", borderRadius: 12, padding: "5px 6px 5px 14px" }}>
         <input
           type="text"
           value={question}
@@ -202,7 +202,7 @@ export default function TuVanAiCard() {
             background: "transparent",
             border: "none",
             outline: "none",
-            color: "#F0F4FF",
+            color: "var(--t1, #F0F4FF)",
             fontSize: 13,
             fontFamily: "inherit",
             opacity: loading ? 0.7 : 1,
@@ -219,7 +219,7 @@ export default function TuVanAiCard() {
             flexShrink: 0,
             border: "none",
             borderRadius: 9,
-            background: loading ? "#3A4A60" : "linear-gradient(135deg, #8B3FE8, #6B24C9)",
+            background: loading ? "var(--t4, #3A4A60)" : "linear-gradient(135deg, #8B3FE8, #6B24C9)",
             color: "#fff",
             display: "flex",
             alignItems: "center",

@@ -318,21 +318,24 @@ export default function LichSuDoSong({
 
 const styles = {
   outer: {
-    background: "var(--surface-1, #0B0E15)",
+    width: "100%",
+    minWidth: 0,
+    background: "transparent",
     borderRadius: 12,
-    padding: 20,
-    display: "flex",
+    padding: 0,
+    display: "block",
     justifyContent: "center",
   },
   card: {
     width: "100%",
-    maxWidth: 640,
-    background: "#111520",
-    border: "0.5px solid #1E2A3E",
+    maxWidth: "none",
+    minWidth: 0,
+    background: "var(--surf, #111520)",
+    border: "1px solid var(--cbdr, var(--bdr, #1E2A3E))",
     borderRadius: 16,
     padding: 18,
     fontFamily: "var(--font-sans, sans-serif)",
-    color: "#F0F4FF",
+    color: "var(--t1, #F0F4FF)"
   },
   header: {
     display: "flex",
