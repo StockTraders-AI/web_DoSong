@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import branchLookup from "../data/branchLookup.json";
 import VongTronDoSong from "./VongTronDoSong.jsx";
+import DateTimeTravel from "./DateTimeTravel.jsx";
 import LichSuDoSong from "./LichSuDoSong.jsx";
 import KhuyenNghiTuVanAI from "./KhuyenNghiTuVanAI.jsx";
 import TuVanAiCard from "./TuVanAiCard.jsx";
@@ -92,6 +93,15 @@ function toDate(value) {
   if (!value) return null;
   const date = new Date(`${value}T00:00:00`);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDateKey(date) {
+  const value = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(value.getTime())) return "";
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function formatWaveDate(value) {
@@ -227,19 +237,6 @@ function normalizeWavePayload(payload) {
     .map((item, index) => ({ ...item, today:index === 0 ? item.today : false }));
 }
 
-const TEMP_MAIN_DONUT_WAVE = {
-  ...EMPTY_WAVE,
-  rawDate:"2026-07-10",
-  date:formatWaveDate("2026-07-10"),
-  dow:formatWaveDow("2026-07-10"),
-  cm:50,
-  mu:4,
-  cb:25,
-  ba:16,
-  total:313,
-  tc:50,
-  hasReliability:true,
-};
 
 function getPreviousWaveSessions(rows, referenceDate) {
   return rows
@@ -418,7 +415,7 @@ function formatSampleWeek(value) {
   return `T.${day + 1}`;
 }
 
-function MainDonut({ d = EMPTY_WAVE, theme = "dark" }) {
+function MainDonut({ d = EMPTY_WAVE, theme = "dark", dateControl = null }) {
   const data = { cm:d.cm, mu:d.mu, cb:d.cb, ba:d.ba };
   const total = d.total || d.cm + d.mu + d.cb + d.ba;
   return (
@@ -427,6 +424,7 @@ function MainDonut({ d = EMPTY_WAVE, theme = "dark" }) {
       total={total}
       trust={Math.max(0, Math.min(100, toNumber(d.tc)))}
       date={d.rawDate ? formatWaveDate(d.rawDate) : d.date}
+      dateControl={dateControl}
       theme={theme}
     />
   );
@@ -443,7 +441,7 @@ function toHistorySampleDay(row) {
   };
 }
 
-function HistNavigator({ data, totalDays: apiTotalDays, theme = "dark" }) {
+function HistNavigator({ data, totalDays: apiTotalDays, theme = "dark", loading = false }) {
   const [page, setPage] = useState(1);
   const perPage = 3;
   const totalDays = apiTotalDays || data.length;
@@ -465,6 +463,7 @@ function HistNavigator({ data, totalDays: apiTotalDays, theme = "dark" }) {
       pageCount={pageCount}
       onPage={setPage}
       theme={theme}
+      loading={loading}
     />
   );
 }
@@ -687,9 +686,11 @@ function NhatKy() {
 export default function DoSongThiTruong() {
   const [theme, setTheme] = useState("dark");
   T = theme === "light" ? LIGHT_T : DARK_T;
+  const [selectedWaveDate, setSelectedWaveDate] = useState("");
   const [latestWave, setLatestWave] = useState(EMPTY_WAVE);
   const [historyWaves, setHistoryWaves] = useState([]);
   const [historyAllWaves, setHistoryAllWaves] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [chanSongRows, setChanSongRows] = useState([]);
   const [tickerWave, setTickerWave] = useState(EMPTY_WAVE);
   const tickerReferenceDate = getPreviousCalendarDate(latestWave.rawDate);
@@ -699,10 +700,16 @@ export default function DoSongThiTruong() {
   const realtimeDisplayWave = latestWave.hasReliability || !matchingHistoryWave
     ? latestWave
     : { ...latestWave, tc:matchingHistoryWave.tc, hasReliability:true };
-  // TODO: remove this temporary 2026-07-10 UI override when switching main donut back to socket.
-  const mainDonutDisplayWave = TEMP_MAIN_DONUT_WAVE.rawDate === "2026-07-10"
-    ? TEMP_MAIN_DONUT_WAVE
-    : realtimeDisplayWave;
+  const mainDonutDisplayWave = realtimeDisplayWave;
+  const dateTravelWaves = [mainDonutDisplayWave, ...historyDisplayWaves]
+    .filter((item, index, rows) => item.rawDate && rows.findIndex((row) => row.rawDate === item.rawDate) === index);
+  const sortedDateTravelWaves = [...dateTravelWaves].sort((a, b) => String(b.rawDate).localeCompare(String(a.rawDate)));
+  const selectedMainDonutWave = selectedWaveDate
+    ? dateTravelWaves.find((item) => item.rawDate === selectedWaveDate) || mainDonutDisplayWave
+    : mainDonutDisplayWave;
+  const dateTravelValue = toDate(selectedMainDonutWave.rawDate) || new Date();
+  const dateTravelMinDate = toDate(sortedDateTravelWaves[sortedDateTravelWaves.length - 1]?.rawDate) || dateTravelValue;
+  const dateTravelMaxDate = toDate(sortedDateTravelWaves[0]?.rawDate) || dateTravelValue;
   const danhMucWave = tickerWave.rawDate
     ? { ...latestWave, ...tickerWave }
     : latestWave;
@@ -785,14 +792,17 @@ export default function DoSongThiTruong() {
     if (!latestWave.rawDate) return;
 
     let active = true;
+    setHistoryLoading(true);
 
     fetchStockWaveHistory(latestWave.rawDate)
       .then(({ rows, allRows }) => {
         if (!active) return;
         setHistoryWaves(rows);
         setHistoryAllWaves(allRows?.length ? allRows : rows);
+        setHistoryLoading(false);
       })
       .catch((error) => {
+        if (active) setHistoryLoading(false);
         console.error("Load stock wave history failed", error);
       });
 
@@ -881,10 +891,25 @@ export default function DoSongThiTruong() {
           {/* ── CỘT TRÁI ── */}
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             {/* Vòng tròn dò sóng */}
-            <MainDonut d={mainDonutDisplayWave} theme={theme} />
+            <MainDonut
+              d={selectedMainDonutWave}
+              theme={theme}
+              dateControl={(
+                <DateTimeTravel
+                  value={dateTravelValue}
+                  minDate={dateTravelMinDate}
+                  maxDate={dateTravelMaxDate}
+                  onChange={(date) => {
+                    const key = formatDateKey(date);
+                    const matched = dateTravelWaves.find((item) => item.rawDate === key);
+                    if (matched) setSelectedWaveDate(matched.rawDate);
+                  }}
+                />
+              )}
+            />
 
             {/* Lịch sử dò sóng */}
-            <HistNavigator data={historyDisplayWaves} totalDays={historyDisplayWaves.length} theme={theme} />
+            <HistNavigator data={historyDisplayWaves} totalDays={historyDisplayWaves.length} theme={theme} loading={historyLoading} />
 
             {/* Lịch sử chân sóng */}
             <ChanSong data={chanSongRows} />

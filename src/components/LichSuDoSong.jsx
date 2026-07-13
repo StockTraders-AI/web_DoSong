@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import "../styles/wave-detector-donut.css";
 
 const DCOL = ["#1baf7a", "#0ca30c", "#eda100", "#e34948"];
 const VALUE_COL = ["#3DD68C", "#52E88A", "#FF9F0A", "#FF2D55"];
@@ -101,6 +102,38 @@ function Donut({ vals, total, dbg }) {
         {total}
       </text>
     </svg>
+  );
+}
+
+function LoadingDayCard() {
+  return (
+    <div style={styles.loadingCard}>
+      <div style={styles.loadingDateRow}>
+        <span className="wtds-sk wtds-sk-pill" style={{ width: 46, height: 13 }} />
+        <span className="wtds-sk wtds-sk-pill" style={{ width: 24, height: 10, marginTop: 5 }} />
+      </div>
+
+      <div className="wtds-donut-wrap" style={styles.loadingDonutWrap}>
+        <div className="wtds-sk wtds-donut-sk" style={styles.loadingDonut} />
+        <div className="wtds-donut-center">
+          <span className="wtds-sk wtds-sk-pill" style={{ width: 40, height: 22, display: "block" }} />
+        </div>
+      </div>
+
+      <div style={styles.loadingMetricGrid}>
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={index} style={styles.loadingMetric}>
+            <span className="wtds-sk wtds-sk-pill" style={{ width: 58, height: 14 }} />
+          </div>
+        ))}
+      </div>
+
+      <div style={styles.loadingTrustRow}>
+        <span className="wtds-sk wtds-sk-pill" style={{ width: 18, height: 10 }} />
+        <span className="wtds-sk wtds-sk-pill" style={{ flex: 1, height: 4 }} />
+        <span className="wtds-sk wtds-sk-pill" style={{ width: 28, height: 10 }} />
+      </div>
+    </div>
   );
 }
 
@@ -246,6 +279,7 @@ export default function LichSuDoSong({
   totalDays = 0,
   pageCount = 1,
   onPage = () => {},
+  loading = false,
 }) {
   const viewDays = days.map((day) => ({
     d: day.date,
@@ -259,6 +293,7 @@ export default function LichSuDoSong({
   const dotCount = Math.min(4, pageCount);
   const dotStart = Math.floor(Math.max(page - 1, 0) / 4) * 4;
   const dotPages = Array.from({ length: dotCount }, (_, index) => dotStart + index + 1).filter((dotPage) => dotPage <= pageCount);
+
 
   return (
     <div style={styles.outer}>
@@ -288,7 +323,15 @@ export default function LichSuDoSong({
           ))}
         </div>
 
-        {viewDays.length ? (
+        {loading ? (
+          <div style={styles.daysScroll}>
+            <div style={styles.daysGrid}>
+              {Array.from({ length: 3 }).map((_, index) => (
+                <LoadingDayCard key={index} />
+              ))}
+            </div>
+          </div>
+        ) : viewDays.length ? (
           <div style={styles.daysScroll}>
             <div style={styles.daysGrid}>
               {viewDays.map((x) => (
@@ -300,7 +343,7 @@ export default function LichSuDoSong({
           <div style={styles.empty}>Đang chờ dữ liệu dò sóng...</div>
         )}
 
-        {dotPages.length > 1 && (
+        {!loading && dotPages.length > 1 && (
           <div style={styles.dots}>
             {dotPages.map((dotPage) => (
               <span
@@ -395,6 +438,49 @@ const styles = {
     height: 9,
     borderRadius: "50%",
     cursor: "pointer",
+  },
+  loadingCard: {
+    borderRadius: 14,
+    padding: "13px 11px",
+    background: "#141926",
+    border: "1px solid #1E2A3E",
+    textAlign: "center",
+  },
+  loadingDateRow: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 4,
+    minHeight: 30,
+  },
+  loadingDonutWrap: {
+    width: 124,
+    height: 124,
+    margin: "8px auto 4px",
+  },
+  loadingDonut: {
+    width: 124,
+    height: 124,
+  },
+  loadingMetricGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 6,
+    margin: "7px 0 9px",
+  },
+  loadingMetric: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    padding: "10px 9px",
+    background: "#171D2E",
+    border: "1px solid #1E2A3E",
+  },
+  loadingTrustRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 7,
   },
   empty: {
     borderRadius: 14,

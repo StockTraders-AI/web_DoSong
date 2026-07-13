@@ -54,6 +54,7 @@ export default function VongTronDoSong({
   total = 0,
   trust = 0,
   date = "",
+  dateControl = null,
   theme = "dark", // "dark" | "light"
 }) {
   const T = THEMES[theme] || THEMES.dark;
@@ -96,7 +97,7 @@ export default function VongTronDoSong({
             <path d="M10 2 A8 8 0 0 1 17 6.5" stroke={T.iconAcc} strokeWidth="2" strokeLinecap="round" fill="none" />
           </svg>
           Vòng tròn dò sóng
-          <span style={{ ...st.hmeta, color: T.t4 }}>· {date}</span>
+          {dateControl || <span style={{ ...st.hmeta, color: T.t4 }}>· {date}</span>}
         </div>
 
         <div
