@@ -128,15 +128,6 @@ function isToday(value) {
     date.getDate() === now.getDate();
 }
 
-function getPreviousCalendarDate(value) {
-  const date = toDate(value);
-  if (!date) return "";
-  date.setDate(date.getDate() - 1);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
 
 
 
@@ -467,13 +458,13 @@ function HistNavigator({ data, totalDays: apiTotalDays, theme = "dark", loading 
     />
   );
 }
-function DanhMucDoSong({ wave = EMPTY_WAVE }) {
+function DanhMucDoSong({ wave = EMPTY_WAVE, countWave = wave }) {
   const [tab, setTab] = useState("cm");
   const [showAll, setShowAll] = useState(false);
   const tabCfg = getTabCfg();
   const cfg = tabCfg[tab];
   const rows = normalizeTickerRows(wave[cfg.rowsKey]);
-  const count = wave[cfg.countKey] || rows.length;
+  const count = countWave?.[cfg.countKey] ?? rows.length;
   const visibleRows = showAll ? rows : rows.slice(0, 5);
   const showReliability = tab === "mu";
 
@@ -494,7 +485,7 @@ function DanhMucDoSong({ wave = EMPTY_WAVE }) {
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:12 }}>
         {Object.entries(tabCfg).map(([key, c]) => {
           const active = key === tab;
-          const tabCount = wave[c.countKey] || normalizeTickerRows(wave[c.rowsKey]).length;
+          const tabCount = countWave?.[c.countKey] ?? normalizeTickerRows(wave[c.rowsKey]).length;
           return (
             <button key={key} onClick={() => setTab(key)} style={{
               textAlign:"center", padding:"8px 4px", borderRadius:8, cursor:"pointer",
@@ -694,7 +685,7 @@ export default function DoSongThiTruong() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [chanSongRows, setChanSongRows] = useState([]);
   const [tickerWave, setTickerWave] = useState(EMPTY_WAVE);
-  const tickerReferenceDate = getPreviousCalendarDate(latestWave.rawDate);
+  const tickerReferenceDate = latestWave.rawDate;
   const historySource = historyAllWaves.length ? historyAllWaves : historyWaves;
   const historyDisplayWaves = historySource.filter((item) => !latestWave.rawDate || item.rawDate < latestWave.rawDate);
   const matchingHistoryWave = historySource.find((item) => item.rawDate === latestWave.rawDate);
@@ -984,7 +975,7 @@ export default function DoSongThiTruong() {
               <TuVanAiCard />
             </div>
             <div className="dosong-mobile-item dosong-order-list">
-              <DanhMucDoSong wave={danhMucWave} />
+              <DanhMucDoSong wave={danhMucWave} countWave={realtimeDisplayWave} />
             </div>
             <div className="dosong-mobile-item dosong-order-log">
               <NhatKy />
