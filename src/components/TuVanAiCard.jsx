@@ -96,26 +96,6 @@ export default function TuVanAiCard() {
             <span style={{ width: 7, height: 7, borderRadius: "50%", background: loading ? "#FF9F0A" : "#3DD68C", display: "inline-block" }} />
             {loading ? "Đang trả lời" : "Sẵn sàng"}
           </span>
-          <button
-            type="button"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 5,
-              background: "transparent",
-              border: "1px solid #3A2670",
-              color: "#B788FF",
-              fontSize: 12.5,
-              fontWeight: 600,
-              borderRadius: 8,
-              padding: "6px 12px",
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            <i className="ti ti-arrow-up-right" style={{ fontSize: 14 }} aria-hidden="true" />
-            Mở rộng
-          </button>
         </div>
       </div>
 
