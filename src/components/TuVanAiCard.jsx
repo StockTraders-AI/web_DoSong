@@ -17,8 +17,8 @@ export default function TuVanAiCard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSend = async () => {
-    const trimmed = question.trim();
+  const handleSend = async (value = question) => {
+    const trimmed = value.trim();
     if (!trimmed || loading) return;
 
     setLoading(true);
@@ -77,7 +77,7 @@ export default function TuVanAiCard() {
           </div>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t1, #F0F4FF)" }}>Tư vấn AI</div>
-            <div style={{ marginTop: 2, fontSize: 11, fontWeight: 500, color: "var(--t4, #959697)", lineHeight: 1.2,}}>
+            <div style={{ marginTop: 2, fontSize: 13, fontWeight: 500, color: "var(--t4, #959697)", lineHeight: 1.2,}}>
               Hỏi về sóng thị trường
             </div>
           </div>
@@ -116,7 +116,7 @@ export default function TuVanAiCard() {
           <button
             key={chip}
             type="button"
-            onClick={() => setQuestion(chip)}
+            onClick={() => handleSend(chip)}
             style={{
               background: "var(--elev, #171D2E)",
               border: "1px solid var(--cbdr, var(--bdr, #1E2A3E))",
