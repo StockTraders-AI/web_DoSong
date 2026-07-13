@@ -290,31 +290,29 @@ function fetchStockWaveHistory(referenceDate) {
   return stockWaveHistoryRequests.get(referenceDate);
 }
 
-function getTickersUrl(date) {
+function getTickersUrl() {
   const url = new URL(STOCK_WAVE_TICKERS_URL, window.location.origin);
-  url.searchParams.set("date", date);
   return url.toString();
 }
 
-function fetchStockWaveTickers(date) {
-  if (!stockWaveTickerRequests.has(date)) {
-    const request = fetch(getTickersUrl(date))
+function fetchStockWaveTickers(cacheKey = "latest") {
+  if (!stockWaveTickerRequests.has(cacheKey)) {
+    const request = fetch(getTickersUrl())
       .then((response) => {
         if (!response.ok) throw new Error(`Stock wave tickers failed: ${response.status}`);
         return response.json();
       })
       .then((payload) => normalizeWavePayload(payload)[0] || null)
       .catch((error) => {
-        stockWaveTickerRequests.delete(date);
+        stockWaveTickerRequests.delete(cacheKey);
         throw error;
       });
 
-    stockWaveTickerRequests.set(date, request);
+    stockWaveTickerRequests.set(cacheKey, request);
   }
 
-  return stockWaveTickerRequests.get(date);
+  return stockWaveTickerRequests.get(cacheKey);
 }
-
 function fetchWaveBottomConfirmPairs() {
   if (!waveBottomConfirmPairsRequest) {
     waveBottomConfirmPairsRequest = fetch(WAVE_BOTTOM_CONFIRM_PAIRS_URL, { method: "POST" })
@@ -685,7 +683,7 @@ export default function DoSongThiTruong() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [chanSongRows, setChanSongRows] = useState([]);
   const [tickerWave, setTickerWave] = useState(EMPTY_WAVE);
-  const tickerReferenceDate = latestWave.rawDate;
+  const tickerRequestKey = latestWave.rawDate || "latest";
   const historySource = historyAllWaves.length ? historyAllWaves : historyWaves;
   const historyDisplayWaves = historySource.filter((item) => !latestWave.rawDate || item.rawDate < latestWave.rawDate);
   const matchingHistoryWave = historySource.find((item) => item.rawDate === latestWave.rawDate);
@@ -805,11 +803,9 @@ export default function DoSongThiTruong() {
 
 
   useEffect(() => {
-    if (!tickerReferenceDate) return;
-
     let active = true;
 
-    fetchStockWaveTickers(tickerReferenceDate)
+    fetchStockWaveTickers(tickerRequestKey)
       .then((row) => {
         if (!active) return;
         setTickerWave(row || EMPTY_WAVE);
@@ -821,7 +817,7 @@ export default function DoSongThiTruong() {
     return () => {
       active = false;
     };
-  }, [tickerReferenceDate]);
+  }, [tickerRequestKey]);
 
   return (
     <>

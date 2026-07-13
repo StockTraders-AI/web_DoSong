@@ -10,6 +10,10 @@ function isValidDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value || "");
 }
 
+function getTodayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function getWaveRows(payload) {
   const root = payload?.StockWaveRequest ?? payload;
   const waves = root?.stockWaves ?? root?.data?.stockWaves ?? root?.data ?? root;
@@ -23,7 +27,7 @@ function getRawDate(row) {
   return String(row?.date || row?.tradingDate || row?.ngay || "");
 }
 
-function writeMemoryCache(date, row) {
+function writeMemoryCache(cacheKey, date, row) {
   const payload = {
     success: true,
     date,
@@ -31,23 +35,27 @@ function writeMemoryCache(date, row) {
     row,
     rows: row ? [row] : [],
   };
-  memoryCache.set(date, payload);
+  memoryCache.set(cacheKey, payload);
   return payload;
 }
 
 export async function getStockWaveTickers(date) {
-  if (!isValidDate(date)) {
-    const error = new Error("Missing or invalid date. Use YYYY-MM-DD.");
+  const hasDate = Boolean(date);
+  if (hasDate && !isValidDate(date)) {
+    const error = new Error("Invalid date. Use YYYY-MM-DD.");
     error.statusCode = 400;
     throw error;
   }
 
-  if (memoryCache.has(date)) {
-    const cached = memoryCache.get(date);
-    if (!cached?.cacheVersion && cached?.row && getRawDate(cached.row) <= date) return { ...cached, source: "memory" };
-    memoryCache.delete(date);
+  const cacheKey = hasDate ? date : `latest:${getTodayKey()}`;
+
+  if (memoryCache.has(cacheKey)) {
+    const cached = memoryCache.get(cacheKey);
+    if (!cached?.cacheVersion && cached?.row) return { ...cached, source: "memory" };
+    memoryCache.delete(cacheKey);
   }
-  if (!pendingRequests.has(date)) {
+
+  if (!pendingRequests.has(cacheKey)) {
     const request = fetch(STOCK_WAVE_API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -59,23 +67,25 @@ export async function getStockWaveTickers(date) {
         const rows = getWaveRows(payload)
           .filter((item) => getRawDate(item))
           .sort((a, b) => getRawDate(b).localeCompare(getRawDate(a)));
-        const row = rows.find((item) => getRawDate(item) <= date) || null;
-        return writeMemoryCache(date, row);
+        const row = hasDate
+          ? rows.find((item) => getRawDate(item) <= date) || null
+          : rows[0] || null;
+        return writeMemoryCache(cacheKey, hasDate ? date : getRawDate(row), row);
       })
       .finally(() => {
-        pendingRequests.delete(date);
+        pendingRequests.delete(cacheKey);
       });
 
-    pendingRequests.set(date, request);
+    pendingRequests.set(cacheKey, request);
   }
 
-  const payload = await pendingRequests.get(date);
+  const payload = await pendingRequests.get(cacheKey);
   return { ...payload, source: "upstream" };
 }
 
 export async function handleStockWaveTickers(req, res, rawUrl) {
   const url = new URL(rawUrl || req.url, `http://${req.headers.host || "localhost"}`);
-  const date = url.searchParams.get("date");
+  const date = url.searchParams.get("date") || "";
 
   try {
     sendJson(res, 200, await getStockWaveTickers(date));
