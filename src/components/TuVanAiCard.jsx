@@ -6,7 +6,8 @@ const DEFAULT_CONVERSATION_ID = "portfolio-test-1";
 
 const SUGGEST_CHIPS = [
   "Chờ mua là gì?",
-  "Chân sóng gần nhất là ngày nào?",
+  "Sóng lớn là gì?",
+  "Chờ bán là gì?"
 ];
 
 export default function TuVanAiCard() {
@@ -76,6 +77,9 @@ export default function TuVanAiCard() {
           </div>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t1, #F0F4FF)" }}>Tư vấn AI</div>
+            <div style={{ marginTop: 2, fontSize: 11, fontWeight: 500, color: "var(--t4, #959697)", lineHeight: 1.2,}}>
+              Hỏi về sóng thị trường
+            </div>
           </div>
         </div>
 

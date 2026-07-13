@@ -565,60 +565,288 @@ function DanhMucDoSong({ wave = EMPTY_WAVE, countWave = wave }) {
 // ─────────────────────────────────────────────────────────────
 function ChanSong({ data = [] }) {
   const [showAll, setShowAll] = useState(false);
-  const sortedRows = [...data].sort((a, b) => String(b.confirm_wave_date || "").localeCompare(String(a.confirm_wave_date || "")));
+
+  const sortedRows = [...data].sort((a, b) =>
+    String(b.confirm_wave_date || "").localeCompare(
+      String(a.confirm_wave_date || "")
+    )
+  );
+
   const visibleRows = showAll ? sortedRows : sortedRows.slice(0, 5);
   const canToggle = sortedRows.length > 5;
-  const toggleLabel = showAll ? "Thu gọn" : "Xem tất cả →";
-  const tdStyle = { padding:"9px 9px", borderBottom:`0.5px solid ${T.bdrs}`, ...noWrapCellStyle, fontSize:12, color:T.t2 };
+
+  function formatIncreasePoints(value) {
+    const number = Number(value);
+
+    if (!Number.isFinite(number)) return "-";
+
+    const formatted = new Intl.NumberFormat("vi-VN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Math.abs(number));
+
+    return `${number >= 0 ? "+" : "-"}${formatted} điểm`;
+  }
+
+  function getWaveType(row) {
+    const rawType = String(
+      row.wave_type ??
+      row.type ??
+      row.waveType ??
+      ""
+    ).toLowerCase();
+
+    if (
+      rawType === "lon" ||
+      rawType === "large" ||
+      rawType === "song_lon" ||
+      rawType === "sóng lớn"
+    ) {
+      return "lon";
+    }
+
+    if (
+      rawType === "hoi" ||
+      rawType === "recovery" ||
+      rawType === "song_hoi" ||
+      rawType === "sóng hồi"
+    ) {
+      return "hoi";
+    }
+
+    /*
+     * Fallback khi API chưa trả loại sóng.
+     * Có thể đổi điều kiện này theo quy tắc nghiệp vụ thực tế.
+     */
+    return toNumber(row.reliability) >= 75 ? "lon" : "hoi";
+  }
+
+  const tdStyle = {
+    padding: "9px",
+    borderBottom: `0.5px solid ${T.bdrs}`,
+    fontSize: 12.5,
+    whiteSpace: "nowrap",
+    overflowWrap: "normal",
+    wordBreak: "keep-all",
+  };
+
   return (
-    <Card>
-      <CardHeader
-        icon="ti-history"
-        title="Lịch sử chân sóng tiêu biểu"
-        right={canToggle ? <Clink onClick={() => setShowAll((value) => !value)}>{toggleLabel}</Clink> : null}
-      />
-      <div style={tableScrollStyle}>
-        <table style={{ ...noWrapTableStyle, minWidth:"max(100%, 620px)" }}>
+    <Card style={{ padding: "16px 17px" }}>
+      {/* Header giống HTML mẫu */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 14,
+          flexWrap: "wrap",
+          gap: 8,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 15,
+            fontWeight: 700,
+            color: T.t1,
+          }}
+        >
+          <span>Lịch sử chân sóng tiêu biểu</span>
+        </div>
+
+        <span
+          onClick={() => {
+            if (canToggle) setShowAll((value) => !value);
+          }}
+          style={{
+            fontSize: 12,
+            color: T.B,
+            fontWeight: 700,
+            cursor: canToggle ? "pointer" : "default",
+          }}
+        >
+          {showAll ? "Thu gọn" : "Xem tất cả →"}
+        </span>
+      </div>
+
+      <div
+        style={{
+          overflowX: "auto",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
+        <table
+          style={{
+            width: "max-content",
+            minWidth: "max(100%, 620px)",
+            borderCollapse: "collapse",
+            tableLayout: "auto",
+            whiteSpace: "nowrap",
+          }}
+        >
           <thead>
             <tr>
-              {["Ngày xác nhận","VNINDEX","Tăng điểm","Độ dài","Độ tin cậy","Loại sóng"].map((h,i) => (
-                <th key={h} style={{
-                  fontSize:10, fontWeight:700, color:T.t4, textTransform:"uppercase",
-                  letterSpacing:".07em", padding:"7px 9px", borderBottom:`0.5px solid ${T.bdr}`,
-                  textAlign: i >= 1 ? "right" : "left", background:T.elev, ...noWrapCellStyle,
-                }}>{h}</th>
-              ))}
+              {[
+                "Ngày tạo đáy",
+                "VNIndex đáy",
+                "Độ tin cậy",
+                "Tăng điểm",
+                "Độ dài",
+                "Loại sóng",
+              ].map((heading, index) => {
+                let textAlign = "left";
+
+                if (index === 1 || index === 4 || index === 5) {
+                  textAlign = "right";
+                }
+
+                if (index === 2 || index === 3) {
+                  textAlign = "center";
+                }
+
+                return (
+                  <th
+                    key={heading}
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: T.t4,
+                      textTransform: "uppercase",
+                      letterSpacing: ".07em",
+                      padding: "7px 9px",
+                      borderBottom: `0.5px solid ${T.bdr}`,
+                      background: T.elev,
+                      textAlign,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {heading}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
+
           <tbody>
-            {visibleRows.map((r, idx) => {
-              const reliability = toNumber(r.reliability);
-              const tcC = reliability >= 70 ? T.G : reliability >= 55 ? T.A : T.R;
-              const isLast = idx === visibleRows.length - 1;
+            {visibleRows.map((row, index) => {
+              const reliability = toNumber(row.reliability);
+              const waveType = getWaveType(row);
+              const isLargeWave = waveType === "lon";
+              const isLast = index === visibleRows.length - 1;
+
+              const rowBottomBorder = isLast
+                ? "none"
+                : `0.5px solid ${T.bdrs}`;
+
               return (
-                <tr key={`${r.confirm_wave_date}-${idx}`} style={{ borderBottom: isLast ? "none" : `0.5px solid ${T.bdrs}` }}>
-                  <td style={tdStyle}>{formatWaveDate(r.confirm_wave_date)}</td>
-                  <td style={{ ...tdStyle, textAlign:"right", fontWeight:700, color:T.t1 }}>{formatVnindex(r.vnindex)}</td>
-                  <td style={{ ...tdStyle, textAlign:"right", fontWeight:700, color:T.G }}>{formatVnindex(r.increase_points)}</td>
-                  <td style={{ ...tdStyle, textAlign:"right" }}>{formatSessions(r.duration_sessions)}</td>
-                  <td style={{ ...tdStyle, textAlign:"right", color:tcC, fontWeight:600 }}>{reliability}%</td>
-                  <td style={{ ...tdStyle, textAlign:"right" }}>
-                    <span style={{
-                      display:"inline-flex", alignItems:"center", fontSize:11, padding:"3px 8px",
-                      borderRadius:20, border:".5px solid", fontWeight:600,
-                      background: reliability >= 70 ? T.Gs : T.Bs,
-                      borderColor: reliability >= 70 ? T.Gb : T.Bb,
-                      color: reliability >= 70 ? T.G : T.B,
-                    }}>
-                      {reliability >= 70 ? "Sóng lớn" : "Sóng hồi"}
+                <tr key={`${row.confirm_wave_date}-${index}`}>
+                  {/* Ngày tạo đáy */}
+                  <td
+                    style={{
+                      ...tdStyle,
+                      borderBottom: rowBottomBorder,
+                      fontWeight: 700,
+                      color: T.t1,
+                    }}
+                  >
+                    {formatWaveDate(row.confirm_wave_date)}
+                  </td>
+
+                  {/* VNIndex đáy */}
+                  <td
+                    style={{
+                      ...tdStyle,
+                      borderBottom: rowBottomBorder,
+                      textAlign: "right",
+                      fontWeight: 700,
+                      color: T.t1,
+                      fontFamily: "ui-monospace, SFMono-Regular, monospace",
+                    }}
+                  >
+                    {formatVnindex(row.vnindex)}
+                  </td>
+
+                  {/* Độ tin cậy */}
+                  <td
+                    style={{
+                      ...tdStyle,
+                      borderBottom: rowBottomBorder,
+                      textAlign: "center",
+                      fontWeight: 700,
+                      color: T.G,
+                    }}
+                  >
+                    {reliability}%
+                  </td>
+
+                  {/* Tăng điểm */}
+                  <td
+                    style={{
+                      ...tdStyle,
+                      borderBottom: rowBottomBorder,
+                      textAlign: "center",
+                      fontWeight: 700,
+                      color: T.G,
+                    }}
+                  >
+                    {formatIncreasePoints(row.increase_points)}
+                  </td>
+
+                  {/* Độ dài */}
+                  <td
+                    style={{
+                      ...tdStyle,
+                      borderBottom: rowBottomBorder,
+                      textAlign: "right",
+                      color: T.t3,
+                    }}
+                  >
+                    {formatSessions(row.duration_sessions)}
+                  </td>
+
+                  {/* Loại sóng */}
+                  <td
+                    style={{
+                      ...tdStyle,
+                      borderBottom: rowBottomBorder,
+                      textAlign: "right",
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "inline-block",
+                        borderRadius: 8,
+                        padding: "4px 11px",
+                        fontSize: 11.5,
+                        fontWeight: 700,
+
+                        background: isLargeWave ? T.Gs : T.Bs,
+                        border: `1px solid ${
+                          isLargeWave ? T.Gb : T.Bb
+                        }`,
+                        color: isLargeWave ? T.G : T.B,
+                      }}
+                    >
+                      {isLargeWave ? "Sóng lớn" : "Sóng hồi"}
                     </span>
                   </td>
                 </tr>
               );
             })}
+
             {!visibleRows.length && (
               <tr>
-                <td colSpan={6} style={{ padding:"18px 8px", textAlign:"center", color:T.t3, fontSize:12 }}>
+                <td
+                  colSpan={6}
+                  style={{
+                    padding: "18px 8px",
+                    textAlign: "center",
+                    color: T.t3,
+                    fontSize: 12,
+                  }}
+                >
                   Đang chờ dữ liệu chân sóng...
                 </td>
               </tr>
@@ -626,11 +854,21 @@ function ChanSong({ data = [] }) {
           </tbody>
         </table>
       </div>
-      {canToggle && (
-        <div onClick={() => setShowAll((value) => !value)} style={{ marginTop:10, fontSize:12, color:T.B, fontWeight:600, cursor:"pointer" }}>
-          {showAll ? "Thu gọn" : "Xem tất cả lịch sử chân sóng →"}
-        </div>
-      )}
+
+      <div
+        onClick={() => {
+          if (canToggle) setShowAll((value) => !value);
+        }}
+        style={{
+          marginTop: 10,
+          fontSize: 12,
+          color: T.B,
+          fontWeight: 700,
+          cursor: canToggle ? "pointer" : "default",
+        }}
+      >
+        {showAll ? "Thu gọn" : "Xem tất cả lịch sử chân sóng →"}
+      </div>
     </Card>
   );
 }
