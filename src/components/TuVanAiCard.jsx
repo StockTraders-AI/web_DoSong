@@ -1,5 +1,4 @@
-import { useState } from "react";
-
+import { useEffect, useRef, useState } from "react";
 const PORTFOLIO_CHAT_URL = import.meta.env.VITE_PORTFOLIO_CHAT_URL || "/api/portfolio-chat";
 const USER_ID = "u1";
 const DEFAULT_CONVERSATION_ID = "portfolio-test-1";
@@ -16,6 +15,8 @@ export default function TuVanAiCard() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const chatEndRef = useRef(null);
 
   const handleSend = async (value = question) => {
     const trimmed = value.trim();
@@ -48,6 +49,13 @@ export default function TuVanAiCard() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "end",
+    });
+  }, [messages, loading]);
 
   return (
     <div style={{ background: "var(--surf, #111520)", border: "1px solid var(--cbdr, var(--bdr, #1E2A3E))", borderRadius: 16, padding: "15px 16px" }}>
@@ -183,6 +191,7 @@ export default function TuVanAiCard() {
               ))}
             </div>
           )}
+          <div ref={chatEndRef} />
         </div>
       )}
 
