@@ -86,10 +86,10 @@ export default function VongTronDoSong({
   const trustStyle = trust >= 70 ? T.trust.good : T.trust.low;
 
   return (
-    <div style={{ ...st.card, background: T.surf, border: `.5px solid ${T.cardBdr}`, color: T.t1 }}>
+    <div className="vtds-card" style={{ ...st.card, background: T.surf, border: `.5px solid ${T.cardBdr}`, color: T.t1 }}>
       {/* ===== Header ===== */}
-      <div style={st.header}>
-        <div style={{ ...st.htitle, color: T.t1 }}>
+      <div className="vtds-header" style={st.header}>
+        <div className="vtds-title" style={{ ...st.htitle, color: T.t1 }}>
           <svg width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden="true">
             <circle cx="10" cy="10" r="8" fill="none" stroke={T.icon} strokeWidth="1.5" />
             <circle cx="10" cy="10" r="4" fill="none" stroke={T.icon} strokeWidth="1.5" />
@@ -101,6 +101,7 @@ export default function VongTronDoSong({
         </div>
 
         <div
+          className="vtds-trust"
           style={{
             ...st.trust,
             background: trustStyle.bg,
@@ -123,9 +124,9 @@ export default function VongTronDoSong({
       </div>
 
       {/* ===== Body: donut trái + 4 thẻ phải ===== */}
-      <div style={st.body}>
+      <div className="vtds-body" style={st.body}>
         <svg
-          width="190" height="190" viewBox="0 0 220 220" style={{ flexShrink: 0 }} role="img"
+          className="vtds-svg" width="190" height="190" viewBox="0 0 220 220" style={{ flexShrink: 0 }} role="img"
           aria-label={`Vòng tròn dò sóng: tổng ${total} mã theo dõi, ${sig} mã có tín hiệu — ${ORDER.map(
             (k) => `${data[k]} ${LABELS[k]}`
           ).join(", ")}`}
@@ -158,11 +159,11 @@ export default function VongTronDoSong({
           </text>
         </svg>
 
-        <div style={st.boxes}>
+        <div className="vtds-boxes" style={st.boxes}>
           {ORDER.map((k) => {
             const b = T.box[k];
             return (
-              <div key={k} style={{ ...st.box, background: b.bg, border: `1px solid ${b.border}` }}>
+              <div key={k} className="vtds-box" style={{ ...st.box, background: b.bg, border: `1px solid ${b.border}` }}>
                 <div style={{ ...st.blabel, color: b.label }}>{LABELS[k]}</div>
                 <div style={{ ...st.bnum, color: b.num }}>{data[k]}</div>
                 <div style={{ ...st.bpct, color: b.pct }}>

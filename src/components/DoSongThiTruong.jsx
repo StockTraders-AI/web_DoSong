@@ -686,6 +686,7 @@ function NhatKy() {
 export default function DoSongThiTruong() {
   const [theme, setTheme] = useState("dark");
   T = theme === "light" ? LIGHT_T : DARK_T;
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedWaveDate, setSelectedWaveDate] = useState("");
   const [latestWave, setLatestWave] = useState(EMPTY_WAVE);
   const [historyWaves, setHistoryWaves] = useState([]);
@@ -840,9 +841,50 @@ export default function DoSongThiTruong() {
         button{font-family:inherit}
         ::-webkit-scrollbar{width:5px;height:4px}
         ::-webkit-scrollbar-thumb{background:${T.bdr};border-radius:3px}
+        .dosong-mobile-burger{display:none}
+        .dosong-mobile-backdrop{display:none}
+        @media (max-width: 768px){
+          body{overflow-x:hidden}
+          .dosong-shell{display:block !important; width:100%; overflow-x:hidden}
+          .dosong-mobile-burger{display:flex !important; position:fixed; top:10px; left:10px; z-index:1003; width:38px; height:38px; align-items:center; justify-content:center; border-radius:10px; background:var(--surf); border:.5px solid var(--bdr); color:var(--t1); font-size:18px; font-weight:800; cursor:pointer; box-shadow:0 8px 24px rgba(0,0,0,.22)}
+          .dosong-theme-toggle{top:12px !important; right:14px !important; padding:7px 12px !important}
+          .dosong-main{width:100% !important; padding:58px 12px 26px !important; max-width:480px; margin:0 auto}
+          .dosong-layout{display:grid !important; grid-template-columns:minmax(0,1fr) !important; gap:14px !important}
+          .dosong-left,.dosong-right{min-width:0 !important; display:contents !important}
+          .dosong-mobile-item{min-width:0}
+          .dosong-order-ai{order:1}
+          .dosong-order-chat{order:2}
+          .dosong-order-main{order:3}
+          .dosong-order-history{order:4}
+          .dosong-order-list{order:5}
+          .dosong-order-chan{order:6}
+          .dosong-order-log{order:7}
+          .dosong-sidebar-frame{position:fixed; top:0; left:0; height:100vh; width:224px; z-index:1002; transform:translateX(-100%); transition:transform .22s ease; pointer-events:none}
+          .dosong-sidebar-frame.open{transform:translateX(0); pointer-events:auto}
+          .dosong-sidebar-frame aside{width:224px !important; max-width:224px !important; height:100vh !important; box-shadow:18px 0 45px rgba(0,0,0,.34)}
+          .dosong-mobile-backdrop{display:block; position:fixed; inset:0; z-index:1001; background:rgba(0,0,0,.52)}
+          .dosong-layout table{font-size:12px}
+          .dosong-layout th,.dosong-layout td{padding-left:7px !important; padding-right:7px !important}
+          .vtds-card{padding:16px 17px !important; max-width:none !important}
+          .vtds-header{align-items:flex-start !important; gap:10px !important; margin-bottom:14px !important; flex-wrap:wrap !important}
+          .vtds-title{white-space:normal !important; flex-wrap:wrap !important; font-size:15px !important; min-width:0 !important}
+          .vtds-trust{padding:7px 13px !important; font-size:13px !important}
+          .vtds-body{flex-direction:column !important; align-items:center !important; gap:16px !important; overflow:visible !important}
+          .vtds-svg{width:170px !important; height:170px !important}
+          .vtds-boxes{width:100% !important; grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:10px !important}
+          .vtds-box{border-radius:14px !important; padding:14px 16px !important; min-height:auto !important}
+          .lsds-card{padding:16px 17px !important}
+          .lsds-days-scroll{overflow-x:visible !important}
+          .lsds-days-grid{grid-template-columns:repeat(3,minmax(0,1fr)) !important; min-width:0 !important; gap:7px !important}
+          .lsds-loading-card{padding:9px 6px !important}
+        }
+        @media (max-width: 560px){
+          .dosong-main{padding-left:10px !important; padding-right:10px !important}
+          .dosong-layout{gap:12px !important}
+        }
       `}</style>
 
-      <div data-theme={theme} style={{
+      <div className="dosong-shell" data-theme={theme} style={{
         "--bg": T.bg,
         "--surf": T.surf,
         "--elev": T.elev,
@@ -862,6 +904,7 @@ export default function DoSongThiTruong() {
         minHeight: "100vh",
       }}>
         <button
+          className="dosong-theme-toggle"
           type="button"
           onClick={() => setTheme((value) => value === "dark" ? "light" : "dark")}
           style={{
@@ -883,44 +926,69 @@ export default function DoSongThiTruong() {
         >
           {theme === "dark" ? "Light" : "Dark"}
         </button>
-        <Sidebar />
-        <main style={{ flex:1, minWidth:0, padding:"18px 22px 32px" }}>
+        <button
+          type="button"
+          className="dosong-mobile-burger"
+          onClick={() => setMobileMenuOpen((value) => !value)}
+          aria-label="Mở menu"
+        >
+          ☰
+        </button>
+        {mobileMenuOpen && <div className="dosong-mobile-backdrop" onClick={() => setMobileMenuOpen(false)} />}
+        <div className={`dosong-sidebar-frame${mobileMenuOpen ? " open" : ""}`}>
+          <Sidebar />
+        </div>
+        <main className="dosong-main" style={{ flex:1, minWidth:0, padding:"18px 22px 32px" }}>
           {/* 60/40 content layout */}
-          <div style={{ display:"grid", gridTemplateColumns:"minmax(0, 3fr) minmax(0, 2fr)", gap:14 }}>
+          <div className="dosong-layout" style={{ display:"grid", gridTemplateColumns:"minmax(0, 3fr) minmax(0, 2fr)", gap:14 }}>
 
           {/* ── CỘT TRÁI ── */}
-          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          <div className="dosong-left" style={{ display:"flex", flexDirection:"column", gap:14 }}>
             {/* Vòng tròn dò sóng */}
-            <MainDonut
-              d={selectedMainDonutWave}
-              theme={theme}
-              dateControl={(
-                <DateTimeTravel
-                  value={dateTravelValue}
-                  minDate={dateTravelMinDate}
-                  maxDate={dateTravelMaxDate}
-                  onChange={(date) => {
-                    const key = formatDateKey(date);
-                    const matched = dateTravelWaves.find((item) => item.rawDate === key);
-                    if (matched) setSelectedWaveDate(matched.rawDate);
-                  }}
-                />
-              )}
-            />
+            <div className="dosong-mobile-item dosong-order-main">
+              <MainDonut
+                d={selectedMainDonutWave}
+                theme={theme}
+                dateControl={(
+                  <DateTimeTravel
+                    value={dateTravelValue}
+                    minDate={dateTravelMinDate}
+                    maxDate={dateTravelMaxDate}
+                    onChange={(date) => {
+                      const key = formatDateKey(date);
+                      const matched = dateTravelWaves.find((item) => item.rawDate === key);
+                      if (matched) setSelectedWaveDate(matched.rawDate);
+                    }}
+                  />
+                )}
+              />
+            </div>
 
             {/* Lịch sử dò sóng */}
-            <HistNavigator data={historyDisplayWaves} totalDays={historyDisplayWaves.length} theme={theme} loading={historyLoading} />
+            <div className="dosong-mobile-item dosong-order-history">
+              <HistNavigator data={historyDisplayWaves} totalDays={historyDisplayWaves.length} theme={theme} loading={historyLoading} />
+            </div>
 
             {/* Lịch sử chân sóng */}
-            <ChanSong data={chanSongRows} />
+            <div className="dosong-mobile-item dosong-order-chan">
+              <ChanSong data={chanSongRows} />
+            </div>
           </div>
 
           {/* ── CỘT PHẢI ── */}
-          <div style={{ display:"flex", flexDirection:"column", gap:14, minWidth:0 }}>
-            <KhuyenNghiTuVanAI />
-            <TuVanAiCard />
-            <DanhMucDoSong wave={danhMucWave} />
-            <NhatKy />
+          <div className="dosong-right" style={{ display:"flex", flexDirection:"column", gap:14, minWidth:0 }}>
+            <div className="dosong-mobile-item dosong-order-ai">
+              <KhuyenNghiTuVanAI />
+            </div>
+            <div className="dosong-mobile-item dosong-order-chat">
+              <TuVanAiCard />
+            </div>
+            <div className="dosong-mobile-item dosong-order-list">
+              <DanhMucDoSong wave={danhMucWave} />
+            </div>
+            <div className="dosong-mobile-item dosong-order-log">
+              <NhatKy />
+            </div>
           </div>
           </div>
         </main>

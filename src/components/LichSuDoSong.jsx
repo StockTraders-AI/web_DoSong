@@ -297,7 +297,7 @@ export default function LichSuDoSong({
 
   return (
     <div style={styles.outer}>
-      <div style={styles.card}>
+      <div className="lsds-card" style={styles.card}>
         <div style={styles.header}>
           <div style={styles.title}>
             <i className="ti ti-clock" style={{ color: "#5C7090" }} aria-hidden="true" />
@@ -324,16 +324,16 @@ export default function LichSuDoSong({
         </div>
 
         {loading ? (
-          <div style={styles.daysScroll}>
-            <div style={styles.daysGrid}>
+          <div className="lsds-days-scroll" style={styles.daysScroll}>
+            <div className="lsds-days-grid" style={styles.daysGrid}>
               {Array.from({ length: 3 }).map((_, index) => (
                 <LoadingDayCard key={index} />
               ))}
             </div>
           </div>
         ) : viewDays.length ? (
-          <div style={styles.daysScroll}>
-            <div style={styles.daysGrid}>
+          <div className="lsds-days-scroll" style={styles.daysScroll}>
+            <div className="lsds-days-grid" style={styles.daysGrid}>
               {viewDays.map((x) => (
                 <DayCard key={`${x.d}-${x.w}`} x={x} />
               ))}
