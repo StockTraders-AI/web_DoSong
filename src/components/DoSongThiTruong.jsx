@@ -697,6 +697,7 @@ export default function DoSongThiTruong() {
   const selectedMainDonutWave = selectedWaveDate
     ? dateTravelWaves.find((item) => item.rawDate === selectedWaveDate) || mainDonutDisplayWave
     : mainDonutDisplayWave;
+  const selectedHistoryDisplayWaves = historySource.filter((item) => !selectedMainDonutWave.rawDate || item.rawDate < selectedMainDonutWave.rawDate);
   const dateTravelValue = toDate(selectedMainDonutWave.rawDate) || new Date();
   const dateTravelMinDate = toDate(sortedDateTravelWaves[sortedDateTravelWaves.length - 1]?.rawDate) || dateTravelValue;
   const dateTravelMaxDate = toDate(sortedDateTravelWaves[0]?.rawDate) || dateTravelValue;
@@ -953,7 +954,7 @@ export default function DoSongThiTruong() {
 
             {/* Lịch sử dò sóng */}
             <div className="dosong-mobile-item dosong-order-history">
-              <HistNavigator data={historyDisplayWaves} totalDays={historyDisplayWaves.length} theme={theme} loading={historyLoading} />
+              <HistNavigator data={selectedHistoryDisplayWaves} totalDays={selectedHistoryDisplayWaves.length} theme={theme} loading={historyLoading} />
             </div>
 
             {/* Lịch sử chân sóng */}
