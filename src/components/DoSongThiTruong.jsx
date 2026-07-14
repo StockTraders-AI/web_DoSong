@@ -653,7 +653,7 @@ function ChanSong({ data = [] }) {
             color: T.t1,
           }}
         >
-          <span>Lịch sử chân sóng tiêu biểu</span>
+          <span>Lịch sử chân sóng</span>
         </div>
 
         <span
