@@ -2,7 +2,7 @@ import { sendJson } from "./stockWaveHistoryCache.js";
 
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 4;
 const ZIGZAG_THRESHOLD = 0.05;
 const PAIRS_REQUEST = { dateFrom: null, dateTo: null, count: 4 };
 let memoryCache = null;
@@ -43,10 +43,11 @@ function writeMemoryCache(rows) {
 function normalizeTradeRows(payload) {
   return getRows(payload)
     .map((row) => ({
-      date: String(row?.date || ""),
-      close: toNumber(row?.close),
+      date: String(row?.date || row?.tradingDate || row?.ngay || ""),
+      high: toNumber(row?.high ?? row?.High ?? row?.h),
+      low: toNumber(row?.low ?? row?.Low ?? row?.l),
     }))
-    .filter((row) => row.date && row.close > 0)
+    .filter((row) => row.date && row.high > 0 && row.low > 0)
     .sort((a, b) => rowDateValue(a.date) - rowDateValue(b.date))
     .map((row, index) => ({ ...row, index }));
 }
@@ -75,15 +76,15 @@ function buildZigzagPivots(rows, threshold = ZIGZAG_THRESHOLD) {
     const row = rows[index];
 
     if (trend === 0) {
-      if (row.close < low.close) low = row;
-      if (row.close > high.close) high = row;
+      if (row.low < low.low) low = row;
+      if (row.high > high.high) high = row;
 
-      if (row.close >= low.close * (1 + threshold)) {
-        pivots.push({ ...low, type: "low" });
+      if (row.high >= low.low * (1 + threshold)) {
+        pivots.push({ ...low, price: low.low, type: "low" });
         trend = 1;
         candidate = row;
-      } else if (row.close <= high.close * (1 - threshold)) {
-        pivots.push({ ...high, type: "high" });
+      } else if (row.low <= high.high * (1 - threshold)) {
+        pivots.push({ ...high, price: high.high, type: "high" });
         trend = -1;
         candidate = row;
       }
@@ -91,18 +92,18 @@ function buildZigzagPivots(rows, threshold = ZIGZAG_THRESHOLD) {
     }
 
     if (trend === 1) {
-      if (row.close > candidate.close) candidate = row;
-      if (row.close <= candidate.close * (1 - threshold)) {
-        pivots.push({ ...candidate, type: "high" });
+      if (row.high > candidate.high) candidate = row;
+      if (row.low <= candidate.high * (1 - threshold)) {
+        pivots.push({ ...candidate, price: candidate.high, type: "high" });
         trend = -1;
         candidate = row;
       }
       continue;
     }
 
-    if (row.close < candidate.close) candidate = row;
-    if (row.close >= candidate.close * (1 + threshold)) {
-      pivots.push({ ...candidate, type: "low" });
+    if (row.low < candidate.low) candidate = row;
+    if (row.high >= candidate.low * (1 + threshold)) {
+      pivots.push({ ...candidate, price: candidate.low, type: "low" });
       trend = 1;
       candidate = row;
     }
@@ -130,7 +131,7 @@ function findLowPivot(pivots, quoteByDate, pair) {
     const to = Math.max(confirm.index, prepare.index);
     const inPairWindow = lows.filter((pivot) => pivot.index >= from && pivot.index <= to);
     if (inPairWindow.length) {
-      return inPairWindow.reduce((best, pivot) => pivot.close < best.close ? pivot : best, inPairWindow[0]);
+      return inPairWindow.reduce((best, pivot) => pivot.low < best.low ? pivot : best, inPairWindow[0]);
     }
   }
 
@@ -198,7 +199,7 @@ export async function getWaveBottomConfirmPairs() {
           const bottom = findLowPivot(pivots, quoteByDate, pair);
           const peak = findNextHighPivot(pivots, bottom);
           const fallbackQuote = quoteByDate.get(confirmDate);
-          const increasePoints = bottom && peak ? peak.close - bottom.close : 0;
+          const increasePoints = bottom && peak ? peak.high - bottom.low : 0;
           const durationSessions = bottom && peak ? peak.index - bottom.index + 1 : 0;
 
           return {
@@ -206,8 +207,10 @@ export async function getWaveBottomConfirmPairs() {
             prepare_bottom_date: String(pair.prepare_bottom_date || ""),
             zigzag_bottom_date: bottom?.date || "",
             zigzag_peak_date: peak?.date || "",
-            vnindex: toNumber(fallbackQuote?.close ?? bottom?.close),
+            vnindex: toNumber(bottom?.low ?? fallbackQuote?.low),
             increase_points: Number(increasePoints.toFixed(2)),
+            zigzag_bottom_price: toNumber(bottom?.low),
+            zigzag_peak_price: toNumber(peak?.high),
             duration_sessions: durationSessions,
             reliability: toNumber(pair.reliability),
           };
