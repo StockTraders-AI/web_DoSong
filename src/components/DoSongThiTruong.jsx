@@ -567,8 +567,8 @@ function ChanSong({ data = [] }) {
   const [showAll, setShowAll] = useState(false);
 
   const sortedRows = [...data].sort((a, b) =>
-    String(b.zigzag_bottom_date || b.confirm_wave_date || "").localeCompare(
-      String(a.zigzag_bottom_date || a.confirm_wave_date || "")
+    String(b.confirm_wave_date || "").localeCompare(
+      String(a.confirm_wave_date || "")
     )
   );
 
@@ -741,7 +741,7 @@ function ChanSong({ data = [] }) {
                 : `0.5px solid ${T.bdrs}`;
 
               return (
-                <tr key={`${row.zigzag_bottom_date || row.confirm_wave_date}-${index}`}>
+                <tr key={`${row.confirm_wave_date}-${index}`}>
                   {/* Ngày tạo đáy */}
                   <td
                     style={{
@@ -751,7 +751,7 @@ function ChanSong({ data = [] }) {
                       color: T.t1,
                     }}
                   >
-                    {formatWaveDate(row.zigzag_bottom_date || row.confirm_wave_date)}
+                    {formatWaveDate(row.confirm_wave_date)}
                   </td>
 
                   {/* VNIndex đáy */}

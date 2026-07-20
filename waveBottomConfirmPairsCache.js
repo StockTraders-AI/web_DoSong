@@ -207,7 +207,7 @@ export async function getWaveBottomConfirmPairs() {
             prepare_bottom_date: String(pair.prepare_bottom_date || ""),
             zigzag_bottom_date: bottom?.date || "",
             zigzag_peak_date: peak?.date || "",
-            vnindex: toNumber(bottom?.low ?? fallbackQuote?.low),
+            vnindex: toNumber(fallbackQuote?.low),
             increase_points: Number(increasePoints.toFixed(2)),
             zigzag_bottom_price: toNumber(bottom?.low),
             zigzag_peak_price: toNumber(peak?.high),
