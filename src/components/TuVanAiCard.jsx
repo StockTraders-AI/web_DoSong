@@ -17,10 +17,9 @@ const TEXT = {
 };
 
 const SUGGEST_CHIPS = [
-  "M\u00e3 n\u00e0o \u0111\u00fang s\u00f3ng?",
-  "Ng\u00e0nh n\u00e0o d\u1eabn d\u1eaft?",
-  "N\u00ean c\u1eaft m\u00e3 n\u00e0o?",
-  "Ph\u00e2n b\u1ed5 t\u1ef7 tr\u1ecdng?",
+  "Ch\u1edd mua l\u00e0 g\u00ec?",
+  "S\u00f3ng l\u1edbn l\u00e0 g\u00ec?",
+  "Ch\u1edd b\u00e1n l\u00e0 g\u00ec?",
 ];
 
 function MsgBubble({ role, text, isPanel }) {
