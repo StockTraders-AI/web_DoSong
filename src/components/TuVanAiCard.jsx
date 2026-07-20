@@ -4,16 +4,31 @@ const PORTFOLIO_CHAT_URL = import.meta.env.VITE_PORTFOLIO_CHAT_URL || "/api/port
 const USER_ID = "u1";
 const DEFAULT_CONVERSATION_ID = "portfolio-test-1";
 
-const INITIAL_MESSAGE = "Nhập mã và bấm **Phân tích**, sau đó hỏi tôi về danh mục - chọn mã đúng sóng, ngành nào đang dẫn, hay nên cắt mã nào.";
-const SUGGEST_CHIPS = ["Mã nào đúng sóng?", "Ngành nào dẫn dắt?", "Nên cắt mã nào?", "Phân bổ tỷ trọng?"];
-const PANEL_CHIPS = ["Mã nào đúng sóng đúng ngành?", "Ngành nào đang dẫn dắt?", "Nên cắt mã nào?", "Phân bổ tỷ trọng 3-5-2?", "So sánh các mã?"];
+const TEXT = {
+  title: "T\u01b0 v\u1ea5n AI",
+  panelTitle: "T\u01b0 v\u1ea5n AI s\u00f3ng th\u1ecb tr\u01b0\u1eddng",
+  subtitle: "H\u1ecfi v\u1ec1 s\u00f3ng th\u1ecb tr\u01b0\u1eddng, s\u00f3ng ng\u00e0nh, chi\u1ebfn l\u01b0\u1ee3c",
+  ready: "S\u1eb5n s\u00e0ng",
+  expand: "M\u1edf r\u1ed9ng",
+  placeholder: "H\u1ecfi v\u1ec1 s\u00f3ng th\u1ecb tr\u01b0\u1eddng, chi\u1ebfn l\u01b0\u1ee3c...",
+  panelPlaceholder: "H\u1ecfi b\u1ea5t c\u1ee9 \u0111i\u1ec1u g\u00ec v\u1ec1 s\u00f3ng th\u1ecb tr\u01b0\u1eddng...",
+  noAnswer: "Kh\u00f4ng c\u00f3 c\u00e2u tr\u1ea3 l\u1eddi.",
+  apiError: "Kh\u00f4ng g\u1ecdi \u0111\u01b0\u1ee3c API t\u01b0 v\u1ea5n AI.",
+};
+
+const SUGGEST_CHIPS = [
+  "M\u00e3 n\u00e0o \u0111\u00fang s\u00f3ng?",
+  "Ng\u00e0nh n\u00e0o d\u1eabn d\u1eaft?",
+  "N\u00ean c\u1eaft m\u00e3 n\u00e0o?",
+  "Ph\u00e2n b\u1ed5 t\u1ef7 tr\u1ecdng?",
+];
 
 function MsgBubble({ role, text, isPanel }) {
   const cls = isPanel ? { wrap: "pmsg", bub: "pbubble", av: "pav" } : { wrap: "msg", bub: "bubble", av: "av" };
   const html = String(text).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/\n/g, "<br>");
   return (
     <div className={`${cls.wrap} ${role}`}>
-      <div className={cls.av}>{role === "ai" ? "AI" : "Bạn"}</div>
+      <div className={cls.av}>{role === "ai" ? "AI" : "B\u1ea1n"}</div>
       <div className={cls.bub} dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   );
@@ -32,7 +47,7 @@ function TypingIndicator({ isPanel }) {
 }
 
 export default function TuVanAiCard() {
-  const [msgs, setMsgs] = useState([{ role: "ai", text: INITIAL_MESSAGE }]);
+  const [msgs, setMsgs] = useState([]);
   const [chatVal, setChatVal] = useState("");
   const [panelVal, setPanelVal] = useState("");
   const [loading, setLoading] = useState(false);
@@ -67,9 +82,9 @@ export default function TuVanAiCard() {
       body: JSON.stringify({ question: q, user_id: USER_ID, conversation_id: conversationId }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || `API lỗi ${res.status}`);
+    if (!res.ok) throw new Error(data.error || `API loi ${res.status}`);
     if (data.conversation_id) setConversationId(data.conversation_id);
-    return data.answer || "Không có câu trả lời.";
+    return data.answer || TEXT.noAnswer;
   }, [conversationId]);
 
   const sendMsg = useCallback(async (q, isPanel = false) => {
@@ -88,7 +103,7 @@ export default function TuVanAiCard() {
     try {
       text = await fetchReply(q);
     } catch (error) {
-      text = error.message || "Không gọi được API tư vấn AI.";
+      text = error.message || TEXT.apiError;
     }
 
     setLoading(false);
@@ -115,6 +130,7 @@ export default function TuVanAiCard() {
         .st-ai-card{border:.5px solid var(--bdr,#242E42);border-radius:16px;background:var(--surf,#111520)}
         .dm-expand-btn{height:26px;border:.5px solid var(--Bb,rgba(124,58,237,.30));border-radius:8px;background:var(--Bs,rgba(124,58,237,.13));color:var(--B,#7C3AED);padding:0 10px;font:inherit;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap}
         .dm-chat-msgs{display:flex;flex-direction:column;gap:8px;padding:8px 14px;max-height:220px;overflow-y:auto;flex-shrink:1}
+        .dm-chat-msgs:empty{display:none}
         .msg,.pmsg{display:flex;align-items:flex-start;gap:8px}.msg.user,.pmsg.user{justify-content:flex-end}.msg.user .av,.pmsg.user .pav{order:2}
         .av,.pav{width:24px;height:24px;border-radius:50%;background:var(--Bs,rgba(124,58,237,.13));color:var(--B,#7C3AED);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:10px;font-weight:700}.pav{width:28px;height:28px;font-size:11px}
         .bubble,.pbubble{border:.5px solid var(--bdr,#242E42);border-radius:8px;background:var(--elev,#171D2E);color:var(--t2,#C7D2E6);line-height:1.55;white-space:pre-wrap}.bubble{max-width:calc(100% - 32px);padding:8px 10px;font-size:12.5px}.pbubble{max-width:calc(100% - 38px);padding:10px 12px;font-size:12px}.user .bubble,.user .pbubble{border-color:var(--Bb,rgba(124,58,237,.30));background:var(--Bs,rgba(124,58,237,.13));color:var(--t1,#F0F4FF)}
@@ -126,16 +142,16 @@ export default function TuVanAiCard() {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--Bs)", border: ".5px solid var(--Bb)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "var(--P)" }}>✦</div>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--t1)" }}>Tư vấn AI</div>
-              <div style={{ fontSize: 9, color: "var(--t3)" }}>Hỏi về danh mục, sóng ngành, chiến lược</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--t1)" }}>{TEXT.title}</div>
+              <div style={{ fontSize: 9, color: "var(--t3)" }}>{TEXT.subtitle}</div>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "var(--G)" }}>
               <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--G)", display: "inline-block", animation: "pulse 2s infinite" }} />
-              Sẵn sàng
+              {TEXT.ready}
             </div>
-            <button className="dm-expand-btn" onClick={openPanel}>↗ Mở rộng</button>
+            <button className="dm-expand-btn" onClick={openPanel}>↗ {TEXT.expand}</button>
           </div>
         </div>
 
@@ -154,7 +170,7 @@ export default function TuVanAiCard() {
             value={chatVal}
             onChange={(e) => { setChatVal(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 72) + "px"; }}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(chatVal, false); } }}
-            placeholder="Hỏi về danh mục, chiến lược..."
+            placeholder={TEXT.placeholder}
             style={{ flex: 1, padding: "6px 10px", borderRadius: 7, border: ".5px solid var(--bdr)", background: "var(--elev)", color: "var(--t1)", fontSize: 11, outline: "none", resize: "none", minHeight: 30, maxHeight: 72, lineHeight: 1.5, fontFamily: "inherit" }}
           />
           <button onClick={() => sendMsg(chatVal, false)} disabled={loading} style={{ width: 30, height: 30, borderRadius: 7, background: "var(--B,#7C3AED)", color: "white", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 13, opacity: loading ? 0.6 : 1 }}>➤</button>
@@ -169,8 +185,8 @@ export default function TuVanAiCard() {
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--Bs)", border: ".5px solid var(--Bb)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "var(--P)" }}>✦</div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)" }}>Tư vấn AI danh mục</div>
-                  <div style={{ fontSize: 10, color: "var(--t3)" }}>Hỏi về danh mục, sóng ngành, chiến lược</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)" }}>{TEXT.panelTitle}</div>
+                  <div style={{ fontSize: 10, color: "var(--t3)" }}>{TEXT.subtitle}</div>
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -186,7 +202,7 @@ export default function TuVanAiCard() {
             </div>
 
             <div style={{ padding: "10px 16px", display: "flex", gap: 6, flexWrap: "wrap", borderTop: ".5px solid var(--bdr)", flexShrink: 0 }}>
-              {PANEL_CHIPS.map((txt) => <span key={txt} className="dm-panel-chip" onClick={() => { setPanelVal(txt); sendMsg(txt, true); }}>{txt}</span>)}
+              {SUGGEST_CHIPS.map((txt) => <span key={txt} className="dm-panel-chip" onClick={() => { setPanelVal(txt); sendMsg(txt, true); }}>{txt}</span>)}
             </div>
 
             <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderTop: ".5px solid var(--bdr)", flexShrink: 0, alignItems: "flex-end" }}>
@@ -196,7 +212,7 @@ export default function TuVanAiCard() {
                 value={panelVal}
                 onChange={(e) => { setPanelVal(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 90) + "px"; }}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(panelVal, true); } }}
-                placeholder="Hỏi bất cứ điều gì về danh mục và thị trường..."
+                placeholder={TEXT.panelPlaceholder}
                 style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: ".5px solid var(--bdr)", background: "var(--elev)", color: "var(--t1)", fontSize: 12, outline: "none", resize: "none", minHeight: 36, maxHeight: 90, lineHeight: 1.5, fontFamily: "inherit" }}
               />
               <button onClick={() => sendMsg(panelVal, true)} disabled={loading} style={{ width: 36, height: 36, borderRadius: 8, background: "var(--B,#7C3AED)", color: "white", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, opacity: loading ? 0.6 : 1 }}>➤</button>
