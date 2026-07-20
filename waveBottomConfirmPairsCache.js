@@ -186,7 +186,7 @@ async function fetchVnindexTrades() {
 
 export async function getWaveBottomConfirmPairs() {
   const todayKey = getTodayKey();
-  if (memoryCache && memoryCacheKey === todayKey) return { ...memoryCache, source: "memory" };
+  if (memoryCache && memoryCacheKey === todayKey && memoryCache.cacheVersion === CACHE_VERSION) return { ...memoryCache, source: "memory" };
 
   if (!pendingRequest) {
     pendingRequest = Promise.all([fetchPairs(), fetchVnindexTrades()])
