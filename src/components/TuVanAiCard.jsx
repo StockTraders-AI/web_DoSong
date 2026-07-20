@@ -73,6 +73,11 @@ export default function TuVanAiCard() {
     document.addEventListener("keydown", fn);
     return () => document.removeEventListener("keydown", fn);
   }, []);
+  useEffect(() => {
+    document.body.classList.toggle("portfolio-ai-panel-open", panelOpen);
+    return () => document.body.classList.remove("portfolio-ai-panel-open");
+  }, [panelOpen]);
+
 
   const fetchReply = useCallback(async (q) => {
     const res = await fetch(PORTFOLIO_CHAT_URL, {

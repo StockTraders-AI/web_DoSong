@@ -1065,6 +1065,7 @@ export default function DoSongThiTruong() {
         *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
         body{background:${T.bg};color:${T.t1};font-family:-apple-system,"Inter","Segoe UI",sans-serif;font-size:13px}
         button{font-family:inherit}
+        body.portfolio-ai-panel-open .dosong-theme-toggle{display:none !important}
         ::-webkit-scrollbar{width:5px;height:4px}
         ::-webkit-scrollbar-thumb{background:${T.bdr};border-radius:3px}
         .dosong-mobile-burger{display:none}
