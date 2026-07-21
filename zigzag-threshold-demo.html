@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Zigzag Threshold Demo</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #111827;
+      background: #f8fafc;
+    }
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 10px;
+      padding: 14px;
+    }
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) 170px 170px auto auto;
+      gap: 10px;
+      align-items: end;
+      padding: 12px;
+      border: 1px solid #dbe2ef;
+      border-radius: 10px;
+      background: #fff;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, .06);
+    }
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #475569;
+    }
+    input, button, textarea {
+      font: inherit;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #0f172a;
+    }
+    input { height: 38px; padding: 0 10px; }
+    input[type="range"] { padding: 0; }
+    button {
+      height: 38px;
+      padding: 0 14px;
+      border: 0;
+      background: #2563eb;
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button.secondary { background: #475569; }
+    .chart-wrap {
+      min-height: 0;
+      border: 1px solid #dbe2ef;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #fff;
+      position: relative;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: crosshair;
+    }
+    .status {
+      position: absolute;
+      left: 12px;
+      top: 12px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .88);
+      border: 1px solid #e2e8f0;
+      font-size: 12px;
+      color: #334155;
+      pointer-events: none;
+    }
+    .bottom {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 10px;
+      min-height: 142px;
+      max-height: 210px;
+    }
+    textarea {
+      width: 100%;
+      height: 100%;
+      padding: 10px;
+      resize: none;
+      font-family: Consolas, monospace;
+      font-size: 12px;
+    }
+    .table {
+      overflow: auto;
+      border: 1px solid #dbe2ef;
+      border-radius: 10px;
+      background: #fff;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    th, td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: left;
+      white-space: nowrap;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      background: #f1f5f9;
+      color: #475569;
+      z-index: 1;
+    }
+    .low { color: #078a20; font-weight: 700; }
+    .high { color: #e11d1d; font-weight: 700; }
+    @media (max-width: 980px) {
+      .toolbar { grid-template-columns: 1fr 1fr; }
+      .bottom { grid-template-columns: 1fr; max-height: none; }
+      .app { height: auto; min-height: 100vh; }
+      .chart-wrap { height: 620px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="toolbar">
+      <label>
+        API OHLC
+        <input id="apiUrl" value="https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX" />
+      </label>
+      <label>
+        Zigzag %
+        <input id="thresholdNumber" type="number" min="0.5" max="20" step="0.1" value="6.5" />
+      </label>
+      <label>
+        Kéo nhanh
+        <input id="thresholdRange" type="range" min="1" max="12" step="0.1" value="6.5" />
+      </label>
+      <button id="loadApi">Load API</button>
+      <button id="drawJson" class="secondary">Vẽ JSON</button>
+    </div>
+
+    <div class="chart-wrap">
+      <canvas id="chart"></canvas>
+      <div id="status" class="status">Chưa có dữ liệu. Bấm Load API hoặc paste JSON bên dưới.</div>
+    </div>
+
+    <div class="bottom">
+      <textarea id="jsonInput" spellcheck="false" placeholder="Paste JSON OHLC tại đây nếu browser bị CORS. Hỗ trợ dạng { data: [...] }, { data: { rows: [...] } }, { rows: [...] } hoặc mảng trực tiếp."></textarea>
+      <div class="table">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Loại</th>
+              <th>Ngày</th>
+              <th>Giá</th>
+              <th>Index</th>
+            </tr>
+          </thead>
+          <tbody id="pivotRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("chart");
+    const ctx = canvas.getContext("2d");
+    const statusEl = document.getElementById("status");
+    const pivotRowsEl = document.getElementById("pivotRows");
+    const apiUrlEl = document.getElementById("apiUrl");
+    const thresholdNumberEl = document.getElementById("thresholdNumber");
+    const thresholdRangeEl = document.getElementById("thresholdRange");
+    const jsonInputEl = document.getElementById("jsonInput");
+    let rows = [];
+    let pivots = [];
+
+    function toNumber(value) {
+      const number = Number(value);
+      return Number.isFinite(number) ? number : 0;
+    }
+
+    function rowDateValue(value) {
+      const time = Date.parse(`${value}T00:00:00`);
+      return Number.isFinite(time) ? time : 0;
+    }
+
+    function getRows(payload) {
+      const list = payload?.data?.rows ?? payload?.data ?? payload?.rows ?? payload;
+      return Array.isArray(list) ? list : [];
+    }
+
+    function normalizeTradeRows(payload) {
+      return getRows(payload)
+        .map((row) => ({
+          date: String(row?.date || row?.tradingDate || row?.ngay || ""),
+          open: toNumber(row?.open ?? row?.Open ?? row?.o),
+          high: toNumber(row?.high ?? row?.High ?? row?.h),
+          low: toNumber(row?.low ?? row?.Low ?? row?.l),
+          close: toNumber(row?.close ?? row?.Close ?? row?.c),
+        }))
+        .filter((row) => row.date && row.open > 0 && row.high > 0 && row.low > 0 && row.close > 0)
+        .sort((a, b) => rowDateValue(a.date) - rowDateValue(b.date))
+        .map((row, index) => ({ ...row, index }));
+    }
+
+    function buildZigzagPivots(dataRows, threshold) {
+      if (!dataRows.length) return [];
+
+      const result = [];
+      let trend = 0;
+      let low = dataRows[0];
+      let high = dataRows[0];
+      let candidate = dataRows[0];
+
+      for (let index = 1; index < dataRows.length; index += 1) {
+        const row = dataRows[index];
+
+        if (trend === 0) {
+          if (row.low < low.low) low = row;
+          if (row.high > high.high) high = row;
+
+          if (row.high >= low.low * (1 + threshold)) {
+            result.push({ ...low, price: low.low, type: "low" });
+            trend = 1;
+            candidate = row;
+          } else if (row.low <= high.high * (1 - threshold)) {
+            result.push({ ...high, price: high.high, type: "high" });
+            trend = -1;
+            candidate = row;
+          }
+          continue;
+        }
+
+        if (trend === 1) {
+          if (row.high > candidate.high) candidate = row;
+          if (row.low <= candidate.high * (1 - threshold)) {
+            result.push({ ...candidate, price: candidate.high, type: "high" });
+            trend = -1;
+            candidate = row;
+          }
+          continue;
+        }
+
+        if (row.low < candidate.low) candidate = row;
+        if (row.high >= candidate.low * (1 + threshold)) {
+          result.push({ ...candidate, price: candidate.low, type: "low" });
+          trend = 1;
+          candidate = row;
+        }
+      }
+
+      return result;
+    }
+
+    function formatPrice(value) {
+      return Number(value).toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function fitCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return rect;
+    }
+
+    function draw() {
+      const rect = fitCanvas();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      if (!rows.length) return;
+
+      const threshold = Number(thresholdNumberEl.value) / 100;
+      pivots = buildZigzagPivots(rows, threshold);
+      const pad = { left: 46, right: 72, top: 26, bottom: 34 };
+      const viewRows = rows;
+      const minPrice = Math.min(...viewRows.map((row) => row.low));
+      const maxPrice = Math.max(...viewRows.map((row) => row.high));
+      const paddingPrice = (maxPrice - minPrice) * 0.08 || 1;
+      const yMin = minPrice - paddingPrice;
+      const yMax = maxPrice + paddingPrice;
+      const plotW = rect.width - pad.left - pad.right;
+      const plotH = rect.height - pad.top - pad.bottom;
+      const step = plotW / Math.max(1, viewRows.length - 1);
+      const candleW = Math.max(3, Math.min(14, step * 0.62));
+      const x = (index) => pad.left + index * step;
+      const y = (price) => pad.top + (yMax - price) / (yMax - yMin) * plotH;
+
+      ctx.strokeStyle = "#e5e7eb";
+      ctx.lineWidth = 1;
+      ctx.font = "11px Arial";
+      ctx.fillStyle = "#94a3b8";
+      for (let i = 0; i <= 12; i += 1) {
+        const yy = pad.top + i / 12 * plotH;
+        ctx.beginPath();
+        ctx.moveTo(0, yy);
+        ctx.lineTo(rect.width, yy);
+        ctx.stroke();
+        const price = yMax - i / 12 * (yMax - yMin);
+        ctx.fillText(formatPrice(price), rect.width - pad.right + 8, yy + 4);
+      }
+      const verticalCount = Math.min(12, Math.floor(viewRows.length / 7));
+      for (let i = 0; i <= verticalCount; i += 1) {
+        const idx = Math.round(i / Math.max(1, verticalCount) * (viewRows.length - 1));
+        const xx = x(idx);
+        ctx.beginPath();
+        ctx.moveTo(xx, pad.top);
+        ctx.lineTo(xx, rect.height - pad.bottom);
+        ctx.stroke();
+      }
+
+      viewRows.forEach((row) => {
+        const xx = x(row.index);
+        const up = row.close >= row.open;
+        ctx.strokeStyle = up ? "#26a69a" : "#ef5350";
+        ctx.fillStyle = up ? "#26a69a" : "#ef5350";
+        ctx.beginPath();
+        ctx.moveTo(xx, y(row.high));
+        ctx.lineTo(xx, y(row.low));
+        ctx.stroke();
+        const top = y(Math.max(row.open, row.close));
+        const bottom = y(Math.min(row.open, row.close));
+        ctx.fillRect(xx - candleW / 2, top, candleW, Math.max(1, bottom - top));
+      });
+
+      if (pivots.length) {
+        ctx.strokeStyle = "#2962ff";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        pivots.forEach((pivot, index) => {
+          const xx = x(pivot.index);
+          const yy = y(pivot.price);
+          if (index === 0) ctx.moveTo(xx, yy);
+          else ctx.lineTo(xx, yy);
+        });
+        ctx.stroke();
+
+        pivots.forEach((pivot) => {
+          const xx = x(pivot.index);
+          const yy = y(pivot.price);
+          const isLow = pivot.type === "low";
+          ctx.fillStyle = isLow ? "#008000" : "#ff0000";
+          ctx.strokeStyle = isLow ? "#008000" : "#ff0000";
+          ctx.lineWidth = 2;
+
+          ctx.beginPath();
+          if (isLow) {
+            ctx.moveTo(xx, yy - 13);
+            ctx.lineTo(xx - 6, yy);
+            ctx.lineTo(xx + 6, yy);
+          } else {
+            ctx.moveTo(xx, yy + 13);
+            ctx.lineTo(xx - 6, yy);
+            ctx.lineTo(xx + 6, yy);
+          }
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.font = "13px Arial";
+          ctx.textAlign = "center";
+          const label = `${isLow ? "Đáy" : "Đỉnh"} ${formatPrice(pivot.price)}`;
+          ctx.fillText(label, xx, isLow ? yy + 28 : yy - 18);
+        });
+      }
+
+      updatePivotTable();
+      const last = rows[rows.length - 1];
+      statusEl.textContent = `${rows.length} nến | ${pivots.length} điểm zigzag | ngưỡng ${Number(thresholdNumberEl.value).toFixed(1)}% | phiên cuối ${last.date}`;
+    }
+
+    function updatePivotTable() {
+      pivotRowsEl.innerHTML = pivots.map((pivot, index) => `
+        <tr>
+          <td>${index + 1}</td>
+          <td class="${pivot.type === "low" ? "low" : "high"}">${pivot.type === "low" ? "Đáy" : "Đỉnh"}</td>
+          <td>${pivot.date}</td>
+          <td>${formatPrice(pivot.price)}</td>
+          <td>${pivot.index}</td>
+        </tr>
+      `).join("");
+    }
+
+    async function loadApi() {
+      statusEl.textContent = "Đang gọi API...";
+      try {
+        const response = await fetch(apiUrlEl.value.trim(), { method: "POST" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+        jsonInputEl.value = JSON.stringify(payload, null, 2);
+        rows = normalizeTradeRows(payload);
+        if (!rows.length) throw new Error("Không đọc được OHLC từ response.");
+        draw();
+      } catch (error) {
+        statusEl.textContent = `Load API lỗi: ${error.message}. Paste JSON vào ô dưới rồi bấm Vẽ JSON.`;
+      }
+    }
+
+    function drawFromJson() {
+      try {
+        const payload = JSON.parse(jsonInputEl.value);
+        rows = normalizeTradeRows(payload);
+        if (!rows.length) throw new Error("Không đọc được OHLC từ JSON.");
+        draw();
+      } catch (error) {
+        statusEl.textContent = `JSON lỗi: ${error.message}`;
+      }
+    }
+
+    thresholdNumberEl.addEventListener("input", () => {
+      thresholdRangeEl.value = thresholdNumberEl.value;
+      draw();
+    });
+    thresholdRangeEl.addEventListener("input", () => {
+      thresholdNumberEl.value = thresholdRangeEl.value;
+      draw();
+    });
+    document.getElementById("loadApi").addEventListener("click", loadApi);
+    document.getElementById("drawJson").addEventListener("click", drawFromJson);
+    window.addEventListener("resize", draw);
+
+    fitCanvas();
+  </script>
+</body>
+</html>

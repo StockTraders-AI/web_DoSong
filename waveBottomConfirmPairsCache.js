@@ -3,7 +3,7 @@ import { sendJson } from "./stockWaveHistoryCache.js";
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
 const CACHE_VERSION = 8;
-const ZIGZAG_THRESHOLD = 0.05;
+const ZIGZAG_THRESHOLD = 0.06;
 const PAIRS_REQUEST = { dateFrom: null, dateTo: null, count: 4 };
 let memoryCache = null;
 let memoryCacheKey = "";
