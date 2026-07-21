@@ -2,7 +2,7 @@ import { sendJson } from "./stockWaveHistoryCache.js";
 
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
-const CACHE_VERSION = 10;
+const CACHE_VERSION = 11;
 const ZIGZAG_THRESHOLD = 0.052;
 const PAIRS_REQUEST = { dateFrom: null, dateTo: null, count: 4 };
 let memoryCache = null;
@@ -138,6 +138,18 @@ function findNextHighPivot(pivots, bottom) {
   return pivots.find((pivot) => pivot.type === "high" && pivot.index > bottom.index) || null;
 }
 
+function findLowestNearbyLow(pivots, bottom) {
+  if (!bottom) return null;
+  const nearbyLows = pivots.filter(
+    (pivot) => pivot.type === "low" && Math.abs(pivot.index - bottom.index) <= 1
+  );
+  if (!nearbyLows.length) return bottom;
+  return nearbyLows.reduce(
+    (lowest, pivot) => toNumber(pivot.price) < toNumber(lowest.price) ? pivot : lowest,
+    bottom
+  );
+}
+
 async function fetchPairs() {
   const response = await fetch(WAVE_BOTTOM_PAIRS_URL, {
     method: "POST",
@@ -187,6 +199,7 @@ export async function getWaveBottomConfirmPairs() {
         const rows = getPairs(pairsPayload).map((pair) => {
           const confirmDate = String(pair.confirm_wave_date || "");
           const bottom = findLowPivot(pivots, quoteByDate, pair);
+          const displayBottom = findLowestNearbyLow(pivots, bottom);
           const peak = findNextHighPivot(pivots, bottom);
           const increasePoints = bottom && peak ? peak.high - bottom.low : 0;
           const durationSessions = bottom && peak ? peak.index - bottom.index + 1 : 0;
@@ -196,8 +209,8 @@ export async function getWaveBottomConfirmPairs() {
             prepare_bottom_date: String(pair.prepare_bottom_date || ""),
             zigzag_bottom_date: bottom?.date || "",
             zigzag_peak_date: peak?.date || "",
-            vnindex: toNumber(bottom?.price),
-            vnindex_date: bottom?.date || "",
+            vnindex: toNumber(displayBottom?.price),
+            vnindex_date: displayBottom?.date || "",
             increase_points: Number(increasePoints.toFixed(2)),
             zigzag_bottom_price: toNumber(bottom?.low),
             zigzag_peak_price: toNumber(peak?.high),
