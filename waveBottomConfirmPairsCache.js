@@ -2,7 +2,7 @@ import { sendJson } from "./stockWaveHistoryCache.js";
 
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
-const CACHE_VERSION = 7;
+const CACHE_VERSION = 8;
 const ZIGZAG_THRESHOLD = 0.05;
 const PAIRS_REQUEST = { dateFrom: null, dateTo: null, count: 4 };
 let memoryCache = null;
@@ -117,28 +117,15 @@ function findLowPivot(pivots, quoteByDate, pair) {
   if (!lows.length) return null;
 
   const confirmDate = String(pair.confirm_wave_date || "");
-  const prepareDate = String(pair.prepare_bottom_date || "");
-  const exactConfirm = lows.find((pivot) => pivot.date === confirmDate);
-  if (exactConfirm) return exactConfirm;
-
-  const exactPrepare = lows.find((pivot) => pivot.date === prepareDate);
-  if (exactPrepare) return exactPrepare;
-
   const confirm = quoteByDate.get(confirmDate);
-  const prepare = quoteByDate.get(prepareDate);
-  if (confirm && prepare) {
-    const from = Math.min(confirm.index, prepare.index);
-    const to = Math.max(confirm.index, prepare.index);
-    const inPairWindow = lows.filter((pivot) => pivot.index >= from && pivot.index <= to);
-    if (inPairWindow.length) {
-      return inPairWindow.reduce((best, pivot) => pivot.low < best.low ? pivot : best, inPairWindow[0]);
-    }
-  }
-
   if (confirm) {
-    const previous = lows.filter((pivot) => pivot.index <= confirm.index);
+    const previous = lows.filter((pivot) => pivot.index < confirm.index);
     if (previous.length) return previous[previous.length - 1];
   }
+
+  const prepareDate = String(pair.prepare_bottom_date || "");
+  const exactPrepare = lows.find((pivot) => pivot.date === prepareDate);
+  if (exactPrepare) return exactPrepare;
 
   return lows[0];
 }
@@ -198,8 +185,6 @@ export async function getWaveBottomConfirmPairs() {
           const confirmDate = String(pair.confirm_wave_date || "");
           const bottom = findLowPivot(pivots, quoteByDate, pair);
           const peak = findNextHighPivot(pivots, bottom);
-          const fallbackQuote = quoteByDate.get(confirmDate);
-          const previousConfirmQuote = fallbackQuote && fallbackQuote.index > 0 ? vnindexRows[fallbackQuote.index - 1] : null;
           const increasePoints = bottom && peak ? peak.high - bottom.low : 0;
           const durationSessions = bottom && peak ? peak.index - bottom.index + 1 : 0;
 
@@ -208,8 +193,8 @@ export async function getWaveBottomConfirmPairs() {
             prepare_bottom_date: String(pair.prepare_bottom_date || ""),
             zigzag_bottom_date: bottom?.date || "",
             zigzag_peak_date: peak?.date || "",
-            vnindex: toNumber(previousConfirmQuote?.low),
-            vnindex_date: previousConfirmQuote?.date || "",
+            vnindex: toNumber(bottom?.low),
+            vnindex_date: bottom?.date || "",
             increase_points: Number(increasePoints.toFixed(2)),
             zigzag_bottom_price: toNumber(bottom?.low),
             zigzag_peak_price: toNumber(peak?.high),
