@@ -2,7 +2,7 @@ import { sendJson } from "./stockWaveHistoryCache.js";
 
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
-const CACHE_VERSION = 5;
+const CACHE_VERSION = 6;
 const ZIGZAG_THRESHOLD = 0.05;
 const PAIRS_REQUEST = { dateFrom: null, dateTo: null, count: 4 };
 let memoryCache = null;
@@ -199,7 +199,7 @@ export async function getWaveBottomConfirmPairs() {
           const bottom = findLowPivot(pivots, quoteByDate, pair);
           const peak = findNextHighPivot(pivots, bottom);
           const fallbackQuote = quoteByDate.get(confirmDate);
-          const previousConfirmQuote = fallbackQuote && fallbackQuote.index > 0 ? vnindexRows[fallbackQuote.index - 1] : null;
+          const previousConfirmQuote = fallbackQuote && fallbackQuote.index > 1 ? vnindexRows[fallbackQuote.index - 2] : null;
           const increasePoints = bottom && peak ? peak.high - bottom.low : 0;
           const durationSessions = bottom && peak ? peak.index - bottom.index + 1 : 0;
 
