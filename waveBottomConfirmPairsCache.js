@@ -2,7 +2,7 @@ import { sendJson } from "./stockWaveHistoryCache.js";
 
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
-const CACHE_VERSION = 4;
+const CACHE_VERSION = 5;
 const ZIGZAG_THRESHOLD = 0.05;
 const PAIRS_REQUEST = { dateFrom: null, dateTo: null, count: 4 };
 let memoryCache = null;
@@ -199,6 +199,7 @@ export async function getWaveBottomConfirmPairs() {
           const bottom = findLowPivot(pivots, quoteByDate, pair);
           const peak = findNextHighPivot(pivots, bottom);
           const fallbackQuote = quoteByDate.get(confirmDate);
+          const previousConfirmQuote = fallbackQuote && fallbackQuote.index > 0 ? vnindexRows[fallbackQuote.index - 1] : null;
           const increasePoints = bottom && peak ? peak.high - bottom.low : 0;
           const durationSessions = bottom && peak ? peak.index - bottom.index + 1 : 0;
 
@@ -207,7 +208,8 @@ export async function getWaveBottomConfirmPairs() {
             prepare_bottom_date: String(pair.prepare_bottom_date || ""),
             zigzag_bottom_date: bottom?.date || "",
             zigzag_peak_date: peak?.date || "",
-            vnindex: toNumber(fallbackQuote?.low),
+            vnindex: toNumber(previousConfirmQuote?.low),
+            vnindex_date: previousConfirmQuote?.date || "",
             increase_points: Number(increasePoints.toFixed(2)),
             zigzag_bottom_price: toNumber(bottom?.low),
             zigzag_peak_price: toNumber(peak?.high),
