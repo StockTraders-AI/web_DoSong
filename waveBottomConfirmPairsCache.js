@@ -2,7 +2,7 @@ import { sendJson } from "./stockWaveHistoryCache.js";
 
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
-const CACHE_VERSION = 8;
+const CACHE_VERSION = 10;
 const ZIGZAG_THRESHOLD = 0.06;
 const PAIRS_REQUEST = { dateFrom: null, dateTo: null, count: 4 };
 let memoryCache = null;
@@ -116,16 +116,19 @@ function findLowPivot(pivots, quoteByDate, pair) {
   const lows = pivots.filter((pivot) => pivot.type === "low");
   if (!lows.length) return null;
 
-  const confirmDate = String(pair.confirm_wave_date || "");
-  const confirm = quoteByDate.get(confirmDate);
-  if (confirm) {
-    const previous = lows.filter((pivot) => pivot.index < confirm.index);
-    if (previous.length) return previous[previous.length - 1];
-  }
+  const bottomDate = String(pair.confirm_wave_date || "");
+  const exactBottom = lows.find((pivot) => pivot.date === bottomDate);
+  if (exactBottom) return exactBottom;
 
   const prepareDate = String(pair.prepare_bottom_date || "");
   const exactPrepare = lows.find((pivot) => pivot.date === prepareDate);
   if (exactPrepare) return exactPrepare;
+
+  const bottomQuote = quoteByDate.get(bottomDate);
+  if (bottomQuote) {
+    const previous = lows.filter((pivot) => pivot.index <= bottomQuote.index);
+    if (previous.length) return previous[previous.length - 1];
+  }
 
   return lows[0];
 }
@@ -193,7 +196,7 @@ export async function getWaveBottomConfirmPairs() {
             prepare_bottom_date: String(pair.prepare_bottom_date || ""),
             zigzag_bottom_date: bottom?.date || "",
             zigzag_peak_date: peak?.date || "",
-            vnindex: toNumber(bottom?.low),
+            vnindex: toNumber(bottom?.price),
             vnindex_date: bottom?.date || "",
             increase_points: Number(increasePoints.toFixed(2)),
             zigzag_bottom_price: toNumber(bottom?.low),
