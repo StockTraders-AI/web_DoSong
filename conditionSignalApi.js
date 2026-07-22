@@ -10,7 +10,7 @@ export async function handleConditionSignalLatest(req, res, rawUrl) {
   }
 
   const chatwebBaseUrl = (process.env.CHATWEB_API_BASE_URL || DEFAULT_CHATWEB_API_BASE_URL).replace(/\/$/, "");
-  const signalKey = url.searchParams.get("signal_key") || "waitbuy_over_100";
+  const signalKey = url.searchParams.get("signal_key") || "waitbuy_over_threshold";
   const flowId = url.searchParams.get("flow_id");
   const targetUrl = new URL(`${chatwebBaseUrl}/public/condition-signals/latest`);
 

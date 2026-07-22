@@ -1,32 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 
-const WAITBUY_THRESHOLD = 100;
-const WAITBUY_SIGNAL_KEY = "waitbuy_over_100";
+const WAITBUY_SIGNAL_KEY = "waitbuy_over_threshold";
 
 export default function KhuyenNghiTuVanAI({ waitbuy = 0 }) {
   const [conditionResponse, setConditionResponse] = useState("");
-  const wasMatchedRef = useRef(false);
-  const isMatched = Number(waitbuy) > WAITBUY_THRESHOLD;
+  const lastCheckedWaitbuyRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
     const retryTimers = [];
+    const currentWaitbuy = Number(waitbuy) || 0;
 
-    if (!isMatched) {
-      wasMatchedRef.current = false;
-      setConditionResponse("");
+    if (lastCheckedWaitbuyRef.current === currentWaitbuy) {
       return () => {
         cancelled = true;
       };
     }
 
-    if (wasMatchedRef.current) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    wasMatchedRef.current = true;
+    lastCheckedWaitbuyRef.current = currentWaitbuy;
 
     function retryLoad(attempt) {
       const timer = window.setTimeout(() => loadConditionResponse(attempt), attempt * 1500);
@@ -65,7 +56,9 @@ export default function KhuyenNghiTuVanAI({ waitbuy = 0 }) {
       cancelled = true;
       retryTimers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [isMatched]);
+  }, [waitbuy]);
+
+  if (!conditionResponse) return null;
 
   return (
     <div style={{ background: "linear-gradient(0deg, rgba(124,58,237,.12), rgba(124,58,237,.12)), var(--surf, #111520)", border: "1px solid #5B21B6", borderRadius: 16, padding: "16px 17px" }}>
