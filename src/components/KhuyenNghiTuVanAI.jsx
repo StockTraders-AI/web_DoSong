@@ -25,7 +25,6 @@ export default function KhuyenNghiTuVanAI() {
           setConditionResponse(response);
         }
       } catch {
-        // Keep the fallback text when chatweb is unavailable.
       }
     }
 
@@ -42,12 +41,7 @@ export default function KhuyenNghiTuVanAI() {
         Khả năng tạo đáy cao – Chờ xác nhận !
       </div>
       <div style={{ fontSize: 12.5, lineHeight: 1.6, color: "var(--t2, #A8B8D0)" }}>
-        {conditionResponse || (
-          <>
-            Số lượng mã Chờ mua đang chiếm tỷ trọng cao 40.5% trên tổng số 402 mã.
-            Dòng tiền bắt đầu quay lại, thị trường đang ở vùng đỡ đáy.
-          </>
-        )}
+        {conditionResponse}
       </div>
       <div
         style={{
