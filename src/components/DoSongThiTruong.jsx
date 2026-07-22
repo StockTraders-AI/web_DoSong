@@ -980,20 +980,6 @@ export default function DoSongThiTruong() {
       setLatestWave(rows[0]);
     });
 
-    socket.on("message", (payload) => {
-      console.log("[STOCK WAVE SOCKET RAW]", payload);
-
-      const data = getSocketWaveData(payload);
-      console.log("[STOCK WAVE SOCKET DATA]", data);
-
-      if (!data) return;
-
-      const rows = normalizeWavePayload(data);
-      console.log("[STOCK WAVE NORMALIZED]", rows);
-
-      if (!rows.length) return;
-      setLatestWave(rows[0]);
-    });
 
     socket.on("connect_error", (error) => {
       console.error("Realtime wave socket failed", error);
@@ -1209,7 +1195,7 @@ export default function DoSongThiTruong() {
           {/* ── CỘT PHẢI ── */}
           <div className="dosong-right" style={{ display:"flex", flexDirection:"column", gap:14, minWidth:0 }}>
             <div className="dosong-mobile-item dosong-order-ai">
-              <KhuyenNghiTuVanAI />
+              <KhuyenNghiTuVanAI waitbuy={realtimeDisplayWave.cm} />
             </div>
             <div className="dosong-mobile-item dosong-order-chat">
               <TuVanAiCard />

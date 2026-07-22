@@ -1,26 +1,61 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-export default function KhuyenNghiTuVanAI() {
+const WAITBUY_THRESHOLD = 100;
+const WAITBUY_SIGNAL_KEY = "waitbuy_over_100";
+
+export default function KhuyenNghiTuVanAI({ waitbuy = 0 }) {
   const [conditionResponse, setConditionResponse] = useState("");
+  const wasMatchedRef = useRef(false);
+  const isMatched = Number(waitbuy) > WAITBUY_THRESHOLD;
 
   useEffect(() => {
     let cancelled = false;
+    const retryTimers = [];
 
-    async function loadConditionResponse() {
+    if (!isMatched) {
+      wasMatchedRef.current = false;
+      setConditionResponse("");
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (wasMatchedRef.current) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    wasMatchedRef.current = true;
+
+    function retryLoad(attempt) {
+      const timer = window.setTimeout(() => loadConditionResponse(attempt), attempt * 1500);
+      retryTimers.push(timer);
+    }
+
+    async function loadConditionResponse(attempt = 1) {
       try {
         const res = await fetch(
-          "/api/condition-signal-latest?signal_key=waitbuy_over_100"
+          `/api/condition-signal-latest?signal_key=${WAITBUY_SIGNAL_KEY}`
         );
 
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (!cancelled) setConditionResponse("");
+          return;
+        }
 
         const data = await res.json();
         const response = String(data?.response || "").trim();
 
-        if (!cancelled && response) {
+        if (!cancelled) {
           setConditionResponse(response);
+          if (!response && attempt < 3) retryLoad(attempt + 1);
         }
       } catch {
+        if (!cancelled) {
+          setConditionResponse("");
+          if (attempt < 3) retryLoad(attempt + 1);
+        }
       }
     }
 
@@ -28,8 +63,9 @@ export default function KhuyenNghiTuVanAI() {
 
     return () => {
       cancelled = true;
+      retryTimers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, []);
+  }, [isMatched]);
 
   return (
     <div style={{ background: "linear-gradient(0deg, rgba(124,58,237,.12), rgba(124,58,237,.12)), var(--surf, #111520)", border: "1px solid #5B21B6", borderRadius: 16, padding: "16px 17px" }}>

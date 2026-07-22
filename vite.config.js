@@ -6,6 +6,7 @@ import { handleStockWaveTickers } from './stockWaveTickersCache.js'
 import { handleWaveBottomConfirmPairs } from './waveBottomConfirmPairsCache.js'
 import { handleUsersRequest } from './usersApi.js'
 import { handlePortfolioChat } from './portfolioChatApi.js'
+import { handleConditionSignalLatest } from './conditionSignalApi.js'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -18,6 +19,7 @@ export default defineConfig({
         server.middlewares.use(async (req, res, next) => {
           if (await handleUsersRequest(req, res, req.url)) return
           if (await handlePortfolioChat(req, res, req.url)) return
+          if (await handleConditionSignalLatest(req, res, req.url)) return
 
           const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`)
           if (req.method === 'GET' && url.pathname === '/api/stock-wave-current') {
