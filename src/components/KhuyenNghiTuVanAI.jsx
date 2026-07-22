@@ -1,12 +1,53 @@
+import { useEffect, useState } from "react";
+
 export default function KhuyenNghiTuVanAI() {
+  const [conditionResponse, setConditionResponse] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadConditionResponse() {
+      const envBaseUrl = import.meta.env.VITE_CHATBOT_API_BASE_URL || "";
+      const fallbackBaseUrl = `${window.location.protocol}//${window.location.hostname}:8000`;
+      const baseUrl = (envBaseUrl || fallbackBaseUrl).replace(/\/$/, "");
+
+      try {
+        const res = await fetch(
+          `${baseUrl}/public/condition-signals/latest?signal_key=waitbuy_over_100`
+        );
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const response = String(data?.response || "").trim();
+
+        if (!cancelled && response) {
+          setConditionResponse(response);
+        }
+      } catch {
+        // Keep the fallback text when chatweb is unavailable.
+      }
+    }
+
+    loadConditionResponse();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div style={{ background: "linear-gradient(0deg, rgba(124,58,237,.12), rgba(124,58,237,.12)), var(--surf, #111520)", border: "1px solid #5B21B6", borderRadius: 16, padding: "16px 17px" }}>
       <div style={{ fontSize: 15, fontWeight: 800, color: "var(--t1, #F0F4FF)", marginBottom: 6 }}>
         Khả năng tạo đáy cao – Chờ xác nhận !
       </div>
       <div style={{ fontSize: 12.5, lineHeight: 1.6, color: "var(--t2, #A8B8D0)" }}>
-        Số lượng mã Chờ mua đang chiếm tỷ trọng cao 40.5% trên tổng số 402 mã.
-        Dòng tiền bắt đầu quay lại, thị trường đang ở vùng đỡ đáy.
+        {conditionResponse || (
+          <>
+            Số lượng mã Chờ mua đang chiếm tỷ trọng cao 40.5% trên tổng số 402 mã.
+            Dòng tiền bắt đầu quay lại, thị trường đang ở vùng đỡ đáy.
+          </>
+        )}
       </div>
       <div
         style={{
