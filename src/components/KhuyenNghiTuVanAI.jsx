@@ -7,13 +7,9 @@ export default function KhuyenNghiTuVanAI() {
     let cancelled = false;
 
     async function loadConditionResponse() {
-      const envBaseUrl = import.meta.env.VITE_CHATBOT_API_BASE_URL || "";
-      const fallbackBaseUrl = `${window.location.protocol}//${window.location.hostname}:8000`;
-      const baseUrl = (envBaseUrl || fallbackBaseUrl).replace(/\/$/, "");
-
       try {
         const res = await fetch(
-          `${baseUrl}/public/condition-signals/latest?signal_key=waitbuy_over_100`
+          "/api/condition-signal-latest?signal_key=waitbuy_over_100"
         );
 
         if (!res.ok) return;
