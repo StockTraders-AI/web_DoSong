@@ -23,12 +23,16 @@ export async function handleConditionSignalLatest(req, res, rawUrl) {
 
     sendJson(res, upstream.ok ? 200 : upstream.status, {
       ok: upstream.ok && data?.ok !== false,
+      title: data?.title || null,
       response: data?.response || null,
+      recommendation: data?.recommendation || null,
     });
   } catch (error) {
     sendJson(res, 502, {
       ok: false,
+      title: null,
       response: null,
+      recommendation: null,
       error: error.message || "Cannot load condition signal",
     });
   }
