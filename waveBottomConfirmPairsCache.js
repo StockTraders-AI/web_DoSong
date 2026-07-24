@@ -3,16 +3,40 @@ import { sendJson } from "./stockWaveHistoryCache.js";
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
 const VNINDEX_TRADE_REAL_URL = process.env.VNINDEX_TRADE_REAL_URL || "https://stocktraders.vn/service/data/getTotalTradeReal";
-const CACHE_VERSION = 13;
+const CACHE_VERSION = 14;
 const ZIGZAG_THRESHOLD = 0.052;
+const MARKET_TIME_ZONE = "Asia/Bangkok";
+const END_OF_DAY_CHECK_HOUR = 18;
 const PAIRS_REQUEST = { dateFrom: null, dateTo: null, count: 4 };
 const VNINDEX_TRADE_REAL_REQUEST = { TotalTradeRealRequest: { account: "stocktraders2013" } };
 let memoryCache = null;
 let memoryCacheKey = "";
 let pendingRequest = null;
 
-function getTodayKey() {
-  return new Date().toISOString().slice(0, 10);
+function getMarketNowParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: MARKET_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const lookup = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return {
+    date: `${lookup.year}-${lookup.month}-${lookup.day}`,
+    hour: Number(lookup.hour),
+  };
+}
+
+function getMarketDateKey(date = new Date()) {
+  return getMarketNowParts(date).date;
+}
+
+function getCacheKey(date = new Date()) {
+  const { date: marketDate, hour } = getMarketNowParts(date);
+  const checkPhase = hour >= END_OF_DAY_CHECK_HOUR ? "after18" : "before18";
+  return `${marketDate}-${checkPhase}`;
 }
 
 function getPairs(payload) {
@@ -40,7 +64,7 @@ function writeMemoryCache(rows) {
     rows,
   };
   memoryCache = payload;
-  memoryCacheKey = getTodayKey();
+  memoryCacheKey = getCacheKey();
   return payload;
 }
 
@@ -55,7 +79,7 @@ function normalizeTradeRows(payload) {
         row?.close ?? row?.Close ?? row?.c ?? row?.price ?? row?.lastPrice ?? row?.matchPrice ?? row?.gia
       );
       return {
-        date: String(row?.date || row?.tradingDate || row?.ngay || row?.tradeDate || getTodayKey()),
+        date: String(row?.date || row?.tradingDate || row?.ngay || row?.tradeDate || getMarketDateKey()),
         high: toNumber(row?.high ?? row?.High ?? row?.h) || fallbackPrice,
         low: toNumber(row?.low ?? row?.Low ?? row?.l) || fallbackPrice,
       };
@@ -136,19 +160,41 @@ function buildZigzagPivots(rows, threshold = ZIGZAG_THRESHOLD) {
   return pivots;
 }
 
-function findLowPivot(pivots, quoteByDate, pair) {
-  const lows = pivots.filter((pivot) => pivot.type === "low");
-  if (!lows.length) return null;
+function isLowerThanPreviousSession(row, rows) {
+  if (!row || row.index <= 0) return false;
+  const previous = rows[row.index - 1];
+  return previous && row.low < previous.low;
+}
 
+function findConfirmedLowFromDate(lows, confirmQuote, nextConfirmQuote) {
+  if (!confirmQuote) return null;
+  return lows.find(
+    (pivot) =>
+      pivot.index >= confirmQuote.index &&
+      (!nextConfirmQuote || pivot.index < nextConfirmQuote.index)
+  ) || null;
+}
+
+function findLowPivot(pivots, quoteByDate, rows, pair, nextPair) {
+  const lows = pivots.filter((pivot) => pivot.type === "low");
   const bottomDate = String(pair.confirm_wave_date || "");
+  const bottomQuote = quoteByDate.get(bottomDate);
+  const nextConfirmQuote = nextPair ? quoteByDate.get(String(nextPair.confirm_wave_date || "")) : null;
   const exactBottom = lows.find((pivot) => pivot.date === bottomDate);
   if (exactBottom) return exactBottom;
+
+  const confirmedFromBottom = findConfirmedLowFromDate(lows, bottomQuote, nextConfirmQuote);
+  if (isLowerThanPreviousSession(bottomQuote, rows)) {
+    if (confirmedFromBottom) return confirmedFromBottom;
+    return { ...bottomQuote, price: bottomQuote.low, type: "low", isTemporary: true };
+  }
+
+  if (!lows.length) return null;
 
   const prepareDate = String(pair.prepare_bottom_date || "");
   const exactPrepare = lows.find((pivot) => pivot.date === prepareDate);
   if (exactPrepare) return exactPrepare;
 
-  const bottomQuote = quoteByDate.get(bottomDate);
   if (bottomQuote) {
     const previous = lows.filter((pivot) => pivot.index <= bottomQuote.index);
     if (previous.length) return previous[previous.length - 1];
@@ -164,6 +210,7 @@ function findNextHighPivot(pivots, bottom) {
 
 function findLowestNearbyLow(pivots, bottom) {
   if (!bottom) return null;
+  if (bottom.isTemporary) return bottom;
   const nearbyLows = pivots.filter(
     (pivot) => pivot.type === "low" && Math.abs(pivot.index - bottom.index) <= 1
   );
@@ -221,8 +268,8 @@ async function fetchVnindexTradeReal() {
 }
 
 export async function getWaveBottomConfirmPairs() {
-  const todayKey = getTodayKey();
-  if (memoryCache && memoryCacheKey === todayKey && memoryCache.cacheVersion === CACHE_VERSION) return { ...memoryCache, source: "memory" };
+  const cacheKey = getCacheKey();
+  if (memoryCache && memoryCacheKey === cacheKey && memoryCache.cacheVersion === CACHE_VERSION) return { ...memoryCache, source: "memory" };
 
   if (!pendingRequest) {
     pendingRequest = Promise.all([
@@ -237,11 +284,14 @@ export async function getWaveBottomConfirmPairs() {
         const vnindexRows = mergeTradeRows(vnindexPayload, vnindexRealPayload);
         const quoteByDate = buildQuoteLookup(vnindexRows);
         const pivots = buildZigzagPivots(vnindexRows);
-        const rows = getPairs(pairsPayload).map((pair) => {
+        const pairs = getPairs(pairsPayload)
+          .slice()
+          .sort((a, b) => rowDateValue(String(a?.confirm_wave_date || "")) - rowDateValue(String(b?.confirm_wave_date || "")));
+        const rows = pairs.map((pair, index) => {
           const confirmDate = String(pair.confirm_wave_date || "");
-          const bottom = findLowPivot(pivots, quoteByDate, pair);
+          const bottom = findLowPivot(pivots, quoteByDate, vnindexRows, pair, pairs[index + 1]);
           const displayBottom = findLowestNearbyLow(pivots, bottom);
-          const peak = findNextHighPivot(pivots, bottom);
+          const peak = bottom?.isTemporary ? null : findNextHighPivot(pivots, bottom);
           const increasePoints = bottom && peak ? peak.high - bottom.low : 0;
           const durationSessions = bottom && peak ? peak.index - bottom.index + 1 : 0;
 

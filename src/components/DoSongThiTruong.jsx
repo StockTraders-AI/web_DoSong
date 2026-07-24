@@ -921,6 +921,7 @@ export default function DoSongThiTruong() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [chanSongRows, setChanSongRows] = useState([]);
   const [tickerWave, setTickerWave] = useState(EMPTY_WAVE);
+  const [signalRefreshKey, setSignalRefreshKey] = useState(0);
   const tickerRequestKey = latestWave.rawDate || "latest";
   const historySource = historyAllWaves.length ? historyAllWaves : historyWaves;
   const historyDisplayWaves = historySource.filter((item) => !latestWave.rawDate || item.rawDate < latestWave.rawDate);
@@ -954,6 +955,7 @@ export default function DoSongThiTruong() {
       .then((row) => {
         if (!active || !row) return;
         setLatestWave(row);
+        setSignalRefreshKey((key) => key + 1);
       })
       .catch((error) => {
         console.error("Load stock wave current cache failed", error);
@@ -978,6 +980,7 @@ export default function DoSongThiTruong() {
       if (!rows.length) return;
 
       setLatestWave(rows[0]);
+      setSignalRefreshKey((key) => key + 1);
     });
 
 
@@ -1195,7 +1198,7 @@ export default function DoSongThiTruong() {
           {/* ── CỘT PHẢI ── */}
           <div className="dosong-right" style={{ display:"flex", flexDirection:"column", gap:14, minWidth:0 }}>
             <div className="dosong-mobile-item dosong-order-ai">
-              <KhuyenNghiTuVanAI waitbuy={realtimeDisplayWave.cm} />
+              <KhuyenNghiTuVanAI waitbuy={realtimeDisplayWave.cm} refreshKey={signalRefreshKey} />
             </div>
             <div className="dosong-mobile-item dosong-order-chat">
               <TuVanAiCard />

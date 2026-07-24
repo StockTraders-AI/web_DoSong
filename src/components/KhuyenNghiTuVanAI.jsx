@@ -1,35 +1,34 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 const WAITBUY_SIGNAL_KEY = "waitbuy_over_threshold";
 const EMPTY_SIGNAL = { title: "", response: "", recommendation: "" };
 
-export default function KhuyenNghiTuVanAI({ waitbuy = 0 }) {
+export default function KhuyenNghiTuVanAI({ waitbuy = 0, refreshKey = 0 }) {
   const [conditionSignal, setConditionSignal] = useState(EMPTY_SIGNAL);
-  const lastCheckedWaitbuyRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
     const retryTimers = [];
     const currentWaitbuy = Number(waitbuy) || 0;
+    const retryDelays = [0, 2000, 6000, 12000];
 
-    if (lastCheckedWaitbuyRef.current === currentWaitbuy) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    lastCheckedWaitbuyRef.current = currentWaitbuy;
-
-    function retryLoad(attempt) {
-      const timer = window.setTimeout(() => loadConditionResponse(attempt), attempt * 1500);
+    function scheduleLoad(attempt) {
+      const delay = retryDelays[attempt] ?? 0;
+      const timer = window.setTimeout(() => loadConditionResponse(attempt), delay);
       retryTimers.push(timer);
     }
 
     async function loadConditionResponse(attempt = 1) {
       try {
-        const res = await fetch(
-          `/api/condition-signal-latest?signal_key=${WAITBUY_SIGNAL_KEY}`
-        );
+        const params = new URLSearchParams({
+          signal_key: WAITBUY_SIGNAL_KEY,
+          waitbuy: String(currentWaitbuy),
+          refresh_key: String(refreshKey),
+          _: String(Date.now()),
+        });
+        const res = await fetch(`/api/condition-signal-latest?${params.toString()}`, {
+          cache: "no-store",
+        });
 
         if (!res.ok) {
           if (!cancelled) setConditionSignal(EMPTY_SIGNAL);
@@ -45,23 +44,23 @@ export default function KhuyenNghiTuVanAI({ waitbuy = 0 }) {
 
         if (!cancelled) {
           setConditionSignal(nextSignal);
-          if (!nextSignal.response && attempt < 3) retryLoad(attempt + 1);
+          if (attempt + 1 < retryDelays.length) scheduleLoad(attempt + 1);
         }
       } catch {
         if (!cancelled) {
           setConditionSignal(EMPTY_SIGNAL);
-          if (attempt < 3) retryLoad(attempt + 1);
+          if (attempt + 1 < retryDelays.length) scheduleLoad(attempt + 1);
         }
       }
     }
 
-    loadConditionResponse();
+    scheduleLoad(0);
 
     return () => {
       cancelled = true;
       retryTimers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [waitbuy]);
+  }, [waitbuy, refreshKey]);
 
   const { title, response, recommendation } = conditionSignal;
 
