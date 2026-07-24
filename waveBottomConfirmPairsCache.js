@@ -2,10 +2,11 @@ import { sendJson } from "./stockWaveHistoryCache.js";
 
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
-const CACHE_VERSION = 12;
-const ZIGZAG_BOTTOM_THRESHOLD = 0.043;
-const ZIGZAG_TOP_THRESHOLD = 0.052;
+const VNINDEX_TRADE_REAL_URL = process.env.VNINDEX_TRADE_REAL_URL || "https://stocktraders.vn/service/data/getTotalTradeReal";
+const CACHE_VERSION = 13;
+const ZIGZAG_THRESHOLD = 0.052;
 const PAIRS_REQUEST = { dateFrom: null, dateTo: null, count: 4 };
+const VNINDEX_TRADE_REAL_REQUEST = { TotalTradeRealRequest: { account: "stocktraders2013" } };
 let memoryCache = null;
 let memoryCacheKey = "";
 let pendingRequest = null;
@@ -14,14 +15,16 @@ function getTodayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function getRows(payload) {
-  const rows = payload?.data?.rows ?? payload?.data ?? payload?.rows ?? payload;
-  return Array.isArray(rows) ? rows : [];
-}
-
 function getPairs(payload) {
   const pairs = payload?.pairs ?? payload?.data?.pairs ?? payload;
   return Array.isArray(pairs) ? pairs : [];
+}
+
+function getTradeRows(payload) {
+  const rows = payload?.data?.rows ?? payload?.data ?? payload?.rows ?? payload;
+  if (Array.isArray(rows)) return rows;
+  if (rows && typeof rows === "object") return [rows];
+  return [];
 }
 
 function toNumber(value) {
@@ -42,13 +45,33 @@ function writeMemoryCache(rows) {
 }
 
 function normalizeTradeRows(payload) {
-  return getRows(payload)
-    .map((row) => ({
-      date: String(row?.date || row?.tradingDate || row?.ngay || ""),
-      high: toNumber(row?.high ?? row?.High ?? row?.h),
-      low: toNumber(row?.low ?? row?.Low ?? row?.l),
-    }))
+  return getTradeRows(payload)
+    .filter((row) => {
+      const ticker = String(row?.ticker || row?.symbol || row?.code || "").toUpperCase();
+      return !ticker || ticker === "VNINDEX";
+    })
+    .map((row) => {
+      const fallbackPrice = toNumber(
+        row?.close ?? row?.Close ?? row?.c ?? row?.price ?? row?.lastPrice ?? row?.matchPrice ?? row?.gia
+      );
+      return {
+        date: String(row?.date || row?.tradingDate || row?.ngay || row?.tradeDate || getTodayKey()),
+        high: toNumber(row?.high ?? row?.High ?? row?.h) || fallbackPrice,
+        low: toNumber(row?.low ?? row?.Low ?? row?.l) || fallbackPrice,
+      };
+    })
     .filter((row) => row.date && row.high > 0 && row.low > 0)
+    .sort((a, b) => rowDateValue(a.date) - rowDateValue(b.date))
+    .map((row, index) => ({ ...row, index }));
+}
+
+function mergeTradeRows(...payloads) {
+  const rowsByDate = new Map();
+  payloads.flatMap(normalizeTradeRows).forEach((row) => {
+    rowsByDate.set(row.date, row);
+  });
+
+  return Array.from(rowsByDate.values())
     .sort((a, b) => rowDateValue(a.date) - rowDateValue(b.date))
     .map((row, index) => ({ ...row, index }));
 }
@@ -64,7 +87,7 @@ function buildQuoteLookup(rows) {
   return lookup;
 }
 
-function buildZigzagPivots(rows, bottomThreshold = ZIGZAG_BOTTOM_THRESHOLD, topThreshold = ZIGZAG_TOP_THRESHOLD) {
+function buildZigzagPivots(rows, threshold = ZIGZAG_THRESHOLD) {
   if (!rows.length) return [];
 
   const pivots = [];
@@ -80,11 +103,11 @@ function buildZigzagPivots(rows, bottomThreshold = ZIGZAG_BOTTOM_THRESHOLD, topT
       if (row.low < low.low) low = row;
       if (row.high > high.high) high = row;
 
-      if (row.high >= low.low * (1 + bottomThreshold)) {
+      if (row.high >= low.low * (1 + threshold)) {
         pivots.push({ ...low, price: low.low, type: "low" });
         trend = 1;
         candidate = row;
-      } else if (row.low <= high.high * (1 - topThreshold)) {
+      } else if (row.low <= high.high * (1 - threshold)) {
         pivots.push({ ...high, price: high.high, type: "high" });
         trend = -1;
         candidate = row;
@@ -94,7 +117,7 @@ function buildZigzagPivots(rows, bottomThreshold = ZIGZAG_BOTTOM_THRESHOLD, topT
 
     if (trend === 1) {
       if (row.high > candidate.high) candidate = row;
-      if (row.low <= candidate.high * (1 - topThreshold)) {
+      if (row.low <= candidate.high * (1 - threshold)) {
         pivots.push({ ...candidate, price: candidate.high, type: "high" });
         trend = -1;
         candidate = row;
@@ -103,7 +126,7 @@ function buildZigzagPivots(rows, bottomThreshold = ZIGZAG_BOTTOM_THRESHOLD, topT
     }
 
     if (row.low < candidate.low) candidate = row;
-    if (row.high >= candidate.low * (1 + bottomThreshold)) {
+    if (row.high >= candidate.low * (1 + threshold)) {
       pivots.push({ ...candidate, price: candidate.low, type: "low" });
       trend = 1;
       candidate = row;
@@ -187,14 +210,31 @@ async function fetchVnindexTrades() {
   throw new Error(`VNINDEX trade upstream failed: ${statuses.join("/")}`);
 }
 
+async function fetchVnindexTradeReal() {
+  const response = await fetch(VNINDEX_TRADE_REAL_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(VNINDEX_TRADE_REAL_REQUEST),
+  });
+  if (!response.ok) throw new Error(`VNINDEX trade real upstream failed: ${response.status}`);
+  return response.json();
+}
+
 export async function getWaveBottomConfirmPairs() {
   const todayKey = getTodayKey();
   if (memoryCache && memoryCacheKey === todayKey && memoryCache.cacheVersion === CACHE_VERSION) return { ...memoryCache, source: "memory" };
 
   if (!pendingRequest) {
-    pendingRequest = Promise.all([fetchPairs(), fetchVnindexTrades()])
-      .then(([pairsPayload, vnindexPayload]) => {
-        const vnindexRows = normalizeTradeRows(vnindexPayload);
+    pendingRequest = Promise.all([
+      fetchPairs(),
+      fetchVnindexTrades(),
+      fetchVnindexTradeReal().catch((error) => {
+        console.warn("VNINDEX trade real unavailable", error);
+        return [];
+      }),
+    ])
+      .then(([pairsPayload, vnindexPayload, vnindexRealPayload]) => {
+        const vnindexRows = mergeTradeRows(vnindexPayload, vnindexRealPayload);
         const quoteByDate = buildQuoteLookup(vnindexRows);
         const pivots = buildZigzagPivots(vnindexRows);
         const rows = getPairs(pairsPayload).map((pair) => {
