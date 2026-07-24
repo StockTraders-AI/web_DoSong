@@ -12,6 +12,8 @@ export default function KhuyenNghiTuVanAI({ waitbuy = 0, refreshKey = 0, checkDa
     const currentWaitbuy = Number(waitbuy) || 0;
     const retryDelays = [0, 2000, 6000, 12000];
 
+    setConditionSignal(EMPTY_SIGNAL);
+
     function scheduleLoad(attempt) {
       const delay = retryDelays[attempt] ?? 0;
       const timer = window.setTimeout(() => loadConditionResponse(attempt), delay);
@@ -45,7 +47,7 @@ export default function KhuyenNghiTuVanAI({ waitbuy = 0, refreshKey = 0, checkDa
 
         if (!cancelled) {
           setConditionSignal(nextSignal);
-          if (attempt + 1 < retryDelays.length) scheduleLoad(attempt + 1);
+          if (!nextSignal.response && attempt + 1 < retryDelays.length) scheduleLoad(attempt + 1);
         }
       } catch {
         if (!cancelled) {
@@ -55,7 +57,7 @@ export default function KhuyenNghiTuVanAI({ waitbuy = 0, refreshKey = 0, checkDa
       }
     }
 
-    scheduleLoad(0);
+    loadConditionResponse(0);
 
     return () => {
       cancelled = true;

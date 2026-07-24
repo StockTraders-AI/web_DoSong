@@ -1195,7 +1195,10 @@ export default function DoSongThiTruong() {
                     onChange={(date) => {
                       const key = formatDateKey(date);
                       const matched = dateTravelWaves.find((item) => item.rawDate === key);
-                      if (matched) setSelectedWaveDate(matched.rawDate);
+                      if (matched) {
+                        setSelectedWaveDate(matched.rawDate);
+                        setSignalRefreshKey((value) => value + 1);
+                      }
                     }}
                   />
                 )}
