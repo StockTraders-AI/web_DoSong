@@ -3,6 +3,20 @@ import "../styles/wave-detector-donut.css";
 
 const DCOL = ["#1baf7a", "#0ca30c", "#eda100", "#e34948"];
 const VALUE_COL = ["#3DD68C", "#52E88A", "#FF9F0A", "#FF2D55"];
+const THEMES = {
+  dark: {
+    card: "var(--surf, #111520)", day: "#141926", today: "#1A1230", dayBorder: "#1E2A3E", todayBorder: "#4A2E8A",
+    metric: "#171D2E", metricBorder: "#1E2A3E", ring: "#111520", ringBorder: "#242E42", title: "var(--t1, #F0F4FF)",
+    text: "#A8B8D0", muted: "#5C7090", faint: "#3A4A60", todayText: "#C9B8F0", todayBadgeBg: "#2E1B52",
+    pagerBg: "#171D2E", pagerText: "#F0F4FF", progressBg: "#242E42", emptyBg: "#141926", inactiveDot: "#242E42", centerText: "#F0F4FF", skBase: "#1b2130", skShine: "#2a3348",
+  },
+  light: {
+    card: "var(--surf, #FFFFFF)", day: "#FFFFFF", today: "#F4EDFF", dayBorder: "#E0DEEA", todayBorder: "#C4B5FD",
+    metric: "#F7F6FC", metricBorder: "#E0DEEA", ring: "#F7F6FC", ringBorder: "#E0DEEA", title: "var(--t1, #0A0A0A)",
+    text: "#3A4250", muted: "#6B737F", faint: "#9FA5AE", todayText: "#6D28D9", todayBadgeBg: "rgba(109,40,217,.10)",
+    pagerBg: "#F7F6FC", pagerText: "#0A0A0A", progressBg: "#E7E5EF", emptyBg: "#F7F6FC", inactiveDot: "#CBD5E1", centerText: "#0A0A0A", skBase: "#E7E5EF", skShine: "#F4F2FA",
+  },
+};
 const KEYS = ["cm", "mu", "cb", "ba"];
 
 const LEGEND = [
@@ -82,7 +96,7 @@ function buildDonut(vals) {
   return { arcs, badges };
 }
 
-function Donut({ vals, total, dbg }) {
+function Donut({ vals, total, dbg, themeTokens }) {
   const { arcs, badges } = useMemo(() => buildDonut(vals), [vals]);
 
   return (
@@ -94,20 +108,20 @@ function Donut({ vals, total, dbg }) {
       aria-label={`Donut ${total} mã`}
       style={{ display: "block", margin: "8px auto 4px" }}
     >
-      <circle cx={80} cy={80} r={68} fill="#111520" stroke="#242E42" strokeWidth={0.5} />
+      <circle cx={80} cy={80} r={68} fill={themeTokens.ring} stroke={themeTokens.ringBorder} strokeWidth={0.5} />
       {arcs}
-      <circle cx={80} cy={80} r={41} fill={dbg} stroke="#242E42" strokeWidth={0.5} />
+      <circle cx={80} cy={80} r={41} fill={dbg} stroke={themeTokens.ringBorder} strokeWidth={0.5} />
       {badges}
-      <text x={80} y={88} textAnchor="middle" fill="#F0F4FF" fontSize={22} fontWeight={700}>
+      <text x={80} y={88} textAnchor="middle" fill={themeTokens.centerText} fontSize={22} fontWeight={700}>
         {total}
       </text>
     </svg>
   );
 }
 
-function LoadingDayCard() {
+function LoadingDayCard({ themeTokens }) {
   return (
-    <div style={styles.loadingCard}>
+    <div style={{ ...styles.loadingCard, background: themeTokens.emptyBg, borderColor: themeTokens.dayBorder }}>
       <div style={styles.loadingDateRow}>
         <span className="wtds-sk wtds-sk-pill" style={{ width: 46, height: 13 }} />
         <span className="wtds-sk wtds-sk-pill" style={{ width: 24, height: 10, marginTop: 5 }} />
@@ -122,7 +136,7 @@ function LoadingDayCard() {
 
       <div style={styles.loadingMetricGrid}>
         {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} style={styles.loadingMetric}>
+          <div key={index} style={{ ...styles.loadingMetric, background: themeTokens.metric, borderColor: themeTokens.metricBorder }}>
             <span className="wtds-sk wtds-sk-pill" style={{ width: 58, height: 14 }} />
           </div>
         ))}
@@ -137,9 +151,9 @@ function LoadingDayCard() {
   );
 }
 
-function DayCard({ x }) {
+function DayCard({ x, themeTokens }) {
   const tv = x.tc >= 70 ? "#3DD68C" : "#FF9F0A";
-  const dbg = x.tdy ? "#1A1230" : "#141926";
+  const dbg = x.tdy ? themeTokens.today : themeTokens.day;
 
   return (
     <div
@@ -147,11 +161,11 @@ function DayCard({ x }) {
         borderRadius: 14,
         padding: "13px 11px",
         background: dbg,
-        border: `1px solid ${x.tdy ? "#4A2E8A" : "#1E2A3E"}`,
+        border: `1px solid ${x.tdy ? themeTokens.todayBorder : themeTokens.dayBorder}`,
         textAlign: "center",
       }}
     >
-      <div style={{ fontSize: 14, fontWeight: 500, color: x.tdy ? "#C9B8F0" : "#A8B8D0" }}>
+      <div style={{ fontSize: 14, fontWeight: 500, color: x.tdy ? themeTokens.todayText : themeTokens.text }}>
         {x.d}
         {x.tdy && (
           <span
@@ -159,7 +173,7 @@ function DayCard({ x }) {
               fontSize: 10,
               fontWeight: 500,
               color: "#B788FF",
-              background: "#2E1B52",
+              background: themeTokens.todayBadgeBg,
               borderRadius: 6,
               padding: "2px 7px",
               verticalAlign: "middle",
@@ -170,9 +184,9 @@ function DayCard({ x }) {
           </span>
         )}
       </div>
-      <div style={{ fontSize: 11, color: "#3A4A60", marginTop: 2 }}>{x.w}</div>
+      <div style={{ fontSize: 11, color: themeTokens.faint, marginTop: 2 }}>{x.w}</div>
 
-      <Donut vals={x.v} total={x.tot} dbg={dbg} />
+      <Donut vals={x.v} total={x.tot} dbg={dbg} themeTokens={themeTokens} />
 
       <div
         style={{
@@ -192,8 +206,8 @@ function DayCard({ x }) {
               gap: 8,
               borderRadius: 8,
               padding: "7px 9px",
-              background: "#171D2E",
-              border: "1px solid #1E2A3E",
+              background: themeTokens.metric,
+              border: `1px solid ${themeTokens.metricBorder}`,
             }}
           >
             <span
@@ -220,13 +234,13 @@ function DayCard({ x }) {
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-        <span style={{ fontSize: 11, color: "#3A4A60", fontWeight: 500 }}>TC</span>
+        <span style={{ fontSize: 11, color: themeTokens.faint, fontWeight: 500 }}>TC</span>
         <div
           style={{
             flex: 1,
             height: 4,
             borderRadius: 2,
-            background: "#242E42",
+            background: themeTokens.progressBg,
             overflow: "hidden",
           }}
         >
@@ -245,7 +259,7 @@ function DayCard({ x }) {
   );
 }
 
-function Pager({ page, totalDays, pageCount, perPage, onPage }) {
+function Pager({ page, totalDays, pageCount, perPage, onPage, themeTokens }) {
   if (!totalDays || pageCount <= 1) return null;
   const from = (page - 1) * perPage + 1;
   const to = Math.min(page * perPage, totalDays);
@@ -253,16 +267,16 @@ function Pager({ page, totalDays, pageCount, perPage, onPage }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
       <button
-        style={{ ...styles.pbtn, opacity: page <= 1 ? 0.35 : 1, cursor: page <= 1 ? "default" : "pointer" }}
+        style={{ ...styles.pbtn, background: themeTokens.pagerBg, borderColor: themeTokens.dayBorder, color: themeTokens.pagerText, opacity: page <= 1 ? 0.35 : 1, cursor: page <= 1 ? "default" : "pointer" }}
         disabled={page <= 1}
         onClick={() => onPage(page - 1)}
         aria-label="Trang trước"
       >
         ‹
       </button>
-      <span style={{ fontSize: 13, color: "#5C7090" }}>{from}-{to}/{totalDays}</span>
+      <span style={{ fontSize: 13, color: themeTokens.muted }}>{from}-{to}/{totalDays}</span>
       <button
-        style={{ ...styles.pbtn, opacity: to >= totalDays ? 0.35 : 1, cursor: to >= totalDays ? "default" : "pointer" }}
+        style={{ ...styles.pbtn, background: themeTokens.pagerBg, borderColor: themeTokens.dayBorder, color: themeTokens.pagerText, opacity: to >= totalDays ? 0.35 : 1, cursor: to >= totalDays ? "default" : "pointer" }}
         disabled={to >= totalDays}
         onClick={() => onPage(page + 1)}
         aria-label="Trang sau"
@@ -280,7 +294,9 @@ export default function LichSuDoSong({
   pageCount = 1,
   onPage = () => {},
   loading = false,
+  theme = "dark",
 }) {
+  const themeTokens = THEMES[theme] || THEMES.dark;
   const viewDays = days.map((day) => ({
     d: day.date,
     w: day.week,
@@ -297,16 +313,16 @@ export default function LichSuDoSong({
 
   return (
     <div style={styles.outer}>
-      <div className="lsds-card" style={styles.card}>
+      <div className="lsds-card" style={{ ...styles.card, "--card": themeTokens.card, "--sk-base": themeTokens.skBase, "--sk-shine": themeTokens.skShine, background: themeTokens.card, color: themeTokens.title }}>
         <div style={styles.header}>
           <div style={styles.title}>
-            <i className="ti ti-clock" style={{ color: "#5C7090" }} aria-hidden="true" />
+            <i className="ti ti-clock" style={{ color: themeTokens.muted }} aria-hidden="true" />
             Lịch sử dò sóng
           </div>
-          <Pager page={page} totalDays={totalDays} pageCount={pageCount} perPage={perPage} onPage={onPage} />
+          <Pager page={page} totalDays={totalDays} pageCount={pageCount} perPage={perPage} onPage={onPage} themeTokens={themeTokens} />
         </div>
 
-        <div style={styles.legend}>
+        <div style={{ ...styles.legend, color: themeTokens.text }}>
           {LEGEND.map((item) => (
             <span key={item.label} style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <span
@@ -327,7 +343,7 @@ export default function LichSuDoSong({
           <div className="lsds-days-scroll" style={styles.daysScroll}>
             <div className="lsds-days-grid" style={styles.daysGrid}>
               {Array.from({ length: 3 }).map((_, index) => (
-                <LoadingDayCard key={index} />
+                <LoadingDayCard key={index} themeTokens={themeTokens} />
               ))}
             </div>
           </div>
@@ -335,12 +351,12 @@ export default function LichSuDoSong({
           <div className="lsds-days-scroll" style={styles.daysScroll}>
             <div className="lsds-days-grid" style={styles.daysGrid}>
               {viewDays.map((x) => (
-                <DayCard key={`${x.d}-${x.w}`} x={x} />
+                <DayCard key={`${x.d}-${x.w}`} x={x} themeTokens={themeTokens} />
               ))}
             </div>
           </div>
         ) : (
-          <div style={styles.empty}>Đang chờ dữ liệu dò sóng...</div>
+          <div style={{ ...styles.empty, background: themeTokens.emptyBg, borderColor: themeTokens.dayBorder, color: themeTokens.muted }}>Đang chờ dữ liệu dò sóng...</div>
         )}
 
         {!loading && dotPages.length > 1 && (
@@ -349,7 +365,7 @@ export default function LichSuDoSong({
               <span
                 key={dotPage}
                 onClick={() => onPage(dotPage)}
-                style={{ ...styles.dot, background: dotPage === page ? "#7C3AED" : "#242E42" }}
+                style={{ ...styles.dot, background: dotPage === page ? "#7C3AED" : themeTokens.inactiveDot }}
               />
             ))}
           </div>

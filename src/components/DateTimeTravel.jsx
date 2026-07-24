@@ -101,7 +101,7 @@ export default function DateTimeTravel({
     border: 0,
     borderRadius: 8,
     background: "transparent",
-    color: disabled ? "#3A4A60" : "#8EA2C0",
+    color: disabled ? "var(--t4, #3A4A60)" : "var(--t3, #8EA2C0)",
     cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.45 : 1,
     padding: 0,
@@ -124,7 +124,7 @@ export default function DateTimeTravel({
         ref={triggerRef}
         type="button"
         onClick={openCalendar}
-        style={{ ...st.dateButton, color: isToday ? "#3DD68C" : "#D9E4F5" }}
+        style={{ ...st.dateButton, color: isToday ? "var(--G, #3DD68C)" : "var(--t1, #D9E4F5)" }}
       >
         <Calendar size={13} style={{ opacity: 0.72, flexShrink: 0 }} />
         <span>{fmt(current)}</span>
@@ -179,11 +179,11 @@ export default function DateTimeTravel({
                   }}
                   style={{
                     ...st.day,
-                    color: disabled ? "#334155" : other ? "#53657F" : "#B6C5DB",
+                    color: disabled ? "var(--t4, #334155)" : other ? "var(--t3, #53657F)" : "var(--t2, #B6C5DB)",
                     opacity: disabled ? 0.42 : other ? 0.55 : 1,
                     cursor: disabled ? "not-allowed" : "pointer",
-                    background: selected ? "#3DD68C" : "transparent",
-                    border: today && !selected ? "1px solid #3DD68C" : "1px solid transparent",
+                    background: selected ? "var(--G, #3DD68C)" : "transparent",
+                    border: today && !selected ? "1px solid var(--G, #3DD68C)" : "1px solid transparent",
                     fontWeight: selected ? 800 : 600,
                   }}
                 >
@@ -200,7 +200,7 @@ export default function DateTimeTravel({
                 goTo(new Date(maxDate));
                 setOpen(false);
               }}
-              style={{ ...st.footerButton, color: "#3DD68C" }}
+              style={{ ...st.footerButton, color: "var(--G, #3DD68C)" }}
             >
               Hôm nay
             </button>
@@ -222,8 +222,8 @@ const st = {
     gap: 2,
     height: 32,
     borderRadius: 12,
-    border: "0.5px solid #242E42",
-    background: "rgba(17,21,32,.78)",
+    border: "0.5px solid var(--bdr, #242E42)",
+    background: "var(--elev, rgba(17,21,32,.78))",
     padding: 3,
     fontFamily: '-apple-system,"Inter","Segoe UI",sans-serif',
     verticalAlign: "middle",
@@ -253,10 +253,10 @@ const st = {
     zIndex: 40,
     width: 256,
     borderRadius: 16,
-    border: "0.5px solid #242E42",
-    background: "#0B0F18",
+    border: "0.5px solid var(--bdr, #242E42)",
+    background: "var(--surf, #0B0F18)",
     padding: 14,
-    boxShadow: "0 22px 55px rgba(0,0,0,.42)",
+    boxShadow: "0 22px 55px rgba(0,0,0,.18)",
   },
   monthHeader: {
     display: "flex",
@@ -272,15 +272,15 @@ const st = {
     justifyContent: "center",
     border: 0,
     borderRadius: 7,
-    background: "#111520",
-    color: "#8EA2C0",
+    background: "var(--elev, #111520)",
+    color: "var(--t3, #8EA2C0)",
     cursor: "pointer",
     padding: 0,
   },
   monthTitle: {
     fontSize: 13,
     fontWeight: 700,
-    color: "#F0F4FF",
+    color: "var(--t1, #F0F4FF)",
   },
   grid: {
     display: "grid",
@@ -292,7 +292,7 @@ const st = {
     textAlign: "center",
     fontSize: 10,
     fontWeight: 700,
-    color: "#5C7090",
+    color: "var(--t3, #5C7090)",
   },
   day: {
     aspectRatio: "1 / 1",
@@ -305,7 +305,7 @@ const st = {
   footer: {
     display: "flex",
     justifyContent: "space-between",
-    borderTop: "0.5px solid #171D2E",
+    borderTop: "0.5px solid var(--bdr, #171D2E)",
     marginTop: 10,
     paddingTop: 10,
   },
@@ -313,7 +313,7 @@ const st = {
     border: 0,
     borderRadius: 7,
     background: "transparent",
-    color: "#8EA2C0",
+    color: "var(--t3, #8EA2C0)",
     fontSize: 11,
     fontWeight: 700,
     cursor: "pointer",
