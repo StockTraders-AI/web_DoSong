@@ -1216,7 +1216,11 @@ export default function DoSongThiTruong() {
           {/* ── CỘT PHẢI ── */}
           <div className="dosong-right" style={{ display:"flex", flexDirection:"column", gap:14, minWidth:0 }}>
             <div className="dosong-mobile-item dosong-order-ai">
-              <KhuyenNghiTuVanAI waitbuy={realtimeDisplayWave.cm} refreshKey={signalRefreshKey} />
+              <KhuyenNghiTuVanAI
+                waitbuy={selectedMainDonutWave.cm}
+                refreshKey={signalRefreshKey}
+                checkDate={selectedMainDonutWave.rawDate}
+              />
             </div>
             <div className="dosong-mobile-item dosong-order-chat">
               <TuVanAiCard />

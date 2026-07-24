@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 const WAITBUY_SIGNAL_KEY = "waitbuy_over_threshold";
 const EMPTY_SIGNAL = { title: "", response: "", recommendation: "" };
 
-export default function KhuyenNghiTuVanAI({ waitbuy = 0, refreshKey = 0 }) {
+export default function KhuyenNghiTuVanAI({ waitbuy = 0, refreshKey = 0, checkDate = "" }) {
   const [conditionSignal, setConditionSignal] = useState(EMPTY_SIGNAL);
 
   useEffect(() => {
@@ -26,6 +26,7 @@ export default function KhuyenNghiTuVanAI({ waitbuy = 0, refreshKey = 0 }) {
           refresh_key: String(refreshKey),
           _: String(Date.now()),
         });
+        if (checkDate) params.set("check_date", checkDate);
         const res = await fetch(`/api/condition-signal-latest?${params.toString()}`, {
           cache: "no-store",
         });
@@ -60,7 +61,7 @@ export default function KhuyenNghiTuVanAI({ waitbuy = 0, refreshKey = 0 }) {
       cancelled = true;
       retryTimers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [waitbuy, refreshKey]);
+  }, [waitbuy, refreshKey, checkDate]);
 
   const { title, response, recommendation } = conditionSignal;
 

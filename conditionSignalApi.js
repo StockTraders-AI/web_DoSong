@@ -12,10 +12,14 @@ export async function handleConditionSignalLatest(req, res, rawUrl) {
   const chatwebBaseUrl = (process.env.CHATWEB_API_BASE_URL || DEFAULT_CHATWEB_API_BASE_URL).replace(/\/$/, "");
   const signalKey = url.searchParams.get("signal_key") || "waitbuy_over_threshold";
   const flowId = url.searchParams.get("flow_id");
+  const checkDate = url.searchParams.get("check_date") || url.searchParams.get("date");
+  const waitbuy = url.searchParams.get("waitbuy");
   const targetUrl = new URL(`${chatwebBaseUrl}/public/condition-signals/latest`);
 
   targetUrl.searchParams.set("signal_key", signalKey);
   if (flowId) targetUrl.searchParams.set("flow_id", flowId);
+  if (checkDate) targetUrl.searchParams.set("check_date", checkDate);
+  if (waitbuy) targetUrl.searchParams.set("waitbuy", waitbuy);
 
   try {
     const upstream = await fetch(targetUrl);
@@ -26,6 +30,7 @@ export async function handleConditionSignalLatest(req, res, rawUrl) {
       title: data?.title || null,
       response: data?.response || null,
       recommendation: data?.recommendation || null,
+      check_date: data?.check_date || null,
     });
   } catch (error) {
     sendJson(res, 502, {
