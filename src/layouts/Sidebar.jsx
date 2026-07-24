@@ -102,15 +102,15 @@ function SectionLabel({ text }) {
 function PremiumCard() {
   return (
     <div style={{
-      background: "linear-gradient(135deg,#2D1B69,#1A0E40)",
-      border: ".5px solid var(--Bb)",
+      background: "var(--premium-bg, linear-gradient(135deg,#2D1B69,#1A0E40))",
+      border: ".5px solid var(--premium-border, var(--Bb))",
       borderRadius: 10,
       padding: 12,
     }}>
       <div style={{ fontSize: 9, fontWeight: 800, color: "var(--B)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>
         ⭐ Premium
       </div>
-      <div style={{ fontSize: 11, color: "var(--t2)", lineHeight: 1.5, marginBottom: 10 }}>
+      <div style={{ fontSize: 11, color: "var(--premium-copy, var(--t2))", lineHeight: 1.5, marginBottom: 10 }}>
         Mở khóa toàn bộ tính năng &amp; dữ liệu lịch sử không giới hạn
       </div>
       <button style={{
