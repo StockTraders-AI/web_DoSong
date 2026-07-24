@@ -2,8 +2,9 @@ import { sendJson } from "./stockWaveHistoryCache.js";
 
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
-const CACHE_VERSION = 11;
-const ZIGZAG_THRESHOLD = 0.052;
+const CACHE_VERSION = 12;
+const ZIGZAG_BOTTOM_THRESHOLD = 0.043;
+const ZIGZAG_TOP_THRESHOLD = 0.052;
 const PAIRS_REQUEST = { dateFrom: null, dateTo: null, count: 4 };
 let memoryCache = null;
 let memoryCacheKey = "";
@@ -63,7 +64,7 @@ function buildQuoteLookup(rows) {
   return lookup;
 }
 
-function buildZigzagPivots(rows, threshold = ZIGZAG_THRESHOLD) {
+function buildZigzagPivots(rows, bottomThreshold = ZIGZAG_BOTTOM_THRESHOLD, topThreshold = ZIGZAG_TOP_THRESHOLD) {
   if (!rows.length) return [];
 
   const pivots = [];
@@ -79,11 +80,11 @@ function buildZigzagPivots(rows, threshold = ZIGZAG_THRESHOLD) {
       if (row.low < low.low) low = row;
       if (row.high > high.high) high = row;
 
-      if (row.high >= low.low * (1 + threshold)) {
+      if (row.high >= low.low * (1 + bottomThreshold)) {
         pivots.push({ ...low, price: low.low, type: "low" });
         trend = 1;
         candidate = row;
-      } else if (row.low <= high.high * (1 - threshold)) {
+      } else if (row.low <= high.high * (1 - topThreshold)) {
         pivots.push({ ...high, price: high.high, type: "high" });
         trend = -1;
         candidate = row;
@@ -93,7 +94,7 @@ function buildZigzagPivots(rows, threshold = ZIGZAG_THRESHOLD) {
 
     if (trend === 1) {
       if (row.high > candidate.high) candidate = row;
-      if (row.low <= candidate.high * (1 - threshold)) {
+      if (row.low <= candidate.high * (1 - topThreshold)) {
         pivots.push({ ...candidate, price: candidate.high, type: "high" });
         trend = -1;
         candidate = row;
@@ -102,7 +103,7 @@ function buildZigzagPivots(rows, threshold = ZIGZAG_THRESHOLD) {
     }
 
     if (row.low < candidate.low) candidate = row;
-    if (row.high >= candidate.low * (1 + threshold)) {
+    if (row.high >= candidate.low * (1 + bottomThreshold)) {
       pivots.push({ ...candidate, price: candidate.low, type: "low" });
       trend = 1;
       candidate = row;

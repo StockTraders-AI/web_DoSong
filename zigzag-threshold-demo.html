@@ -21,7 +21,7 @@
     }
     .toolbar {
       display: grid;
-      grid-template-columns: minmax(220px, 1fr) 170px 170px auto auto;
+      grid-template-columns: minmax(220px, 1fr) 150px 150px 150px 150px auto auto auto;
       gap: 10px;
       align-items: end;
       padding: 12px;
@@ -56,6 +56,16 @@
       cursor: pointer;
     }
     button.secondary { background: #475569; }
+    .zoom-controls {
+      display: flex;
+      gap: 6px;
+      align-items: end;
+    }
+    .zoom-controls button {
+      min-width: 38px;
+      padding: 0 10px;
+      background: #0f172a;
+    }
     .chart-wrap {
       min-height: 0;
       border: 1px solid #dbe2ef;
@@ -70,6 +80,22 @@
       display: block;
       cursor: crosshair;
     }
+    .tooltip {
+      position: absolute;
+      display: none;
+      z-index: 2;
+      max-width: 220px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: rgba(15, 23, 42, .94);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, .18);
+      font-size: 12px;
+      line-height: 1.45;
+      pointer-events: none;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, .22);
+    }
+    .tooltip strong { display: block; margin-bottom: 3px; }
     .status {
       position: absolute;
       left: 12px;
@@ -139,19 +165,33 @@
         <input id="apiUrl" value="https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX" />
       </label>
       <label>
-        Zigzag %
-        <input id="thresholdNumber" type="number" min="0.5" max="20" step="0.1" value="6.5" />
+        ��y %
+        <input id="bottomThresholdNumber" type="number" min="0.5" max="20" step="0.1" value="6.5" />
       </label>
       <label>
-        Kéo nhanh
-        <input id="thresholdRange" type="range" min="1" max="12" step="0.1" value="6.5" />
+        K�o d�y
+        <input id="bottomThresholdRange" type="range" min="1" max="12" step="0.1" value="6.5" />
+      </label>
+      <label>
+        �?nh %
+        <input id="topThresholdNumber" type="number" min="0.5" max="20" step="0.1" value="6.5" />
+      </label>
+      <label>
+        K�o d?nh
+        <input id="topThresholdRange" type="range" min="1" max="12" step="0.1" value="6.5" />
       </label>
       <button id="loadApi">Load API</button>
       <button id="drawJson" class="secondary">Vẽ JSON</button>
+      <div class="zoom-controls">
+        <button id="zoomOut" type="button">-</button>
+        <button id="zoomIn" type="button">+</button>
+        <button id="resetZoom" type="button">Reset</button>
+      </div>
     </div>
 
     <div class="chart-wrap">
       <canvas id="chart"></canvas>
+      <div id="chartTooltip" class="tooltip"></div>
       <div id="status" class="status">Chưa có dữ liệu. Bấm Load API hoặc paste JSON bên dưới.</div>
     </div>
 
@@ -178,13 +218,25 @@
     const canvas = document.getElementById("chart");
     const ctx = canvas.getContext("2d");
     const statusEl = document.getElementById("status");
+    const tooltipEl = document.getElementById("chartTooltip");
     const pivotRowsEl = document.getElementById("pivotRows");
     const apiUrlEl = document.getElementById("apiUrl");
-    const thresholdNumberEl = document.getElementById("thresholdNumber");
-    const thresholdRangeEl = document.getElementById("thresholdRange");
+    const bottomThresholdNumberEl = document.getElementById("bottomThresholdNumber");
+    const bottomThresholdRangeEl = document.getElementById("bottomThresholdRange");
+    const topThresholdNumberEl = document.getElementById("topThresholdNumber");
+    const topThresholdRangeEl = document.getElementById("topThresholdRange");
     const jsonInputEl = document.getElementById("jsonInput");
     let rows = [];
     let pivots = [];
+    let viewStart = 0;
+    let viewEnd = -1;
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartViewStart = 0;
+    let dragStartViewEnd = -1;
+    let hoverCandles = [];
+    let hoverPivots = [];
+    const MIN_VISIBLE_CANDLES = 12;
 
     function toNumber(value) {
       const number = Number(value);
@@ -215,7 +267,7 @@
         .map((row, index) => ({ ...row, index }));
     }
 
-    function buildZigzagPivots(dataRows, threshold) {
+    function buildZigzagPivots(dataRows, bottomThreshold, topThreshold) {
       if (!dataRows.length) return [];
 
       const result = [];
@@ -231,11 +283,11 @@
           if (row.low < low.low) low = row;
           if (row.high > high.high) high = row;
 
-          if (row.high >= low.low * (1 + threshold)) {
+          if (row.high >= low.low * (1 + bottomThreshold)) {
             result.push({ ...low, price: low.low, type: "low" });
             trend = 1;
             candidate = row;
-          } else if (row.low <= high.high * (1 - threshold)) {
+          } else if (row.low <= high.high * (1 - topThreshold)) {
             result.push({ ...high, price: high.high, type: "high" });
             trend = -1;
             candidate = row;
@@ -245,7 +297,7 @@
 
         if (trend === 1) {
           if (row.high > candidate.high) candidate = row;
-          if (row.low <= candidate.high * (1 - threshold)) {
+          if (row.low <= candidate.high * (1 - topThreshold)) {
             result.push({ ...candidate, price: candidate.high, type: "high" });
             trend = -1;
             candidate = row;
@@ -254,7 +306,7 @@
         }
 
         if (row.low < candidate.low) candidate = row;
-        if (row.high >= candidate.low * (1 + threshold)) {
+        if (row.high >= candidate.low * (1 + bottomThreshold)) {
           result.push({ ...candidate, price: candidate.low, type: "low" });
           trend = 1;
           candidate = row;
@@ -277,15 +329,61 @@
       return rect;
     }
 
+    function resetView() {
+      viewStart = 0;
+      viewEnd = Math.max(0, rows.length - 1);
+    }
+
+    function getViewBounds() {
+      if (!rows.length) return { start: 0, end: -1 };
+      if (viewEnd < viewStart || viewEnd >= rows.length) resetView();
+      const maxEnd = rows.length - 1;
+      let start = Math.max(0, Math.min(viewStart, maxEnd));
+      let end = Math.max(start, Math.min(viewEnd, maxEnd));
+      const minCount = Math.min(MIN_VISIBLE_CANDLES, rows.length);
+      if (end - start + 1 < minCount) {
+        end = Math.min(maxEnd, start + minCount - 1);
+        start = Math.max(0, end - minCount + 1);
+      }
+      viewStart = start;
+      viewEnd = end;
+      return { start, end };
+    }
+
+    function zoomChart(factor, anchorRatio = 0.5) {
+      if (!rows.length) return;
+      const bounds = getViewBounds();
+      const currentCount = bounds.end - bounds.start + 1;
+      const minCount = Math.min(MIN_VISIBLE_CANDLES, rows.length);
+      const nextCount = Math.max(minCount, Math.min(rows.length, Math.round(currentCount * factor)));
+      const anchor = bounds.start + anchorRatio * Math.max(1, currentCount - 1);
+      const nextStart = Math.round(anchor - anchorRatio * Math.max(1, nextCount - 1));
+      viewStart = Math.max(0, Math.min(rows.length - nextCount, nextStart));
+      viewEnd = viewStart + nextCount - 1;
+      draw();
+    }
+
+    function panChart(deltaCandles) {
+      if (!rows.length || !deltaCandles) return;
+      const bounds = getViewBounds();
+      const count = bounds.end - bounds.start + 1;
+      viewStart = Math.max(0, Math.min(rows.length - count, bounds.start + deltaCandles));
+      viewEnd = viewStart + count - 1;
+      draw();
+    }
+
     function draw() {
       const rect = fitCanvas();
       ctx.clearRect(0, 0, rect.width, rect.height);
       if (!rows.length) return;
 
-      const threshold = Number(thresholdNumberEl.value) / 100;
-      pivots = buildZigzagPivots(rows, threshold);
+      const bottomThreshold = Number(bottomThresholdNumberEl.value) / 100;
+      const topThreshold = Number(topThresholdNumberEl.value) / 100;
+      pivots = buildZigzagPivots(rows, bottomThreshold, topThreshold);
       const pad = { left: 46, right: 72, top: 26, bottom: 34 };
-      const viewRows = rows;
+      const bounds = getViewBounds();
+      const viewRows = rows.slice(bounds.start, bounds.end + 1);
+      const visiblePivots = pivots.filter((pivot) => pivot.index >= bounds.start && pivot.index <= bounds.end);
       const minPrice = Math.min(...viewRows.map((row) => row.low));
       const maxPrice = Math.max(...viewRows.map((row) => row.high));
       const paddingPrice = (maxPrice - minPrice) * 0.08 || 1;
@@ -293,10 +391,12 @@
       const yMax = maxPrice + paddingPrice;
       const plotW = rect.width - pad.left - pad.right;
       const plotH = rect.height - pad.top - pad.bottom;
-      const step = plotW / Math.max(1, viewRows.length - 1);
+      const step = plotW / Math.max(1, bounds.end - bounds.start);
       const candleW = Math.max(3, Math.min(14, step * 0.62));
-      const x = (index) => pad.left + index * step;
+      const x = (index) => pad.left + (index - bounds.start) * step;
       const y = (price) => pad.top + (yMax - price) / (yMax - yMin) * plotH;
+      hoverCandles = viewRows.map((row) => ({ row, x: x(row.index), y: y(row.close) }));
+      hoverPivots = visiblePivots.map((pivot) => ({ pivot, x: x(pivot.index), y: y(pivot.price) }));
 
       ctx.strokeStyle = "#e5e7eb";
       ctx.lineWidth = 1;
@@ -313,7 +413,7 @@
       }
       const verticalCount = Math.min(12, Math.floor(viewRows.length / 7));
       for (let i = 0; i <= verticalCount; i += 1) {
-        const idx = Math.round(i / Math.max(1, verticalCount) * (viewRows.length - 1));
+        const idx = bounds.start + Math.round(i / Math.max(1, verticalCount) * (viewRows.length - 1));
         const xx = x(idx);
         ctx.beginPath();
         ctx.moveTo(xx, pad.top);
@@ -335,11 +435,11 @@
         ctx.fillRect(xx - candleW / 2, top, candleW, Math.max(1, bottom - top));
       });
 
-      if (pivots.length) {
+      if (visiblePivots.length) {
         ctx.strokeStyle = "#2962ff";
         ctx.lineWidth = 3;
         ctx.beginPath();
-        pivots.forEach((pivot, index) => {
+        visiblePivots.forEach((pivot, index) => {
           const xx = x(pivot.index);
           const yy = y(pivot.price);
           if (index === 0) ctx.moveTo(xx, yy);
@@ -347,7 +447,7 @@
         });
         ctx.stroke();
 
-        pivots.forEach((pivot) => {
+        visiblePivots.forEach((pivot) => {
           const xx = x(pivot.index);
           const yy = y(pivot.price);
           const isLow = pivot.type === "low";
@@ -377,7 +477,7 @@
 
       updatePivotTable();
       const last = rows[rows.length - 1];
-      statusEl.textContent = `${rows.length} nến | ${pivots.length} điểm zigzag | ngưỡng ${Number(thresholdNumberEl.value).toFixed(1)}% | phiên cuối ${last.date}`;
+      statusEl.textContent = `${rows.length} candles | view ${viewRows.length} candles ${rows[bounds.start].date} -> ${rows[bounds.end].date} | ${pivots.length} zigzag points | bottom ${Number(bottomThresholdNumberEl.value).toFixed(1)}% / top ${Number(topThresholdNumberEl.value).toFixed(1)}% | last ${last.date}`;
     }
 
     function updatePivotTable() {
@@ -392,6 +492,60 @@
       `).join("");
     }
 
+    function hideTooltip() {
+      tooltipEl.style.display = "none";
+    }
+
+    function showTooltip(event) {
+      if (!rows.length || isDragging) {
+        hideTooltip();
+        return;
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      const mx = event.clientX - rect.left;
+      const my = event.clientY - rect.top;
+      let bestPivot = null;
+      let bestPivotDistance = Infinity;
+      hoverPivots.forEach((item) => {
+        const distance = Math.hypot(item.x - mx, item.y - my);
+        if (distance < bestPivotDistance) {
+          bestPivotDistance = distance;
+          bestPivot = item;
+        }
+      });
+
+      let html = "";
+      if (bestPivot && bestPivotDistance <= 18) {
+        const pivot = bestPivot.pivot;
+        html = `<strong>${pivot.type === "low" ? "Day" : "Dinh"} ${pivot.date}</strong>Gia: ${formatPrice(pivot.price)}<br>Index: ${pivot.index}`;
+      } else {
+        let bestCandle = null;
+        let bestCandleDistance = Infinity;
+        hoverCandles.forEach((item) => {
+          const distance = Math.abs(item.x - mx);
+          if (distance < bestCandleDistance) {
+            bestCandleDistance = distance;
+            bestCandle = item;
+          }
+        });
+        if (!bestCandle || bestCandleDistance > 24) {
+          hideTooltip();
+          return;
+        }
+        const row = bestCandle.row;
+        html = `<strong>${row.date}</strong>Open: ${formatPrice(row.open)}<br>High: ${formatPrice(row.high)}<br>Low: ${formatPrice(row.low)}<br>Close: ${formatPrice(row.close)}`;
+      }
+
+      tooltipEl.innerHTML = html;
+      tooltipEl.style.display = "block";
+      const tipRect = tooltipEl.getBoundingClientRect();
+      const left = Math.min(rect.width - tipRect.width - 8, Math.max(8, mx + 14));
+      const top = Math.min(rect.height - tipRect.height - 8, Math.max(8, my + 14));
+      tooltipEl.style.left = `${left}px`;
+      tooltipEl.style.top = `${top}px`;
+    }
+
     async function loadApi() {
       statusEl.textContent = "Đang gọi API...";
       try {
@@ -401,6 +555,7 @@
         jsonInputEl.value = JSON.stringify(payload, null, 2);
         rows = normalizeTradeRows(payload);
         if (!rows.length) throw new Error("Không đọc được OHLC từ response.");
+        resetView();
         draw();
       } catch (error) {
         statusEl.textContent = `Load API lỗi: ${error.message}. Paste JSON vào ô dưới rồi bấm Vẽ JSON.`;
@@ -412,22 +567,70 @@
         const payload = JSON.parse(jsonInputEl.value);
         rows = normalizeTradeRows(payload);
         if (!rows.length) throw new Error("Không đọc được OHLC từ JSON.");
+        resetView();
         draw();
       } catch (error) {
         statusEl.textContent = `JSON lỗi: ${error.message}`;
       }
     }
 
-    thresholdNumberEl.addEventListener("input", () => {
-      thresholdRangeEl.value = thresholdNumberEl.value;
+    bottomThresholdNumberEl.addEventListener("input", () => {
+      bottomThresholdRangeEl.value = bottomThresholdNumberEl.value;
       draw();
     });
-    thresholdRangeEl.addEventListener("input", () => {
-      thresholdNumberEl.value = thresholdRangeEl.value;
+    bottomThresholdRangeEl.addEventListener("input", () => {
+      bottomThresholdNumberEl.value = bottomThresholdRangeEl.value;
+      draw();
+    });
+    topThresholdNumberEl.addEventListener("input", () => {
+      topThresholdRangeEl.value = topThresholdNumberEl.value;
+      draw();
+    });
+    topThresholdRangeEl.addEventListener("input", () => {
+      topThresholdNumberEl.value = topThresholdRangeEl.value;
       draw();
     });
     document.getElementById("loadApi").addEventListener("click", loadApi);
     document.getElementById("drawJson").addEventListener("click", drawFromJson);
+    document.getElementById("zoomIn").addEventListener("click", () => zoomChart(0.75));
+    document.getElementById("zoomOut").addEventListener("click", () => zoomChart(1.35));
+    document.getElementById("resetZoom").addEventListener("click", () => {
+      resetView();
+      draw();
+    });
+    canvas.addEventListener("wheel", (event) => {
+      if (!rows.length) return;
+      event.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const anchorRatio = Math.max(0, Math.min(1, (event.clientX - rect.left - 46) / Math.max(1, rect.width - 118)));
+      zoomChart(event.deltaY < 0 ? 0.82 : 1.22, anchorRatio);
+    }, { passive: false });
+    canvas.addEventListener("mousemove", showTooltip);
+    canvas.addEventListener("mouseleave", hideTooltip);
+    canvas.addEventListener("mousedown", (event) => {
+      if (!rows.length) return;
+      isDragging = true;
+      dragStartX = event.clientX;
+      const bounds = getViewBounds();
+      dragStartViewStart = bounds.start;
+      dragStartViewEnd = bounds.end;
+      canvas.style.cursor = "grabbing";
+      hideTooltip();
+    });
+    window.addEventListener("mousemove", (event) => {
+      if (!isDragging || !rows.length) return;
+      const rect = canvas.getBoundingClientRect();
+      const visibleCount = dragStartViewEnd - dragStartViewStart + 1;
+      const deltaPixels = event.clientX - dragStartX;
+      const deltaCandles = -Math.round(deltaPixels / Math.max(1, rect.width - 118) * visibleCount);
+      viewStart = dragStartViewStart;
+      viewEnd = dragStartViewEnd;
+      panChart(deltaCandles);
+    });
+    window.addEventListener("mouseup", () => {
+      isDragging = false;
+      canvas.style.cursor = "crosshair";
+    });
     window.addEventListener("resize", draw);
 
     fitCanvas();
