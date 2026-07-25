@@ -1,7 +1,20 @@
 import { useEffect, useState } from "react";
 
 const DEFAULT_SIGNAL_KEY = "waitbuy_over_threshold";
+const BUY_SIGNAL_KEY = "buy_over_threshold";
 const EMPTY_SIGNAL = { title: "", response: "", recommendation: "" };
+
+function hasSignalContent(signal) {
+  return Boolean(String(signal?.response || "").trim());
+}
+
+function getSignalCandidates(signalKey, currentBuy) {
+  const keys = [];
+  if (signalKey && signalKey !== DEFAULT_SIGNAL_KEY) keys.push(signalKey);
+  if (Number.isFinite(currentBuy)) keys.push(BUY_SIGNAL_KEY);
+  keys.push(DEFAULT_SIGNAL_KEY);
+  return [...new Set(keys)];
+}
 
 export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, waitbuy = 0, buy = 0, refreshKey = 0, checkDate = "" }) {
   const [conditionSignal, setConditionSignal] = useState(EMPTY_SIGNAL);
@@ -23,33 +36,40 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
 
     async function loadConditionResponse(attempt = 1) {
       try {
-        const params = new URLSearchParams({
-          signal_key: signalKey || DEFAULT_SIGNAL_KEY,
-          waitbuy: String(currentWaitbuy),
-          buy: String(currentBuy),
-          refresh_key: String(refreshKey),
-          _: String(Date.now()),
-        });
-        if (checkDate) params.set("check_date", checkDate);
-        const res = await fetch(`/api/condition-signal-latest?${params.toString()}`, {
-          cache: "no-store",
-        });
+        const candidates = getSignalCandidates(signalKey || DEFAULT_SIGNAL_KEY, currentBuy);
+        let nextSignal = EMPTY_SIGNAL;
 
-        if (!res.ok) {
-          if (!cancelled) setConditionSignal(EMPTY_SIGNAL);
-          return;
+        for (const candidateKey of candidates) {
+          const params = new URLSearchParams({
+            signal_key: candidateKey,
+            waitbuy: String(currentWaitbuy),
+            buy: String(currentBuy),
+            refresh_key: String(refreshKey),
+            _: String(Date.now()),
+          });
+          if (checkDate) params.set("check_date", checkDate);
+
+          const res = await fetch(`/api/condition-signal-latest?${params.toString()}`, {
+            cache: "no-store",
+          });
+          if (!res.ok) continue;
+
+          const data = await res.json();
+          const candidateSignal = {
+            title: String(data?.title || "").trim(),
+            response: String(data?.response || "").trim(),
+            recommendation: String(data?.recommendation || "").trim(),
+          };
+
+          if (hasSignalContent(candidateSignal)) {
+            nextSignal = candidateSignal;
+            break;
+          }
         }
-
-        const data = await res.json();
-        const nextSignal = {
-          title: String(data?.title || "").trim(),
-          response: String(data?.response || "").trim(),
-          recommendation: String(data?.recommendation || "").trim(),
-        };
 
         if (!cancelled) {
           setConditionSignal(nextSignal);
-          if (!nextSignal.response && attempt + 1 < retryDelays.length) scheduleLoad(attempt + 1);
+          if (!hasSignalContent(nextSignal) && attempt + 1 < retryDelays.length) scheduleLoad(attempt + 1);
         }
       } catch {
         if (!cancelled) {
