@@ -1221,6 +1221,7 @@ export default function DoSongThiTruong() {
             <div className="dosong-mobile-item dosong-order-ai">
               <KhuyenNghiTuVanAI
                 waitbuy={selectedMainDonutWave.cm}
+                buy={selectedMainDonutWave.mu}
                 refreshKey={signalRefreshKey}
                 checkDate={selectedMainDonutWave.rawDate}
               />

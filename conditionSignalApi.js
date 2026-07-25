@@ -14,12 +14,14 @@ export async function handleConditionSignalLatest(req, res, rawUrl) {
   const flowId = url.searchParams.get("flow_id");
   const checkDate = url.searchParams.get("check_date") || url.searchParams.get("date");
   const waitbuy = url.searchParams.get("waitbuy");
+  const buy = url.searchParams.get("buy");
   const targetUrl = new URL(`${chatwebBaseUrl}/public/condition-signals/latest`);
 
   targetUrl.searchParams.set("signal_key", signalKey);
   if (flowId) targetUrl.searchParams.set("flow_id", flowId);
   if (checkDate) targetUrl.searchParams.set("check_date", checkDate);
   if (waitbuy) targetUrl.searchParams.set("waitbuy", waitbuy);
+  if (buy) targetUrl.searchParams.set("buy", buy);
 
   try {
     const upstream = await fetch(targetUrl);

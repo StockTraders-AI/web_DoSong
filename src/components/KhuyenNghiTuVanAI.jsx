@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 
-const WAITBUY_SIGNAL_KEY = "waitbuy_over_threshold";
+const DEFAULT_SIGNAL_KEY = "waitbuy_over_threshold";
 const EMPTY_SIGNAL = { title: "", response: "", recommendation: "" };
 
-export default function KhuyenNghiTuVanAI({ waitbuy = 0, refreshKey = 0, checkDate = "" }) {
+export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, waitbuy = 0, buy = 0, refreshKey = 0, checkDate = "" }) {
   const [conditionSignal, setConditionSignal] = useState(EMPTY_SIGNAL);
 
   useEffect(() => {
     let cancelled = false;
     const retryTimers = [];
     const currentWaitbuy = Number(waitbuy) || 0;
+    const currentBuy = Number(buy) || 0;
     const retryDelays = [0, 2000, 6000, 12000];
 
     setConditionSignal(EMPTY_SIGNAL);
@@ -23,8 +24,9 @@ export default function KhuyenNghiTuVanAI({ waitbuy = 0, refreshKey = 0, checkDa
     async function loadConditionResponse(attempt = 1) {
       try {
         const params = new URLSearchParams({
-          signal_key: WAITBUY_SIGNAL_KEY,
+          signal_key: signalKey || DEFAULT_SIGNAL_KEY,
           waitbuy: String(currentWaitbuy),
+          buy: String(currentBuy),
           refresh_key: String(refreshKey),
           _: String(Date.now()),
         });
@@ -63,7 +65,7 @@ export default function KhuyenNghiTuVanAI({ waitbuy = 0, refreshKey = 0, checkDa
       cancelled = true;
       retryTimers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [waitbuy, refreshKey, checkDate]);
+  }, [signalKey, waitbuy, buy, refreshKey, checkDate]);
 
   const { title, response, recommendation } = conditionSignal;
 
