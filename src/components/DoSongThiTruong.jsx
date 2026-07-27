@@ -178,12 +178,22 @@ function toDoSongInput(row) {
   };
 }
 
-function doSongSignalKeys(engine, wave) {
+function doSongSignalKeys(engine) {
   const keys = [];
-  if (["S3", "S4"].includes(engine?.maTrangThai)) keys.push("buy_over_threshold");
-  if (["S1", "S2", "S4"].includes(engine?.maTrangThai)) keys.push("waitbuy_over_threshold");
-  if ((Number(wave?.mua) || 0) >= 25) keys.push("buy_over_threshold");
-  if ((Number(wave?.choMua) || 0) > 0) keys.push("waitbuy_over_threshold");
+  const state = String(engine?.maTrangThai || "").toLowerCase();
+  if (state === "s3") keys.push("buy_over_threshold");
+  if (state === "s2") keys.push("waitbuy_over_threshold");
+  if (state) keys.push(`do_song_state_${state}`);
+
+  const phaseKey = {
+    "\u0110i\u1ec1u ch\u1ec9nh":"dieu_chinh",
+    "T\u00edch l\u0169y":"tich_luy",
+    "Ch\u00e2n s\u00f3ng":"chan_song",
+    "S\u00f3ng t\u0103ng":"song_tang",
+    "Ph\u00e2n ph\u1ed1i":"phan_phoi",
+  }[engine?.pha];
+  if (phaseKey) keys.push(`do_song_phase_${phaseKey}`);
+  keys.push("do_song_engine");
   return [...new Set(keys)];
 }
 
@@ -209,7 +219,7 @@ function buildDoSongAdvice(rows, selectedDate) {
     if (row.rawDate === targetDate) {
       selectedAdvice = {
         check_date: row.rawDate,
-        signal_keys: doSongSignalKeys(engine, hienTai),
+        signal_keys: doSongSignalKeys(engine),
         wave: hienTai,
         engine,
       };
