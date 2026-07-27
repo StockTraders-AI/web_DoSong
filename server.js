@@ -8,7 +8,7 @@ import { handleStockWaveTickers } from "./stockWaveTickersCache.js";
 import { handleWaveBottomConfirmPairs } from "./waveBottomConfirmPairsCache.js";
 import { handleUsersRequest } from "./usersApi.js";
 import { handlePortfolioChat } from "./portfolioChatApi.js";
-import { handleConditionSignalLatest } from "./conditionSignalApi.js";
+import { handleConditionSignalLatest, handleDoSongAdvice } from "./conditionSignalApi.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 5173);
@@ -62,6 +62,7 @@ createServer(async (req, res) => {
   if (await handleUsersRequest(req, res, req.url)) return;
   if (await handlePortfolioChat(req, res, req.url)) return;
   if (await handleConditionSignalLatest(req, res, req.url)) return;
+  if (await handleDoSongAdvice(req, res, req.url)) return;
 
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
 

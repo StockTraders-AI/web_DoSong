@@ -8,6 +8,23 @@ function hasSignalContent(signal) {
   return Boolean(String(signal?.response || "").trim());
 }
 
+function buildDoSongAdviceKey(advice) {
+  if (!advice?.engine) return "";
+  const wave = advice.wave || {};
+  const engine = advice.engine || {};
+  return JSON.stringify({
+    date: advice.check_date || wave.date || "",
+    signal_keys: advice.signal_keys || [],
+    maTrangThai: engine.maTrangThai || "",
+    pha: engine.pha || "",
+    choMua: wave.choMua,
+    mua: wave.mua,
+    choBan: wave.choBan,
+    ban: wave.ban,
+    tong: wave.tong,
+  });
+}
+
 function getSignalCandidates(signalKey, currentBuy) {
   const keys = [];
   if (signalKey && signalKey !== DEFAULT_SIGNAL_KEY) keys.push(signalKey);
@@ -16,8 +33,9 @@ function getSignalCandidates(signalKey, currentBuy) {
   return [...new Set(keys)];
 }
 
-export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, waitbuy = 0, buy = 0, refreshKey = 0, checkDate = "" }) {
+export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, waitbuy = 0, buy = 0, refreshKey = 0, checkDate = "", doSongAdvice = null }) {
   const [conditionSignal, setConditionSignal] = useState(EMPTY_SIGNAL);
+  const doSongAdviceKey = buildDoSongAdviceKey(doSongAdvice);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,6 +54,32 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
 
     async function loadConditionResponse(attempt = 1) {
       try {
+        if (doSongAdvice?.engine) {
+          const res = await fetch("/api/do-song-advice", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            cache: "no-store",
+            body: JSON.stringify({
+              check_date: checkDate || doSongAdvice.check_date || "",
+              signal_keys: doSongAdvice.signal_keys || [],
+              wave: doSongAdvice.wave || {},
+              engine: doSongAdvice.engine || {},
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const engineSignal = {
+              title: String(data?.title || "").trim(),
+              response: String(data?.response || "").trim(),
+              recommendation: String(data?.recommendation || "").trim(),
+            };
+            if (hasSignalContent(engineSignal)) {
+              if (!cancelled) setConditionSignal(engineSignal);
+              return;
+            }
+          }
+        }
+
         const candidates = getSignalCandidates(signalKey || DEFAULT_SIGNAL_KEY, currentBuy);
         let nextSignal = EMPTY_SIGNAL;
 
@@ -85,7 +129,7 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
       cancelled = true;
       retryTimers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [signalKey, waitbuy, buy, refreshKey, checkDate]);
+  }, [signalKey, waitbuy, buy, refreshKey, checkDate, doSongAdviceKey]);
 
   const { title, response, recommendation } = conditionSignal;
 

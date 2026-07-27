@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { io } from "socket.io-client";
 import branchLookup from "../data/branchLookup.json";
 import VongTronDoSong from "./VongTronDoSong.jsx";
@@ -7,6 +7,7 @@ import LichSuDoSong from "./LichSuDoSong.jsx";
 import KhuyenNghiTuVanAI from "./KhuyenNghiTuVanAI.jsx";
 import TuVanAiCard from "./TuVanAiCard.jsx";
 import Sidebar from "../layouts/Sidebar.jsx";
+import { danhGiaDoSong } from "../utils/doSongEngine.js";
 // ─────────────────────────────────────────────────────────────
 // TOKENS
 // ─────────────────────────────────────────────────────────────
@@ -157,6 +158,67 @@ function normalizeWaveRow(row) {
     tickerWB:Array.isArray(row.tickerWB) ? row.tickerWB : [],
     tickerWS:Array.isArray(row.tickerwWS) ? row.tickerwWS : Array.isArray(row.tickerWS) ? row.tickerWS : Array.isArray(row.tickerWWS) ? row.tickerWWS : [],
   };
+}
+
+
+function toDoSongInput(row) {
+  if (!row?.rawDate) return null;
+  const choMua = Number(row.cm) || 0;
+  const mua = Number(row.mu) || 0;
+  const choBan = Number(row.cb) || 0;
+  const ban = Number(row.ba) || 0;
+  return {
+    date: row.rawDate,
+    choMua,
+    mua,
+    choBan,
+    ban,
+    tinCay: Number(row.tc) || 0,
+    tong: Number(row.total) || choMua + mua + choBan + ban,
+  };
+}
+
+function doSongSignalKeys(engine, wave) {
+  const keys = [];
+  if (["S3", "S4"].includes(engine?.maTrangThai)) keys.push("buy_over_threshold");
+  if (["S1", "S2", "S4"].includes(engine?.maTrangThai)) keys.push("waitbuy_over_threshold");
+  if ((Number(wave?.mua) || 0) >= 25) keys.push("buy_over_threshold");
+  if ((Number(wave?.choMua) || 0) > 0) keys.push("waitbuy_over_threshold");
+  return [...new Set(keys)];
+}
+
+function buildDoSongAdvice(rows, selectedDate) {
+  const targetDate = String(selectedDate || "");
+  if (!targetDate) return null;
+
+  const byDate = new Map();
+  rows.forEach((row) => {
+    if (!row?.rawDate || row.rawDate > targetDate) return;
+    byDate.set(row.rawDate, row);
+  });
+
+  const sortedRows = [...byDate.values()].sort((a, b) => String(a.rawDate).localeCompare(String(b.rawDate)));
+  let phienTruoc = null;
+  let phaTruoc = null;
+  let selectedAdvice = null;
+
+  sortedRows.forEach((row) => {
+    const hienTai = toDoSongInput(row);
+    if (!hienTai) return;
+    const engine = danhGiaDoSong({ hienTai, phienTruoc, phaTruoc });
+    if (row.rawDate === targetDate) {
+      selectedAdvice = {
+        check_date: row.rawDate,
+        signal_keys: doSongSignalKeys(engine, hienTai),
+        wave: hienTai,
+        engine,
+      };
+    }
+    phienTruoc = hienTai;
+    phaTruoc = engine.pha;
+  });
+
+  return selectedAdvice;
 }
 
 function formatTickerNumber(value) {
@@ -947,6 +1009,10 @@ export default function DoSongThiTruong() {
   const danhMucWave = tickerWave.rawDate
     ? { ...latestWave, ...tickerWave }
     : latestWave;
+  const selectedDoSongAdvice = useMemo(() => buildDoSongAdvice(
+    [...historySource, mainDonutDisplayWave],
+    selectedMainDonutWave.rawDate,
+  ), [historySource, mainDonutDisplayWave, selectedMainDonutWave.rawDate]);
 
   useEffect(() => {
     let active = true;
@@ -1224,6 +1290,7 @@ export default function DoSongThiTruong() {
                 buy={selectedMainDonutWave.mu}
                 refreshKey={signalRefreshKey}
                 checkDate={selectedMainDonutWave.rawDate}
+                doSongAdvice={selectedDoSongAdvice}
               />
             </div>
             <div className="dosong-mobile-item dosong-order-chat">
