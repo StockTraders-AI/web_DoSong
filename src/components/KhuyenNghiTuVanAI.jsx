@@ -83,6 +83,8 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
               signal_keys: doSongAdvice.signal_keys || [],
               wave: doSongAdvice.wave || {},
               engine: doSongAdvice.engine || {},
+              raw_engine: doSongAdvice.raw_engine || {},
+              nearest_engine: doSongAdvice.nearest_engine || {},
             }),
           });
           if (res.ok) {

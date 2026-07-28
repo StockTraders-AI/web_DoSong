@@ -243,6 +243,7 @@ function buildDoSongAdvice(rows, selectedDate) {
         wave: hienTai,
         engine: usedEngine,
         raw_engine: engine,
+        nearest_engine: nearestEnabledEngine,
       };
       const debugState = {
         date: row.rawDate,
@@ -258,6 +259,7 @@ function buildDoSongAdvice(rows, selectedDate) {
         wave: hienTai,
         engine: usedEngine,
         raw_engine: engine,
+        nearest_engine: nearestEnabledEngine,
       };
       window.__DOSONG_DEBUG__ = debugState;
       console.warn("DOSONG_ENGINE_STATE", debugState);
