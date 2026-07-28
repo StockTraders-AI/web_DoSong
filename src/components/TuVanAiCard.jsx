@@ -46,54 +46,8 @@ function TypingIndicator({ isPanel }) {
 }
 
 
-function normalizeQuestionText(value) {
-  return String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\u0111/g, "d")
-    .replace(/\u0110/g, "D")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
-function formatWaveMetricValue(value) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return "-";
-  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(number);
-}
-
-function formatDisplayDate(value) {
-  const raw = String(value || "").slice(0, 10);
-  const match = raw.match(/^(20\d{2})-(\d{2})-(\d{2})$/);
-  if (!match) return "";
-  return `${match[3]}/${match[2]}/${match[1]}`;
-}
-
-function buildLocalWaveMetricAnswer(question, metrics) {
-  const normalized = normalizeQuestionText(question);
-  if (!normalized) return "";
-
-  const asksAmount = /\b(bao nhieu|may|muc nao|muc may|hien tai|hom nay|luc nay|bay gio)\b/.test(normalized);
-  if (!asksAmount) return "";
-
-  const dateText = metrics.checkDate ? ` trong phi\u00ean ${formatDisplayDate(metrics.checkDate)}` : "";
-  if (normalized.includes("cho mua") || normalized.includes("waitbuy")) {
-    return `Ch\u1edd mua hi\u1ec7n \u1edf m\u1ee9c ${formatWaveMetricValue(metrics.waitbuy)}${dateText}.`;
-  }
-  if (normalized.includes("cho ban")) {
-    return `Ch\u1edd b\u00e1n hi\u1ec7n \u1edf m\u1ee9c ${formatWaveMetricValue(metrics.waitsell)}${dateText}.`;
-  }
-  if (normalized.includes("mua")) {
-    return `Mua hi\u1ec7n \u1edf m\u1ee9c ${formatWaveMetricValue(metrics.buy)}${dateText}.`;
-  }
-  if (normalized.includes("ban")) {
-    return `B\u00e1n hi\u1ec7n \u1edf m\u1ee9c ${formatWaveMetricValue(metrics.sell)}${dateText}.`;
-  }
-  return "";
-}
-
-export default function TuVanAiCard({ waitbuy = null, buy = null, waitsell = null, sell = null, checkDate = "" }) {
+export default function TuVanAiCard() {
   const [msgs, setMsgs] = useState([]);
   const [chatVal, setChatVal] = useState("");
   const [panelVal, setPanelVal] = useState("");
@@ -145,14 +99,6 @@ export default function TuVanAiCard({ waitbuy = null, buy = null, waitsell = nul
     return data.answer || TEXT.noAnswer;
   }, [conversationId]);
 
-  const getLocalWaveMetricAnswer = useCallback((q) => buildLocalWaveMetricAnswer(q, {
-    waitbuy,
-    buy,
-    waitsell,
-    sell,
-    checkDate,
-  }), [waitbuy, buy, waitsell, sell, checkDate]);
-
   const sendMsg = useCallback(async (q, isPanel = false) => {
     if (!q.trim()) return;
     if (isPanel) {
@@ -170,7 +116,7 @@ export default function TuVanAiCard({ waitbuy = null, buy = null, waitsell = nul
 
     let text;
     try {
-      text = getLocalWaveMetricAnswer(q) || await fetchReply(q);
+      text = await fetchReply(q);
     } catch (error) {
       text = error.message || TEXT.apiError;
     }
@@ -186,7 +132,7 @@ export default function TuVanAiCard({ waitbuy = null, buy = null, waitsell = nul
         setPanelMsgs(nextMsgs);
       }
     }
-  }, [fetchReply, getLocalWaveMetricAnswer]);
+  }, [fetchReply]);
 
   const openPanel = useCallback(() => {
     if (!panelSyncedRef.current) {

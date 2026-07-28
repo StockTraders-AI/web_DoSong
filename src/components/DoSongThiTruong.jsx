@@ -1592,13 +1592,7 @@ export default function DoSongThiTruong() {
               />
             </div>
             <div className="dosong-mobile-item dosong-order-chat">
-              <TuVanAiCard
-                waitbuy={selectedMainDonutWave.cm}
-                buy={selectedMainDonutWave.mu}
-                waitsell={selectedMainDonutWave.cb}
-                sell={selectedMainDonutWave.ba}
-                checkDate={selectedMainDonutWave.rawDate}
-              />
+              <TuVanAiCard />
             </div>
             <div className="dosong-mobile-item dosong-order-list">
               <DanhMucDoSong wave={danhMucWave} countWave={realtimeDisplayWave} />
