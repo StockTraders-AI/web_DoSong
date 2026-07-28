@@ -178,6 +178,20 @@ function toDoSongInput(row) {
   };
 }
 
+const DISABLED_DOSONG_STATES = new Set(["s2"]);
+
+function effectiveDoSongEngine(engine, fallbackEngine) {
+  const state = String(engine?.maTrangThai || "").toLowerCase();
+  if (DISABLED_DOSONG_STATES.has(state) && fallbackEngine) {
+    return {
+      ...fallbackEngine,
+      overriddenFrom: engine,
+      overrideReason: `disabled_${state}_use_nearest_previous_state`,
+    };
+  }
+  return engine;
+}
+
 function doSongSignalKeys(engine) {
   const keys = [];
   const state = String(engine?.maTrangThai || "").toLowerCase();
@@ -210,6 +224,8 @@ function buildDoSongAdvice(rows, selectedDate) {
   const sortedRows = [...byDate.values()].sort((a, b) => String(a.rawDate).localeCompare(String(b.rawDate)));
   let phienTruoc = null;
   let phaTruoc = null;
+  let nearestEnabledEngine = null;
+  let nearestEnabledDate = "";
   let selectedAdvice = null;
 
   sortedRows.forEach((row) => {
@@ -218,26 +234,38 @@ function buildDoSongAdvice(rows, selectedDate) {
     const hasPreviousSession = Boolean(phienTruoc);
     const engine = danhGiaDoSong({ hienTai, phienTruoc, phaTruoc });
     if (row.rawDate === targetDate && hasPreviousSession) {
+      const usedEngine = effectiveDoSongEngine(engine, nearestEnabledEngine);
       selectedAdvice = {
         check_date: row.rawDate,
-        signal_keys: doSongSignalKeys(engine),
+        signal_keys: doSongSignalKeys(usedEngine),
         source_dates: sortedRows.map((item) => item.rawDate),
         previous_date: phienTruoc?.date || "",
+        nearest_enabled_date: nearestEnabledDate,
         wave: hienTai,
-        engine,
+        engine: usedEngine,
+        raw_engine: engine,
       };
       const debugState = {
         date: row.rawDate,
         previous_date: phienTruoc?.date || "",
+        nearest_enabled_date: nearestEnabledDate,
         session_count: sortedRows.length,
-        maTrangThai: engine.maTrangThai,
-        pha: engine.pha,
+        raw_maTrangThai: engine.maTrangThai,
+        raw_pha: engine.pha,
+        maTrangThai: usedEngine?.maTrangThai,
+        pha: usedEngine?.pha,
+        overrideReason: usedEngine?.overrideReason || "",
         signal_keys: selectedAdvice.signal_keys,
         wave: hienTai,
-        engine,
+        engine: usedEngine,
+        raw_engine: engine,
       };
       window.__DOSONG_DEBUG__ = debugState;
       console.warn("DOSONG_ENGINE_STATE", debugState);
+    }
+    if (!DISABLED_DOSONG_STATES.has(String(engine.maTrangThai || "").toLowerCase())) {
+      nearestEnabledEngine = engine;
+      nearestEnabledDate = row.rawDate;
     }
     phienTruoc = hienTai;
     phaTruoc = engine.pha;
