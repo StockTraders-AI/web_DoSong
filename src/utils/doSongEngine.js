@@ -110,12 +110,8 @@ export function tinhDacTrung(p, truoc) {
 export function phanLoai(f, phaTruoc) {
   const N = CAU_HINH;
   if (f.ban >= N.NGUONG_XAC_NHAN) return "S7";
-  if (f.mua >= N.NGUONG_XAC_NHAN) {
-    const laDaySongMoi = phaTruoc == null || [PHA.DIEU_CHINH, PHA.TICH_LUY, PHA.CHAN_SONG].includes(phaTruoc);
-    return laDaySongMoi ? "S3" : "S4";
-  }
+  if (f.mua >= N.NGUONG_XAC_NHAN) return "S4";
   if (f.tlChoBan >= N.CHO_BAN_CAO) return [PHA.SONG_TANG, PHA.PHAN_PHOI].includes(phaTruoc) ? "S6" : "S0";
-  if (f.tlChoMua >= N.CHO_MUA_CAO && f.dChoMua >= 0) return "S2";
   if (phaTruoc === PHA.SONG_TANG && f.dChoBan > 0 && f.dMua < 0 && f.tlChoBan < N.CHO_BAN_CAO) return "S5";
   if ([PHA.CHAN_SONG, PHA.SONG_TANG].includes(phaTruoc) && f.ban < N.NGUONG_XAC_NHAN && f.tlBan < N.BAN_CAO && f.tlChoBan < N.CHO_BAN_CAO) return "S4";
   const chenhLech = f.tlChoMua - f.tlChoBan;

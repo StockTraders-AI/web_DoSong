@@ -178,7 +178,7 @@ function toDoSongInput(row) {
   };
 }
 
-const DISABLED_DOSONG_STATES = new Set(["s2"]);
+const DISABLED_DOSONG_STATES = new Set(["s2", "s3"]);
 
 function effectiveDoSongEngine(engine, fallbackEngine) {
   const state = String(engine?.maTrangThai || "").toLowerCase();
@@ -195,8 +195,7 @@ function effectiveDoSongEngine(engine, fallbackEngine) {
 function doSongSignalKeys(engine) {
   const keys = [];
   const state = String(engine?.maTrangThai || "").toLowerCase();
-  if (state === "s3") keys.push("buy_over_threshold");
-  if (state === "s2") keys.push("waitbuy_over_threshold");
+  if (DISABLED_DOSONG_STATES.has(state)) return ["do_song_engine"];
   if (state) keys.push(`do_song_state_${state}`);
 
   const phaseKey = {
