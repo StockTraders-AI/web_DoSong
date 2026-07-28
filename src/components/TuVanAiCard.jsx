@@ -45,7 +45,55 @@ function TypingIndicator({ isPanel }) {
   );
 }
 
-export default function TuVanAiCard() {
+
+function normalizeQuestionText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\u0111/g, "d")
+    .replace(/\u0110/g, "D")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatWaveMetricValue(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "-";
+  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(number);
+}
+
+function formatDisplayDate(value) {
+  const raw = String(value || "").slice(0, 10);
+  const match = raw.match(/^(20\d{2})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+  return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
+function buildLocalWaveMetricAnswer(question, metrics) {
+  const normalized = normalizeQuestionText(question);
+  if (!normalized) return "";
+
+  const asksAmount = /\b(bao nhieu|may|muc nao|muc may|hien tai|hom nay|luc nay|bay gio)\b/.test(normalized);
+  if (!asksAmount) return "";
+
+  const dateText = metrics.checkDate ? ` trong phi\u00ean ${formatDisplayDate(metrics.checkDate)}` : "";
+  if (normalized.includes("cho mua") || normalized.includes("waitbuy")) {
+    return `Ch\u1edd mua hi\u1ec7n \u1edf m\u1ee9c ${formatWaveMetricValue(metrics.waitbuy)}${dateText}.`;
+  }
+  if (normalized.includes("cho ban")) {
+    return `Ch\u1edd b\u00e1n hi\u1ec7n \u1edf m\u1ee9c ${formatWaveMetricValue(metrics.waitsell)}${dateText}.`;
+  }
+  if (normalized.includes("mua")) {
+    return `Mua hi\u1ec7n \u1edf m\u1ee9c ${formatWaveMetricValue(metrics.buy)}${dateText}.`;
+  }
+  if (normalized.includes("ban")) {
+    return `B\u00e1n hi\u1ec7n \u1edf m\u1ee9c ${formatWaveMetricValue(metrics.sell)}${dateText}.`;
+  }
+  return "";
+}
+
+export default function TuVanAiCard({ waitbuy = null, buy = null, waitsell = null, sell = null, checkDate = "" }) {
   const [msgs, setMsgs] = useState([]);
   const [chatVal, setChatVal] = useState("");
   const [panelVal, setPanelVal] = useState("");
@@ -59,6 +107,7 @@ export default function TuVanAiCard() {
   const panelRef = useRef(null);
   const chatTaRef = useRef(null);
   const panelTaRef = useRef(null);
+  const panelSyncedRef = useRef(false);
 
   useEffect(() => {
     if (msgsRef.current) msgsRef.current.scrollTop = msgsRef.current.scrollHeight;
@@ -67,6 +116,9 @@ export default function TuVanAiCard() {
   useEffect(() => {
     if (panelRef.current) panelRef.current.scrollTop = panelRef.current.scrollHeight;
   }, [panelMsgs]);
+  useEffect(() => {
+    panelSyncedRef.current = panelSynced;
+  }, [panelSynced]);
 
   useEffect(() => {
     const fn = (e) => { if (e.key === "Escape") setPanelOpen(false); };
@@ -91,6 +143,14 @@ export default function TuVanAiCard() {
     return data.answer || TEXT.noAnswer;
   }, [conversationId]);
 
+  const getLocalWaveMetricAnswer = useCallback((q) => buildLocalWaveMetricAnswer(q, {
+    waitbuy,
+    buy,
+    waitsell,
+    sell,
+    checkDate,
+  }), [waitbuy, buy, waitsell, sell, checkDate]);
+
   const sendMsg = useCallback(async (q, isPanel = false) => {
     if (!q.trim()) return;
     if (isPanel) {
@@ -99,13 +159,14 @@ export default function TuVanAiCard() {
     } else {
       setChatVal("");
       setMsgs((prev) => [...prev, { role: "user", text: q }, { role: "typing" }]);
+      panelSyncedRef.current = false;
       setPanelSynced(false);
     }
     setLoading(true);
 
     let text;
     try {
-      text = await fetchReply(q);
+      text = getLocalWaveMetricAnswer(q) || await fetchReply(q);
     } catch (error) {
       text = error.message || TEXT.apiError;
     }
@@ -115,12 +176,16 @@ export default function TuVanAiCard() {
       setPanelMsgs((prev) => [...prev.filter((m) => m.role !== "typing"), { role: "ai", text }]);
     } else {
       setMsgs((prev) => [...prev.filter((m) => m.role !== "typing"), { role: "ai", text }]);
+      if (panelSyncedRef.current) {
+        setPanelMsgs((prev) => [...prev.filter((m) => m.role !== "typing"), { role: "ai", text }]);
+      }
     }
-  }, [fetchReply]);
+  }, [fetchReply, getLocalWaveMetricAnswer]);
 
   const openPanel = useCallback(() => {
     if (!panelSynced) {
-      setPanelMsgs(msgs.filter((m) => m.role !== "typing"));
+      setPanelMsgs(msgs);
+      panelSyncedRef.current = true;
       setPanelSynced(true);
     }
     setPanelOpen(true);
