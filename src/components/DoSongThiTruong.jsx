@@ -61,17 +61,17 @@ const REALTIME_SIGNAL_CHANNELS = REALTIME_SIGNAL_SOURCES.map((source) => source.
 const REALTIME_SIGNAL_SOURCE_BY_CHANNEL = Object.fromEntries(
   REALTIME_SIGNAL_SOURCES.map((source) => [source.channel, source])
 );
-const SIGNAL_CAP_LABELS = {
-  thi_truong:"Thị trường",
-  nganh:"Ngành",
-  ma:"Mã",
+const NHAT_KY_C = {
+  t1: "#F0F4FF", t2: "#A8B8D0", t4: "#5C7090",
+  surf: "#111520", elev: "#171D2E", cbdr: "#1E2A3E", bdrs: "#1A2232",
+  B: "#A78BFA", Bd: "#7C3AED",
+  cmb: "#0A2318", cmd: "#0F3D22", cmc: "#3DD68C",
+  cbb: "#2B1800", cbd: "#4A2E00", cbc: "#FF9F0A",
+  bab: "#200A0E", bad: "#3D1018", bac: "#FF2D55",
+  pb: "rgba(124,58,237,.16)", pd: "#5B21B6",
 };
-const SIGNAL_LOG_TABS = [
-  { id:"all", label:"Tất cả" },
-  { id:"thi_truong", label:"Thị trường" },
-  { id:"nganh", label:"Ngành" },
-  { id:"ma", label:"Mã" },
-];
+const NHAT_KY_CAP = { thi_truong:"Thị trường", nganh:"Ngành", ma:"Mã" };
+const NHAT_KY_TABS = [["all", "Tất cả"], ["thi_truong", "Thị trường"], ["nganh", "Ngành"], ["ma", "Mã"]];
 const EMPTY_WAVE = {
   rawDate:"",
   date:"--/--/----",
@@ -1150,6 +1150,7 @@ function ChanSong({ data = [] }) {
 // RIGHT PANEL: Nhật ký tín hiệu
 // ─────────────────────────────────────────────────────────────
 function getNhatKyKind(row) {
+  if (row?.k) return row.k;
   if (row?.tone === "R") return "down";
   if (row?.tone === "A") return "warn";
   if (row?.channel === WAVE_CHANNEL || row?.tone === "B") return "wave";
@@ -1157,9 +1158,10 @@ function getNhatKyKind(row) {
 }
 
 function NhatKyIcon({ k }) {
-  const sk = k === "down" ? T.R : k === "warn" ? T.A : k === "wave" ? T.P : T.G;
-  const bg = k === "down" ? T.Rs : k === "warn" ? T.As : k === "wave" ? T.Bs : T.Gs;
-  const bd = k === "down" ? T.Rb : k === "warn" ? T.Ab : k === "wave" ? T.Bb : T.Gb;
+  const C = NHAT_KY_C;
+  const sk = k === "down" ? C.bac : k === "warn" ? C.cbc : k === "wave" ? C.B : C.cmc;
+  const bg = k === "down" ? C.bab : k === "warn" ? C.cbb : k === "wave" ? C.pb : C.cmb;
+  const bd = k === "down" ? C.bad : k === "warn" ? C.cbd : k === "wave" ? C.pd : C.cmd;
   const paths = {
     up:(
       <>
@@ -1190,55 +1192,59 @@ function NhatKyIcon({ k }) {
   );
 }
 
-function NhatKy({ logs = [] }) {
-  const [tab, setTab] = useState("all");
-  const [showAll, setShowAll] = useState(false);
-  const filteredLogs = logs.filter((item) => tab === "all" || item.cap === tab);
-  const list = showAll ? filteredLogs : filteredLogs.slice(0, 8);
-  const date = logs[0]?.date || new Intl.DateTimeFormat("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric" }).format(new Date());
-  const dem = (id) => id === "all" ? logs.length : logs.filter((item) => item.cap === id).length;
+function toNhatKyRow(row) {
+  return {
+    id:row.id,
+    t:row.t || row.time,
+    cap:row.cap,
+    k:getNhatKyKind(row),
+    x:row.x || row.txt,
+  };
+}
 
-  useEffect(() => {
-    setShowAll(false);
-  }, [tab]);
+function NhatKy({ logs = [], onXemTatCa }) {
+  const [tab, setTab] = useState("all");
+  const data = logs.map(toNhatKyRow);
+  const date = logs[0]?.date || new Intl.DateTimeFormat("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric" }).format(new Date());
+  const dem = (id) => (id === "all" ? data.length : data.filter((d) => d.cap === id).length);
+  const list = data.filter((d) => tab === "all" || d.cap === tab);
+  const C = NHAT_KY_C;
 
   return (
-    <div style={{ background:T.surf, border:`.5px solid ${T.bdr}`, borderRadius:16, padding:"16px 17px", fontFamily:"-apple-system, Inter, sans-serif" }}>
+    <div style={{ background:C.surf, border:`.5px solid ${C.cbdr}`, borderRadius:16, padding:"16px 17px", fontFamily:"-apple-system, Inter, sans-serif" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:15, fontWeight:700, color:T.t1 }}>
-          📓 Nhật ký tín hiệu <span style={{ fontSize:12, color:T.t4, fontWeight:400 }}>({date})</span>
+        <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:15, fontWeight:700, color:C.t1 }}>
+          📓 Nhật ký tín hiệu <span style={{ fontSize:12, color:C.t4, fontWeight:400 }}>({date})</span>
         </div>
-        <span onClick={() => setShowAll((value) => !value)} style={{ fontSize:12, color:T.P, fontWeight:700, cursor:"pointer" }}>
-          {showAll ? "Thu gọn" : "Xem tất cả →"}
-        </span>
+        <span onClick={onXemTatCa} style={{ fontSize:12, color:C.B, fontWeight:700, cursor:"pointer" }}>Xem tất cả →</span>
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:12 }}>
-        {SIGNAL_LOG_TABS.map(({ id, label }) => {
+        {NHAT_KY_TABS.map(([id, label]) => {
           const on = id === tab;
           return (
-            <button key={id} onClick={() => setTab(id)} style={{ textAlign:"center", padding:"8px 4px", borderRadius:8, cursor:"pointer", fontFamily:"inherit", background:on ? T.Bs : T.elev, border:`.5px solid ${on ? T.B : T.bdr}` }}>
-              <div style={{ fontSize:13, fontWeight:500, color:on ? T.P : T.t2 }}>{label}</div>
-              <div style={{ fontSize:11, color:on ? T.P : T.t4 }}>({dem(id)})</div>
+            <button key={id} onClick={() => setTab(id)} style={{ textAlign:"center", padding:"8px 4px", borderRadius:8, cursor:"pointer", fontFamily:"inherit", background:on ? "rgba(124,58,237,.14)" : C.elev, border:`.5px solid ${on ? C.pd : "#242E42"}` }}>
+              <div style={{ fontSize:13, fontWeight:500, color:on ? C.B : C.t2 }}>{label}</div>
+              <div style={{ fontSize:11, color:on ? C.B : C.t4 }}>({dem(id)})</div>
             </button>
           );
         })}
       </div>
 
       {list.length === 0 ? (
-        <div style={{ padding:"20px 0", textAlign:"center", color:T.t4, fontSize:12 }}>
+        <div style={{ padding:"20px 0", textAlign:"center", color:C.t4, fontSize:12 }}>
           Chưa có tín hiệu ở cấp này trong phiên.
         </div>
       ) : (
-        list.map((row, index) => (
-          <div key={row.id || `${row.time}-${index}`} style={{ display:"flex", gap:10, padding:"9px 0", borderBottom:index < list.length - 1 ? `.5px solid ${T.bdrs}` : "none", fontSize:12, color:T.t2, lineHeight:1.55 }}>
-            <span style={{ color:T.t4, fontSize:11, flexShrink:0, width:36 }}>{row.time}</span>
-            <NhatKyIcon k={getNhatKyKind(row)} />
+        list.map((r, i) => (
+          <div key={r.id || i} style={{ display:"flex", gap:10, padding:"9px 0", borderBottom:i < list.length - 1 ? `.5px solid ${C.bdrs}` : "none", fontSize:12, color:C.t2, lineHeight:1.55 }}>
+            <span style={{ color:C.t4, fontSize:11, flexShrink:0, width:36 }}>{r.t}</span>
+            <NhatKyIcon k={r.k} />
             <span>
               {tab === "all" && (
-                <span style={{ color:T.t4, fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:".04em", marginRight:6 }}>{SIGNAL_CAP_LABELS[row.cap]}</span>
+                <span style={{ color:C.t4, fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:".04em", marginRight:6 }}>{NHAT_KY_CAP[r.cap]}</span>
               )}
-              <b style={{ color:T.t1 }}>AI:</b> {row.txt}
+              <b style={{ color:C.t1 }}>AI:</b> {r.x}
             </span>
           </div>
         ))
