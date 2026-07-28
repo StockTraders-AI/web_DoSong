@@ -12,7 +12,6 @@ const TEXT = {
   expand: "M\u1edf r\u1ed9ng",
   placeholder: "H\u1ecfi v\u1ec1 s\u00f3ng th\u1ecb tr\u01b0\u1eddng, chi\u1ebfn l\u01b0\u1ee3c...",
   panelPlaceholder: "H\u1ecfi b\u1ea5t c\u1ee9 \u0111i\u1ec1u g\u00ec v\u1ec1 s\u00f3ng th\u1ecb tr\u01b0\u1eddng...",
-  noAnswer: "Kh\u00f4ng c\u00f3 c\u00e2u tr\u1ea3 l\u1eddi.",
   apiError: "Kh\u00f4ng g\u1ecdi \u0111\u01b0\u1ee3c API t\u01b0 v\u1ea5n AI.",
 };
 
@@ -96,7 +95,7 @@ export default function TuVanAiCard() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `API loi ${res.status}`);
     if (data.conversation_id) setConversationId(data.conversation_id);
-    return data.answer || TEXT.noAnswer;
+    return typeof data.answer === "string" ? data.answer : "";
   }, [conversationId]);
 
   const sendMsg = useCallback(async (q, isPanel = false) => {

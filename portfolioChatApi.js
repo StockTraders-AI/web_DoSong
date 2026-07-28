@@ -71,7 +71,7 @@ export async function handlePortfolioChat(req, res, rawUrl) {
     }
 
     sendJson(res, 200, {
-      answer: payload.answer || "",
+      answer: typeof payload.answer === "string" ? payload.answer : "",
       conversation_id: payload.conversation_id || body.conversation_id || "portfolio-test-1",
     });
   } catch (error) {
