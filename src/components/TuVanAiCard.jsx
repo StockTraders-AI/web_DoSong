@@ -108,8 +108,10 @@ export default function TuVanAiCard({ waitbuy = null, buy = null, waitsell = nul
   const chatTaRef = useRef(null);
   const panelTaRef = useRef(null);
   const panelSyncedRef = useRef(false);
+  const msgsDataRef = useRef([]);
 
   useEffect(() => {
+    msgsDataRef.current = msgs;
     if (msgsRef.current) msgsRef.current.scrollTop = msgsRef.current.scrollHeight;
   }, [msgs]);
 
@@ -158,7 +160,9 @@ export default function TuVanAiCard({ waitbuy = null, buy = null, waitsell = nul
       setPanelMsgs((prev) => [...prev, { role: "user", text: q }, { role: "typing" }]);
     } else {
       setChatVal("");
-      setMsgs((prev) => [...prev, { role: "user", text: q }, { role: "typing" }]);
+      const nextMsgs = [...msgsDataRef.current, { role: "user", text: q }, { role: "typing" }];
+      msgsDataRef.current = nextMsgs;
+      setMsgs(nextMsgs);
       panelSyncedRef.current = false;
       setPanelSynced(false);
     }
@@ -175,22 +179,24 @@ export default function TuVanAiCard({ waitbuy = null, buy = null, waitsell = nul
     if (isPanel) {
       setPanelMsgs((prev) => [...prev.filter((m) => m.role !== "typing"), { role: "ai", text }]);
     } else {
-      setMsgs((prev) => [...prev.filter((m) => m.role !== "typing"), { role: "ai", text }]);
+      const nextMsgs = [...msgsDataRef.current.filter((m) => m.role !== "typing"), { role: "ai", text }];
+      msgsDataRef.current = nextMsgs;
+      setMsgs(nextMsgs);
       if (panelSyncedRef.current) {
-        setPanelMsgs((prev) => [...prev.filter((m) => m.role !== "typing"), { role: "ai", text }]);
+        setPanelMsgs(nextMsgs);
       }
     }
   }, [fetchReply, getLocalWaveMetricAnswer]);
 
   const openPanel = useCallback(() => {
-    if (!panelSynced) {
-      setPanelMsgs(msgs);
+    if (!panelSyncedRef.current) {
+      setPanelMsgs(msgsDataRef.current);
       panelSyncedRef.current = true;
       setPanelSynced(true);
     }
     setPanelOpen(true);
     setTimeout(() => panelTaRef.current?.focus(), 300);
-  }, [msgs, panelSynced]);
+  }, []);
 
   return (
     <>
