@@ -33,7 +33,7 @@ export const BANG_TRANG_THAI = {
   S2: {
     pha: PHA.CHAN_SONG,
     tieuDe: "T\u00edn hi\u1ec7u ch\u1edd mua t\u0103ng cao",
-    dienGiai: (f) => `S\u1ed1 l\u01b0\u1ee3ng c\u1ed5 phi\u1ebfu Ch\u1edd mua \u0111ang \u1edf m\u1ee9c ${f.choMua}, cho th\u1ea5y l\u1ef1c b\u00e1n suy y\u1ebfu v\u00e0 d\u00f2ng ti\u1ec1n b\u1eaft \u0111\u1ea7u quay l\u1ea1i. Th\u1ecb tr\u01b0\u1eddng c\u00f3 kh\u1ea3 n\u0103ng b\u01b0\u1edbc v\u00e0o v\u00f9ng t\u1ea1o \u0111\u00e1y s\u1edbm.`,
+    dienGiai: (f) => `Ch\u1edd mua \u0111\u1ea1t m\u1ee9c ${f.choMua}, cho th\u1ea5y l\u1ef1c b\u00e1n suy y\u1ebfu v\u00e0 d\u00f2ng ti\u1ec1n b\u1eaft \u0111\u1ea7u quay l\u1ea1i. Th\u1ecb tr\u01b0\u1eddng c\u00f3 kh\u1ea3 n\u0103ng b\u01b0\u1edbc v\u00e0o v\u00f9ng t\u1ea1o \u0111\u00e1y s\u1edbm.`,
     hanhDong: "C\u00e2n nh\u1eafc gi\u1ea3i ng\u00e2n th\u0103m d\u00f2 30%, \u01b0u ti\u00ean m\u00e3 n\u1ec1n t\u1ea3ng t\u1ed1t v\u00e0 ch\u1edd x\u00e1c nh\u1eadn s\u00f3ng.",
     canTinCay: false,
   },
@@ -50,7 +50,7 @@ export const BANG_TRANG_THAI = {
     dienGiai: (f) => {
       const lead = f.mua >= CAU_HINH.NGUONG_XAC_NHAN
         ? `D\u00f2ng ti\u1ec1n ti\u1ebfp t\u1ee5c \u0111\u1ed5 v\u00e0o m\u1ea1nh v\u1edbi ${f.mua} m\u00e3 b\u00e1o Mua`
-        : `L\u1ef1c mua h\u1ea1 nhi\u1ec7t c\u00f2n ${f.mua} m\u00e3 nh\u01b0ng c\u1ea7u Ch\u1edd mua v\u1eabn d\u00e0y v\u1edbi ${f.choMua} m\u00e3`;
+        : `L\u1ef1c mua h\u1ea1 nhi\u1ec7t c\u00f2n ${f.mua} m\u00e3 nh\u01b0ng Ch\u1edd mua v\u1eabn duy tr\u00ec \u1edf m\u1ee9c ${f.choMua}`;
       return `${lead}. \u00c1p l\u1ef1c b\u00e1n ch\u01b0a \u0111\u00e1ng k\u1ec3 v\u1edbi Ch\u1edd b\u00e1n ${f.choBan} v\u00e0 B\u00e1n ${f.ban}, cho th\u1ea5y s\u00f3ng t\u0103ng v\u1eabn ch\u01b0a g\u00e3y.`;
     },
     hanhDong: "Gi\u1eef t\u1ef7 tr\u1ecdng, \u01b0u ti\u00ean m\u00e3 m\u1ea1nh trong ng\u00e0nh d\u1eabn s\u00f3ng, h\u1ea1n ch\u1ebf mua \u0111u\u1ed5i.",
@@ -80,7 +80,7 @@ export const BANG_TRANG_THAI = {
   SN: {
     pha: null,
     tieuDe: "Th\u1ecb tr\u01b0\u1eddng trung t\u00ednh",
-    dienGiai: (f) => `C\u00e1c t\u00edn hi\u1ec7u \u0111ang c\u00e2n b\u1eb1ng v\u1edbi Ch\u1edd mua ${f.choMua}, Mua ${f.mua}, Ch\u1edd b\u00e1n ${f.choBan}, B\u00e1n ${f.ban}. D\u00f2ng ti\u1ec1n ch\u01b0a h\u00ecnh th\u00e0nh xu h\u01b0\u1edbng r\u00f5 r\u00e0ng.`,
+    dienGiai: (f) => `C\u00e1c t\u00edn hi\u1ec7u \u0111ang c\u00e2n b\u1eb1ng v\u1edbi Ch\u1edd mua \u1edf m\u1ee9c ${f.choMua}, Mua ${f.mua}, Ch\u1edd b\u00e1n ${f.choBan}, B\u00e1n ${f.ban}. D\u00f2ng ti\u1ec1n ch\u01b0a h\u00ecnh th\u00e0nh xu h\u01b0\u1edbng r\u00f5 r\u00e0ng.`,
     hanhDong: "Gi\u1eef nguy\u00ean tr\u1ea1ng th\u00e1i, theo d\u00f5i di\u1ec5n bi\u1ebfn c\u00e1c phi\u00ean t\u1edbi.",
     canTinCay: false,
   },

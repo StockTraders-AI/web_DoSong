@@ -215,8 +215,9 @@ function buildDoSongAdvice(rows, selectedDate) {
   sortedRows.forEach((row) => {
     const hienTai = toDoSongInput(row);
     if (!hienTai) return;
+    const hasPreviousSession = Boolean(phienTruoc);
     const engine = danhGiaDoSong({ hienTai, phienTruoc, phaTruoc });
-    if (row.rawDate === targetDate) {
+    if (row.rawDate === targetDate && hasPreviousSession) {
       selectedAdvice = {
         check_date: row.rawDate,
         signal_keys: doSongSignalKeys(engine),

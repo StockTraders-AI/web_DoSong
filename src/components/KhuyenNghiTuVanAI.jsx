@@ -33,7 +33,7 @@ function getSignalCandidates(signalKey, currentBuy) {
   return [...new Set(keys)];
 }
 
-export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, waitbuy = 0, buy = 0, refreshKey = 0, checkDate = "", doSongAdvice = null }) {
+export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, waitbuy = 0, buy = 0, refreshKey = 0, checkDate = "", doSongAdvice }) {
   const [conditionSignal, setConditionSignal] = useState(EMPTY_SIGNAL);
   const doSongAdviceKey = buildDoSongAdviceKey(doSongAdvice);
 
@@ -54,6 +54,11 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
 
     async function loadConditionResponse(attempt = 1) {
       try {
+        if (doSongAdvice === null) {
+          if (!cancelled && attempt + 1 < retryDelays.length) scheduleLoad(attempt + 1);
+          return;
+        }
+
         if (doSongAdvice?.engine) {
           const res = await fetch("/api/do-song-advice", {
             method: "POST",
@@ -78,6 +83,8 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
               return;
             }
           }
+          if (!cancelled && attempt + 1 < retryDelays.length) scheduleLoad(attempt + 1);
+          return;
         }
 
         const candidates = getSignalCandidates(signalKey || DEFAULT_SIGNAL_KEY, currentBuy);
