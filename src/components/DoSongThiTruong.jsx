@@ -226,7 +226,7 @@ function buildDoSongAdvice(rows, selectedDate) {
         wave: hienTai,
         engine,
       };
-      console.log("DOSONG_ENGINE_STATE", {
+      const debugState = {
         date: row.rawDate,
         previous_date: phienTruoc?.date || "",
         session_count: sortedRows.length,
@@ -235,7 +235,9 @@ function buildDoSongAdvice(rows, selectedDate) {
         signal_keys: selectedAdvice.signal_keys,
         wave: hienTai,
         engine,
-      });
+      };
+      window.__DOSONG_DEBUG__ = debugState;
+      console.warn("DOSONG_ENGINE_STATE", debugState);
     }
     phienTruoc = hienTai;
     phaTruoc = engine.pha;
