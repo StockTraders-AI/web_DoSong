@@ -48,14 +48,14 @@ const REALTIME_WAVE_URL =
   "http://112.213.91.235:3005/realtime";
 const WAVE_CHANNEL = "wave";
 const REALTIME_SIGNAL_SOURCES = [
-  { api:"getStockSignal", channel:"stock-signal", label:"Tín hiệu", cap:"thi_truong", icon:"ti-bell-ringing", tone:"B" },
-  { api:"getStockWave", channel:"wave", label:"Dò sóng", cap:"thi_truong", icon:"ti-wave-sine", tone:"B" },
-  { api:"getSMDTTicker", channel:"smdt-stock", label:"SMDT mã", cap:"ma", icon:"ti-chart-bar", tone:"G" },
-  { api:"getSMDTBranch", channel:"smdt-branch", label:"SMDT ngành", cap:"nganh", icon:"ti-building-bank", tone:"G" },
-  { api:"getSMDTTickerCross", channel:"smdt-ticker-cross", label:"Cross mã", cap:"ma", icon:"ti-arrows-cross", tone:"A" },
-  { api:"getSMDTBranchCross", channel:"smdt-branch-cross", label:"Cross ngành", cap:"nganh", icon:"ti-git-merge", tone:"A" },
-  { api:"getCashFlowBranch", channel:"money-flow-branch", label:"Tiền ngành", cap:"nganh", icon:"ti-cash-banknote", tone:"G" },
-  { api:"getCashFlowTicker", channel:"money-flow-stock", label:"Tiền mã", cap:"ma", icon:"ti-cash", tone:"G" },
+  { api:"getStockSignal", channel:"stock-signal", label:"Tín hiệu", cap:"thi_truong", tone:"B" },
+  { api:"getStockWave", channel:"wave", label:"Dò sóng", cap:"thi_truong", tone:"B" },
+  { api:"getSMDTTicker", channel:"smdt-stock", label:"SMDT mã", cap:"ma", tone:"G" },
+  { api:"getSMDTBranch", channel:"smdt-branch", label:"SMDT ngành", cap:"nganh", tone:"G" },
+  { api:"getSMDTTickerCross", channel:"smdt-ticker-cross", label:"Cross mã", cap:"ma", tone:"A" },
+  { api:"getSMDTBranchCross", channel:"smdt-branch-cross", label:"Cross ngành", cap:"nganh", tone:"A" },
+  { api:"getCashFlowBranch", channel:"money-flow-branch", label:"Tiền ngành", cap:"nganh", tone:"G" },
+  { api:"getCashFlowTicker", channel:"money-flow-stock", label:"Tiền mã", cap:"ma", tone:"G" },
 ];
 const REALTIME_SIGNAL_CHANNELS = REALTIME_SIGNAL_SOURCES.map((source) => source.channel);
 const REALTIME_SIGNAL_SOURCE_BY_CHANNEL = Object.fromEntries(
@@ -66,6 +66,12 @@ const SIGNAL_CAP_LABELS = {
   nganh:"Ngành",
   ma:"Mã",
 };
+const SIGNAL_LOG_TABS = [
+  { id:"all", label:"Tất cả" },
+  { id:"thi_truong", label:"Thị trường" },
+  { id:"nganh", label:"Ngành" },
+  { id:"ma", label:"Mã" },
+];
 const EMPTY_WAVE = {
   rawDate:"",
   date:"--/--/----",
@@ -489,12 +495,6 @@ function getRealtimeLogTone(source, text) {
   return source.tone || "B";
 }
 
-function getRealtimeLogIcon(source, tone) {
-  if (tone === "R") return "ti-trending-down";
-  if (tone === "A") return "ti-alert-circle";
-  if (tone === "G") return "ti-trending-up";
-  return source.icon || "ti-info-circle";
-}
 
 function normalizeRealtimeSignalLogs(payload) {
   const channel = String(payload?.channel || payload?.data?.channel || "");
@@ -511,10 +511,7 @@ function normalizeRealtimeSignalLogs(payload) {
     time:formatRealtimeLogTime(sentAt),
     date:formatRealtimeLogDate(sentAt),
     channel,
-    api:source.api,
-    sourceLabel:source.label,
     cap:source.cap,
-    icon:getRealtimeLogIcon(source, tone),
     tone,
     txt:text,
   }];
@@ -1152,122 +1149,101 @@ function ChanSong({ data = [] }) {
 // ─────────────────────────────────────────────────────────────
 // RIGHT PANEL: Nhật ký tín hiệu
 // ─────────────────────────────────────────────────────────────
-function getLogToneStyle(tone) {
-  if (tone === "R") return { color:T.R, bg:T.Rs, border:T.Rb };
-  if (tone === "A") return { color:T.A, bg:T.As, border:T.Ab };
-  if (tone === "G") return { color:T.G, bg:T.Gs, border:T.Gb };
-  return { color:T.B, bg:T.Bs, border:T.Bb };
+function getNhatKyKind(row) {
+  if (row?.tone === "R") return "down";
+  if (row?.tone === "A") return "warn";
+  if (row?.channel === WAVE_CHANNEL || row?.tone === "B") return "wave";
+  return "up";
 }
 
-function NhatKy({ logs = [], status = "connecting" }) {
+function NhatKyIcon({ k }) {
+  const sk = k === "down" ? T.R : k === "warn" ? T.A : k === "wave" ? T.P : T.G;
+  const bg = k === "down" ? T.Rs : k === "warn" ? T.As : k === "wave" ? T.Bs : T.Gs;
+  const bd = k === "down" ? T.Rb : k === "warn" ? T.Ab : k === "wave" ? T.Bb : T.Gb;
+  const paths = {
+    up:(
+      <>
+        <polyline points="3,17 9,11 13,15 21,7" stroke={sk} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+        <polyline points="15,7 21,7 21,13" stroke={sk} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+      </>
+    ),
+    down:(
+      <>
+        <polyline points="3,7 9,13 13,9 21,17" stroke={sk} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+        <polyline points="15,17 21,17 21,11" stroke={sk} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+      </>
+    ),
+    warn:(
+      <>
+        <circle cx="12" cy="12" r="9" stroke={sk} strokeWidth="2.2" />
+        <line x1="12" y1="7.5" x2="12" y2="13" stroke={sk} strokeWidth="2.4" strokeLinecap="round" />
+        <circle cx="12" cy="16.6" r="1.3" fill={sk} />
+      </>
+    ),
+    wave:<path d="M3 12h3l2.5-6 4 12 2.5-6h6" stroke={sk} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />,
+  };
+
+  return (
+    <span style={{ width:26, height:26, borderRadius:"50%", flexShrink:0, marginTop:1, display:"flex", alignItems:"center", justifyContent:"center", background:bg, border:`1px solid ${bd}` }}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">{paths[k]}</svg>
+    </span>
+  );
+}
+
+function NhatKy({ logs = [] }) {
   const [tab, setTab] = useState("all");
   const [showAll, setShowAll] = useState(false);
-  const tabs = [{ channel:"all", label:"Tất cả", api:"" }, ...REALTIME_SIGNAL_SOURCES];
-  const filteredLogs = tab === "all" ? logs : logs.filter((item) => item.channel === tab);
-  const visibleLogs = showAll ? filteredLogs : filteredLogs.slice(0, 8);
-  const latestDate = logs[0]?.date || new Intl.DateTimeFormat("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric" }).format(new Date());
-  const statusCfg = status === "connected"
-    ? { label:"Live", color:T.G, bg:T.Gs }
-    : status === "error"
-      ? { label:"Lỗi", color:T.R, bg:T.Rs }
-      : { label:"Chờ", color:T.A, bg:T.As };
+  const filteredLogs = logs.filter((item) => tab === "all" || item.cap === tab);
+  const list = showAll ? filteredLogs : filteredLogs.slice(0, 8);
+  const date = logs[0]?.date || new Intl.DateTimeFormat("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric" }).format(new Date());
+  const dem = (id) => id === "all" ? logs.length : logs.filter((item) => item.cap === id).length;
 
   useEffect(() => {
     setShowAll(false);
   }, [tab]);
 
   return (
-    <Card style={{ padding:"16px 17px" }}>
-      <CardHeader
-        icon="ti-notes"
-        title="Nhật ký tín hiệu"
-        meta={latestDate}
-        right={(
-          <div style={{ display:"flex", alignItems:"center", gap:9 }}>
-            <span style={{ display:"inline-flex", alignItems:"center", gap:5, color:statusCfg.color, background:statusCfg.bg, borderRadius:7, padding:"4px 7px", fontSize:11, fontWeight:700 }}>
-              <span style={{ width:6, height:6, borderRadius:"50%", background:statusCfg.color }} />
-              {statusCfg.label}
-            </span>
-            {filteredLogs.length > 8 && (
-              <Clink onClick={() => setShowAll((value) => !value)}>{showAll ? "Thu gọn" : "Xem tất cả →"}</Clink>
-            )}
-          </div>
-        )}
-        mb={10}
-      />
+    <div style={{ background:T.surf, border:`.5px solid ${T.bdr}`, borderRadius:16, padding:"16px 17px", fontFamily:"-apple-system, Inter, sans-serif" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:15, fontWeight:700, color:T.t1 }}>
+          📓 Nhật ký tín hiệu <span style={{ fontSize:12, color:T.t4, fontWeight:400 }}>({date})</span>
+        </div>
+        <span onClick={() => setShowAll((value) => !value)} style={{ fontSize:12, color:T.P, fontWeight:700, cursor:"pointer" }}>
+          {showAll ? "Thu gọn" : "Xem tất cả →"}
+        </span>
+      </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,minmax(0,1fr))", gap:7, marginBottom:12 }}>
-        {tabs.map((source) => {
-          const id = source.channel;
-          const active = tab === id;
-          const count = id === "all" ? logs.length : logs.filter((item) => item.channel === id).length;
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:12 }}>
+        {SIGNAL_LOG_TABS.map(({ id, label }) => {
+          const on = id === tab;
           return (
-            <button
-              key={id}
-              type="button"
-              title={source.api ? `${source.api} (${id})` : "Tất cả nguồn"}
-              onClick={() => setTab(id)}
-              style={{
-                minWidth:0,
-                height:42,
-                borderRadius:8,
-                border:`0.5px solid ${active ? T.B : T.bdr}`,
-                background:active ? T.Bs : T.elev,
-                color:active ? T.B : T.t2,
-                cursor:"pointer",
-                display:"flex",
-                flexDirection:"column",
-                alignItems:"center",
-                justifyContent:"center",
-                gap:2,
-                padding:"5px 4px",
-              }}
-            >
-              <span style={{ display:"block", maxWidth:"100%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:11.5, fontWeight:700 }}>{source.label}</span>
-              <span style={{ color:active ? T.B : T.t4, fontSize:10 }}>({count})</span>
+            <button key={id} onClick={() => setTab(id)} style={{ textAlign:"center", padding:"8px 4px", borderRadius:8, cursor:"pointer", fontFamily:"inherit", background:on ? T.Bs : T.elev, border:`.5px solid ${on ? T.B : T.bdr}` }}>
+              <div style={{ fontSize:13, fontWeight:500, color:on ? T.P : T.t2 }}>{label}</div>
+              <div style={{ fontSize:11, color:on ? T.P : T.t4 }}>({dem(id)})</div>
             </button>
           );
         })}
       </div>
 
-      {!visibleLogs.length ? (
-        <div style={{ padding:"18px 0", textAlign:"center", color:T.t4, fontSize:12 }}>
-          Đang chờ tín hiệu realtime trong phiên.
+      {list.length === 0 ? (
+        <div style={{ padding:"20px 0", textAlign:"center", color:T.t4, fontSize:12 }}>
+          Chưa có tín hiệu ở cấp này trong phiên.
         </div>
       ) : (
-        <div>
-          {visibleLogs.map((row, idx) => {
-            const tone = getLogToneStyle(row.tone);
-            return (
-              <div key={row.id} style={{
-                display:"flex", gap:10, padding:"9px 0",
-                borderBottom:idx < visibleLogs.length - 1 ? `0.5px solid ${T.bdrs}` : "none",
-              }}>
-                <span style={{ fontSize:10, color:T.t4, width:36, flexShrink:0, marginTop:3, fontWeight:600 }}>
-                  {row.time}
-                </span>
-                <div style={{ width:26, height:26, borderRadius:"50%", background:tone.bg, border:`0.5px solid ${tone.border}`,
-                  display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                  <i className={`ti ${row.icon}`} style={{ fontSize:13, color:tone.color }} />
-                </div>
-                <div style={{ minWidth:0, fontSize:12, color:T.t2, lineHeight:1.55 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", marginBottom:2 }}>
-                    <span style={{ color:T.t4, fontSize:10, fontWeight:800, textTransform:"uppercase" }}>
-                      {SIGNAL_CAP_LABELS[row.cap] || row.sourceLabel}
-                    </span>
-                    <span style={{ color:tone.color, background:tone.bg, border:`0.5px solid ${tone.border}`, borderRadius:6, padding:"1px 6px", fontSize:10, fontWeight:700 }}>
-                      {row.sourceLabel}
-                    </span>
-                    <span style={{ color:T.t4, fontSize:10 }}>{row.api}</span>
-                  </div>
-                  <div><strong style={{ color:T.t1 }}>AI:</strong> {row.txt}</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        list.map((row, index) => (
+          <div key={row.id || `${row.time}-${index}`} style={{ display:"flex", gap:10, padding:"9px 0", borderBottom:index < list.length - 1 ? `.5px solid ${T.bdrs}` : "none", fontSize:12, color:T.t2, lineHeight:1.55 }}>
+            <span style={{ color:T.t4, fontSize:11, flexShrink:0, width:36 }}>{row.time}</span>
+            <NhatKyIcon k={getNhatKyKind(row)} />
+            <span>
+              {tab === "all" && (
+                <span style={{ color:T.t4, fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:".04em", marginRight:6 }}>{SIGNAL_CAP_LABELS[row.cap]}</span>
+              )}
+              <b style={{ color:T.t1 }}>AI:</b> {row.txt}
+            </span>
+          </div>
+        ))
       )}
-    </Card>
+    </div>
   );
 }
 // ─────────────────────────────────────────────────────────────
@@ -1286,7 +1262,6 @@ export default function DoSongThiTruong() {
   const [tickerWave, setTickerWave] = useState(EMPTY_WAVE);
   const [signalRefreshKey, setSignalRefreshKey] = useState(0);
   const [realtimeSignalLogs, setRealtimeSignalLogs] = useState([]);
-  const [realtimeSocketStatus, setRealtimeSocketStatus] = useState("connecting");
   const tickerRequestKey = latestWave.rawDate || "latest";
   const historySource = historyAllWaves.length ? historyAllWaves : historyWaves;
   const historyDisplayWaves = historySource.filter((item) => !latestWave.rawDate || item.rawDate < latestWave.rawDate);
@@ -1336,7 +1311,6 @@ export default function DoSongThiTruong() {
 
     socket.on("connect", () => {
       if (!active) return;
-      setRealtimeSocketStatus("connected");
       socket.emit("message", {
         action:"subscribe",
         channels:REALTIME_SIGNAL_CHANNELS,
@@ -1369,12 +1343,7 @@ export default function DoSongThiTruong() {
 
 
     socket.on("connect_error", (error) => {
-      if (active) setRealtimeSocketStatus("error");
       console.error("Realtime wave socket failed", error);
-    });
-
-    socket.on("disconnect", () => {
-      if (active) setRealtimeSocketStatus("disconnected");
     });
 
     return () => {
@@ -1623,7 +1592,7 @@ export default function DoSongThiTruong() {
               <DanhMucDoSong wave={danhMucWave} countWave={realtimeDisplayWave} />
             </div>
             <div className="dosong-mobile-item dosong-order-log">
-              <NhatKy logs={realtimeSignalLogs} status={realtimeSocketStatus} />
+              <NhatKy logs={realtimeSignalLogs} />
             </div>
           </div>
           </div>
