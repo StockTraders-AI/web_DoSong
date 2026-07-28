@@ -221,9 +221,21 @@ function buildDoSongAdvice(rows, selectedDate) {
       selectedAdvice = {
         check_date: row.rawDate,
         signal_keys: doSongSignalKeys(engine),
+        source_dates: sortedRows.map((item) => item.rawDate),
+        previous_date: phienTruoc?.date || "",
         wave: hienTai,
         engine,
       };
+      console.log("DOSONG_ENGINE_STATE", {
+        date: row.rawDate,
+        previous_date: phienTruoc?.date || "",
+        session_count: sortedRows.length,
+        maTrangThai: engine.maTrangThai,
+        pha: engine.pha,
+        signal_keys: selectedAdvice.signal_keys,
+        wave: hienTai,
+        engine,
+      });
     }
     phienTruoc = hienTai;
     phaTruoc = engine.pha;

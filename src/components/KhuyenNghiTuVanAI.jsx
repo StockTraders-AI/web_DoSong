@@ -55,11 +55,25 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
     async function loadConditionResponse(attempt = 1) {
       try {
         if (doSongAdvice === null) {
+          console.log("KHUYEN_NGHI_DOSONG_WAITING", {
+            checkDate,
+            reason: "waiting_for_history_or_previous_session",
+            attempt,
+          });
           if (!cancelled && attempt + 1 < retryDelays.length) scheduleLoad(attempt + 1);
           return;
         }
 
         if (doSongAdvice?.engine) {
+          console.log("KHUYEN_NGHI_DOSONG_REQUEST", {
+            checkDate: checkDate || doSongAdvice.check_date || "",
+            maTrangThai: doSongAdvice.engine?.maTrangThai,
+            pha: doSongAdvice.engine?.pha,
+            signal_keys: doSongAdvice.signal_keys || [],
+            previous_date: doSongAdvice.previous_date || "",
+            source_date_count: Array.isArray(doSongAdvice.source_dates) ? doSongAdvice.source_dates.length : 0,
+            wave: doSongAdvice.wave || {},
+          });
           const res = await fetch("/api/do-song-advice", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -78,6 +92,17 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
               response: String(data?.response || "").trim(),
               recommendation: String(data?.recommendation || "").trim(),
             };
+            console.log("KHUYEN_NGHI_DOSONG_RESPONSE", {
+              checkDate: data?.check_date || checkDate || doSongAdvice.check_date || "",
+              flow_id: data?.flow_id || null,
+              signal_keys: data?.signal_keys || [],
+              maTrangThai: data?.maTrangThai || null,
+              pha: data?.pha || null,
+              has_content: hasSignalContent(engineSignal),
+              title: engineSignal.title,
+              response: engineSignal.response,
+              recommendation: engineSignal.recommendation,
+            });
             if (hasSignalContent(engineSignal)) {
               if (!cancelled) setConditionSignal(engineSignal);
               return;
