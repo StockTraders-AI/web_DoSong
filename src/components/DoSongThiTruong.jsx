@@ -1551,7 +1551,7 @@ export default function DoSongThiTruong() {
             boxShadow:theme === "dark" ? "0 8px 24px rgba(0,0,0,.22)" : "0 8px 24px rgba(20,20,30,.10)",
           }}
         >
-          {theme === "dark" ? "S\u00e1ng" : "T\u1ed1i"}
+          {theme === "dark" ? "Light" : "Dark"}
         </button>
         <button
           type="button"
