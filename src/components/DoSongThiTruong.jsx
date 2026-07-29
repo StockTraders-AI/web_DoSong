@@ -398,15 +398,25 @@ function formatStockNotiDate(value) {
   return new Intl.DateTimeFormat("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric" }).format(date);
 }
 
+function getSmdtValue(content) {
+  const match = String(content || "").match(/SMDT\s*đạt\s*(-?\d+(?:[.,]\d+)?)%/i);
+  if (!match) return null;
+  const value = Number(match[1].replace(",", "."));
+  return Number.isFinite(value) ? value : null;
+}
 function getStockNotiKind(row) {
   const title = String(row?.title || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const content = String(row?.content || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   if (title.includes("smdt")) return "smdt";
+  if (title.includes("dong tien")) {
+    if (content.includes("thoat ra") || content.includes("rut ra") || content.includes("ban ra")) return "down";
+    if (content.includes("do vao") || content.includes("vao") || content.includes("nhen nhom")) return "up";
+  }
   if (title.includes("ban") || title.includes("thoat")) return "down";
   if (title.includes("canh bao")) return "warn";
   if (normalizeStockNotiType(row?.type, row?.title) === "thi_truong") return "wave";
   return "up";
-}
-function getStockNotiRows(payload) {
+}function getStockNotiRows(payload) {
   const reply = payload?.StockNotiReply || payload?.data?.StockNotiReply || payload;
   if (Array.isArray(payload?.rows)) return payload.rows;
   if (Array.isArray(reply?.stockNotifications)) return reply.stockNotifications;
@@ -1090,12 +1100,21 @@ function getNhatKyKind(row) {
   return "up";
 }
 
-function NhatKyIcon({ k }) {
+function getSmdtBand(value) {
+  const number = Number(value);
+  if (Number.isFinite(number) && number >= 100) return { bg:"#0A2A1C", bd:"#124A30", sk:"#3DE8A8" };
+  if (Number.isFinite(number) && number >= 70) return { bg:"#0A2318", bd:"#0F3D22", sk:"#3DD68C" };
+  if (Number.isFinite(number) && number >= 20) return { bg:"#2B1B08", bd:"#4A3010", sk:"#E89A3C" };
+  return { bg:"#2A0E12", bd:"#4A1820", sk:"#F0555B" };
+}
+
+function NhatKyIcon({ k, smdtValue }) {
   const C = NHAT_KY_C;
-  const iconKey = k === "smdt" ? "warn" : k;
-  const sk = iconKey === "down" ? C.bac : iconKey === "warn" ? C.cbc : iconKey === "wave" ? C.B : C.cmc;
-  const bg = iconKey === "down" ? C.bab : iconKey === "warn" ? C.cbb : iconKey === "wave" ? C.pb : C.cmb;
-  const bd = iconKey === "down" ? C.bad : iconKey === "warn" ? C.cbd : iconKey === "wave" ? C.pd : C.cmd;
+  const iconKey = k === "smdt" ? "smdt" : k;
+  const smdtBand = iconKey === "smdt" ? getSmdtBand(smdtValue) : null;
+  const sk = smdtBand?.sk || (iconKey === "down" ? C.bac : iconKey === "warn" ? C.cbc : iconKey === "wave" ? C.B : C.cmc);
+  const bg = smdtBand?.bg || (iconKey === "down" ? C.bab : iconKey === "warn" ? C.cbb : iconKey === "wave" ? C.pb : C.cmb);
+  const bd = smdtBand?.bd || (iconKey === "down" ? C.bad : iconKey === "warn" ? C.cbd : iconKey === "wave" ? C.pd : C.cmd);
   const paths = {
     up:(
       <>
@@ -1117,6 +1136,7 @@ function NhatKyIcon({ k }) {
       </>
     ),
     wave:<path d="M3 12h3l2.5-6 4 12 2.5-6h6" stroke={sk} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />,
+    smdt:<path d="M12 3c3.2 3 4.5 5.4 4.5 8.2a4.5 4.5 0 0 1-9 0c0-1.3.6-2.4 1.7-3.3.1 1.2.6 1.9 1.2 2.4-.2-2.4-1-4.6 1.6-7.3Z" stroke={sk} strokeWidth="1.9" strokeLinejoin="round" fill={`${sk}22`} />,
   };
 
   return (
@@ -1132,6 +1152,7 @@ function toNhatKyRow(row) {
     t:row.t || row.time,
     cap:row.cap,
     k:getNhatKyKind(row),
+    smdtValue:row.smdtValue,
     x:row.x || row.txt,
     title:row.title || row.tieuDe || "Tín hiệu",
     capTag:row.capTag || NHAT_KY_CAP[row.cap] || "Thị trường",
@@ -1150,7 +1171,7 @@ function NhatKyRows({ rows }) {
     const tagColor = getNhatKyTagColor(r.capTag);
     return (
       <div key={r.id || i} style={{ display:"flex", gap:10, padding:"11px 0", borderBottom:i < rows.length - 1 ? `.5px solid ${C.bdrs}` : "none" }}>
-        <NhatKyIcon k={r.k} />
+        <NhatKyIcon k={r.k} smdtValue={r.smdtValue} />
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:2, minWidth:0 }}>
             <span style={{ fontSize:13.5, fontWeight:600, color:C.t1, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.title}</span>
