@@ -11,6 +11,7 @@ const REFRESH_HOUR = 11;
 const REFRESH_MINUTE = 0;
 const REFRESH_SECOND = 0;
 const MAX_TIMEOUT_MS = 2_147_483_647;
+const CACHE_SCHEMA_VERSION = 2;
 
 let memoryStore = null;
 const pendingRefreshes = new Map();
@@ -149,6 +150,7 @@ function responseForDate(store, dateKey) {
 
   return exact || {
     success: true,
+    schemaVersion: CACHE_SCHEMA_VERSION,
     requestedDate: dateKey,
     sourceDate: dateKey,
     lastAttemptDate: dateKey,
@@ -167,29 +169,28 @@ export async function refreshStockNoti(dateKey = toLocalDateKey()) {
         if (payload.rows.length) {
           store.byDate[dateKey] = payload;
           store.latestDate = [store.latestDate, dateKey].filter(Boolean).sort().pop() || dateKey;
-        } else {
-          store.byDate[dateKey] = { ...payload, stale: true, emptyForDate: dateKey };
+          store.updatedAt = new Date().toISOString();
+          await writeStore(store);
+          return responseForDate(store, dateKey);
         }
-        store.updatedAt = new Date().toISOString();
-        await writeStore(store);
-        return responseForDate(store, dateKey);
+
+        const fallback = responseForDate(store, dateKey);
+        if (fallback.rows.length) {
+          store.byDate[dateKey] = { ...payload, stale: true, emptyForDate: dateKey };
+          store.updatedAt = new Date().toISOString();
+          await writeStore(store);
+          return { ...fallback, requestedDate: dateKey, stale: true, emptyForDate: dateKey };
+        }
+
+        return { ...payload, stale: true, emptyForDate: dateKey };
       })
       .catch(async (error) => {
         const store = await readStore();
-        store.byDate[dateKey] = {
-          success: false,
-          requestedDate: dateKey,
-          sourceDate: dateKey,
-          lastAttemptDate: dateKey,
-          updatedAt: new Date().toISOString(),
-          stale: true,
-          emptyForDate: dateKey,
-          lastAttemptError: error.message || "Cannot refresh stock notifications.",
-          rows: [],
-        };
-        store.updatedAt = new Date().toISOString();
-        await writeStore(store);
-        return responseForDate(store, dateKey);
+        const fallback = responseForDate(store, dateKey);
+        if (fallback.rows.length) {
+          return { ...fallback, stale: true, error: error.message || "Cannot refresh stock notifications." };
+        }
+        throw error;
       })
       .finally(() => {
         pendingRefreshes.delete(dateKey);
@@ -200,7 +201,6 @@ export async function refreshStockNoti(dateKey = toLocalDateKey()) {
 
   return pendingRefreshes.get(dateKey);
 }
-
 function scheduleNextRefresh() {
   const now = new Date();
   const next = new Date(now);
@@ -225,16 +225,20 @@ export function startStockNotiDailyRefresh() {
 }
 
 function shouldRefreshDate(store, dateKey) {
-  if (!store.byDate[dateKey]) {
+  const exact = store.byDate[dateKey];
+  if (!exact) {
     if (dateKey !== toLocalDateKey()) return true;
     return new Date().getHours() >= REFRESH_HOUR || !findFallbackPayload(store, dateKey);
   }
 
+  if (!Array.isArray(exact.rows) || exact.rows.length === 0) {
+    return !findFallbackPayload(store, dateKey);
+  }
+
   if (dateKey !== toLocalDateKey()) return false;
   if (new Date().getHours() < REFRESH_HOUR) return false;
-  return store.byDate[dateKey].lastAttemptDate !== dateKey;
+  return exact.lastAttemptDate !== dateKey;
 }
-
 export async function handleStockNoti(req, res, rawUrl) {
   const url = new URL(rawUrl || req.url, `http://${req.headers.host || "localhost"}`);
   if (req.method !== "GET" || url.pathname !== "/api/stock-noti") return false;
