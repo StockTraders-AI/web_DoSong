@@ -42,25 +42,12 @@ const STOCK_WAVE_CURRENT_URL = import.meta.env.VITE_STOCK_WAVE_CURRENT_URL || "/
 const STOCK_WAVE_HISTORY_URL = import.meta.env.VITE_STOCK_WAVE_HISTORY_URL || "/api/stock-wave-history";
 const STOCK_WAVE_TICKERS_URL = import.meta.env.VITE_STOCK_WAVE_TICKERS_URL || "/api/stock-wave-tickers";
 const WAVE_BOTTOM_CONFIRM_PAIRS_URL = import.meta.env.VITE_WAVE_BOTTOM_CONFIRM_PAIRS_URL || "/api/wave-bottom-confirm-pairs";
+const STOCK_NOTI_URL = import.meta.env.VITE_STOCK_NOTI_URL || "/api/stock-noti";
 const REALTIME_WAVE_URL =
   import.meta.env.VITE_REALTIME_WAVE_URL ||
   import.meta.env.VITE_REALTIME_URL ||
   "http://112.213.91.235:3005/realtime";
 const WAVE_CHANNEL = "wave";
-const REALTIME_SIGNAL_SOURCES = [
-  { api:"getStockSignal", channel:"stock-signal", label:"Tín hiệu", cap:"thi_truong", tone:"B" },
-  { api:"getStockWave", channel:"wave", label:"Dò sóng", cap:"thi_truong", tone:"B" },
-  { api:"getSMDTTicker", channel:"smdt-stock", label:"SMDT mã", cap:"ma", tone:"G" },
-  { api:"getSMDTBranch", channel:"smdt-branch", label:"SMDT ngành", cap:"nganh", tone:"G" },
-  { api:"getSMDTTickerCross", channel:"smdt-ticker-cross", label:"Cross mã", cap:"ma", tone:"A" },
-  { api:"getSMDTBranchCross", channel:"smdt-branch-cross", label:"Cross ngành", cap:"nganh", tone:"A" },
-  { api:"getCashFlowBranch", channel:"money-flow-branch", label:"Tiền ngành", cap:"nganh", tone:"G" },
-  { api:"getCashFlowTicker", channel:"money-flow-stock", label:"Tiền mã", cap:"ma", tone:"G" },
-];
-const REALTIME_SIGNAL_CHANNELS = REALTIME_SIGNAL_SOURCES.map((source) => source.channel);
-const REALTIME_SIGNAL_SOURCE_BY_CHANNEL = Object.fromEntries(
-  REALTIME_SIGNAL_SOURCES.map((source) => [source.channel, source])
-);
 const NHAT_KY_C = {
   t1: "#F0F4FF", t2: "#A8B8D0", t4: "#5C7090",
   surf: "#111520", elev: "#171D2E", cbdr: "#1E2A3E", bdrs: "#1A2232",
@@ -377,144 +364,85 @@ function getSocketWaveData(payload) {
   return payload?.data?.data ?? payload?.data?.payload ?? payload?.data ?? payload?.payload ?? payload;
 }
 
-function getRealtimePayloadData(payload) {
-  return payload?.data?.data ?? payload?.data?.payload ?? payload?.data ?? payload?.payload ?? payload;
+function normalizeStockNotiTitle(title) {
+  const key = String(title || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (key.includes("nganh")) return "nganh";
+  if (key.includes("co phieu") || key.includes("ma")) return "ma";
+  return "thi_truong";
 }
 
-function getRealtimeSentAt(payload, data) {
-  return payload?.sentAt || data?.sentAt || data?.time || data?.timestamp || data?.createdAt || data?.updatedAt || new Date().toISOString();
-}
-
-function formatRealtimeLogTime(value) {
-  const date = new Date(value);
+function formatStockNotiTime(value) {
+  const text = String(value || "");
+  const match = text.match(/(?:^|[ T])(\d{2}:\d{2})/);
+  if (match) return match[1];
+  const date = new Date(text.replace(" ", "T"));
   if (Number.isNaN(date.getTime())) return "--:--";
   return new Intl.DateTimeFormat("vi-VN", { hour:"2-digit", minute:"2-digit", hour12:false }).format(date);
 }
 
-function formatRealtimeLogDate(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "--/--/----";
+function formatStockNotiDate(value) {
+  const text = String(value || "");
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+  const date = new Date(text.replace(" ", "T"));
+  if (Number.isNaN(date.getTime())) return new Intl.DateTimeFormat("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric" }).format(new Date());
   return new Intl.DateTimeFormat("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric" }).format(date);
 }
 
-function compactString(value, maxLength = 190) {
-  const text = String(value ?? "").replace(/\s+/g, " ").trim();
-  return text.length > maxLength ? `${text.slice(0, maxLength - 1)}...` : text;
+function getStockNotiKind(row) {
+  const cap = normalizeStockNotiTitle(row?.title);
+  const content = String(`${row?.title || ""} ${row?.content || ""} ${row?.type || ""}`)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (content.includes("ban") || content.includes("chot loi") || content.includes("giam") || content.includes("thoat")) return "down";
+  if (content.includes("canh bao") || content.includes("cho ban") || content.includes("ap luc")) return "warn";
+  if (cap === "thi_truong" || content.includes("song")) return "wave";
+  return "up";
 }
 
-function getFirstText(row, keys) {
-  if (!row || typeof row !== "object") return "";
-  for (const key of keys) {
-    const value = row[key];
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return "";
+function getStockNotiRows(payload) {
+  const reply = payload?.StockNotiReply || payload?.data?.StockNotiReply || payload;
+  if (Array.isArray(payload?.rows)) return payload.rows;
+  if (Array.isArray(reply?.stockNotifications)) return reply.stockNotifications;
+  return [];
 }
 
-function getFirstValue(row, keys) {
-  if (!row || typeof row !== "object") return "";
-  for (const key of keys) {
-    const value = row[key];
-    if (value !== undefined && value !== null && String(value).trim() !== "") return value;
-  }
-  return "";
+function normalizeStockNotiRows(payload) {
+  return getStockNotiRows(payload)
+    .map((row, index) => {
+      const content = String(row?.content || "").trim();
+      const date = String(row?.date || payload?.sourceDate || payload?.requestedDate || "").trim();
+      if (!content) return null;
+      return {
+        id:`${date}|${row?.title || ""}|${content}|${index}`,
+        t:formatStockNotiTime(date),
+        date:formatStockNotiDate(date),
+        cap:normalizeStockNotiTitle(row?.title),
+        k:getStockNotiKind(row),
+        x:content,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => String(b.id).localeCompare(String(a.id)));
 }
 
-function getRowsFromPayload(data) {
-  if (Array.isArray(data)) return data;
-  if (!data || typeof data !== "object") return [];
-  const candidates = [data.rows, data.items, data.signals, data.stocks, data.branches, data.tickers, data.data, data.result];
-  const rows = candidates.find((item) => Array.isArray(item));
-  return rows || [];
+function getStockNotiUrl(dateKey) {
+  const url = new URL(STOCK_NOTI_URL, window.location.origin);
+  if (dateKey) url.searchParams.set("date", dateKey);
+  return url.toString();
 }
 
-function formatRealtimeMetric(label, value, digits = 2) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return "";
-  const formatted = new Intl.NumberFormat("vi-VN", { maximumFractionDigits:digits }).format(number);
-  return label ? `${label} ${formatted}` : formatted;
-}
-
-function describeRows(rows, source) {
-  const compactRows = rows.filter(Boolean).slice(0, 5).map((row) => {
-    if (typeof row !== "object") return compactString(row, 32);
-    const name = getFirstValue(row, ["ticker", "symbol", "ma", "code", "branch", "nganh", "name", "ten_nganh"]);
-    const signal = getFirstValue(row, ["signal", "type", "status", "action", "trend", "side"]);
-    const percent = getFirstValue(row, ["percent", "pct", "rate", "ratio", "smdt", "score"]);
-    return [name, signal, percent !== "" ? formatRealtimeMetric("", percent) : ""].filter(Boolean).join(" ").trim() || compactString(JSON.stringify(row), 42);
-  });
-  const suffix = rows.length > compactRows.length ? ` và ${rows.length - compactRows.length} dòng khác` : "";
-  return `${source.label}: ${compactRows.join(", ")}${suffix}`;
-}
-
-function describeWaveLog(data) {
-  const row = normalizeWavePayload(data)[0];
-  if (!row) return "Dữ liệu dò sóng vừa cập nhật.";
-  return `Dò sóng cập nhật: Chờ mua ${row.cm}, Mua ${row.mu}, Chờ bán ${row.cb}, Bán ${row.ba}, tổng ${row.total || row.cm + row.mu + row.cb + row.ba}.`;
-}
-
-function describeRealtimeLogData(data, source) {
-  if (typeof data === "string" || typeof data === "number" || typeof data === "boolean") {
-    return compactString(data);
-  }
-
-  if (source.channel === WAVE_CHANNEL) return describeWaveLog(data);
-
-  const direct = getFirstText(data, [
-    "message", "text", "content", "summary", "description", "signal", "signal_text",
-    "recommendation", "response", "note", "title",
-  ]);
-  if (direct) return compactString(direct);
-
-  const rows = getRowsFromPayload(data);
-  if (rows.length) return compactString(describeRows(rows, source));
-
-  if (data && typeof data === "object") {
-    const symbol = getFirstValue(data, ["ticker", "symbol", "ma", "code"]);
-    const branch = getFirstValue(data, ["branch", "nganh", "name", "ten_nganh"]);
-    const action = getFirstValue(data, ["action", "signal", "status", "type", "trend", "side"]);
-    const price = formatRealtimeMetric("giá", getFirstValue(data, ["price", "close", "gia"]));
-    const score = formatRealtimeMetric("điểm", getFirstValue(data, ["score", "smdt", "value", "ratio", "percent"]));
-    const parts = [symbol || branch, action, price, score].filter(Boolean);
-    if (parts.length) return compactString(`${source.label}: ${parts.join(" - ")}`);
-    try {
-      return compactString(`${source.label}: ${JSON.stringify(data)}`);
-    } catch {
-      return `${source.label} vừa cập nhật.`;
-    }
-  }
-
-  return `${source.label} vừa cập nhật.`;
-}
-
-function getRealtimeLogTone(source, text) {
-  const lower = String(text || "").toLowerCase();
-  if (lower.includes("bán") || lower.includes("sell") || lower.includes("down") || lower.includes("giảm") || lower.includes("thoát")) return "R";
-  if (lower.includes("cảnh báo") || lower.includes("warn") || lower.includes("chờ bán") || source.channel.includes("cross")) return "A";
-  if (lower.includes("mua") || lower.includes("buy") || lower.includes("up") || lower.includes("tăng") || lower.includes("vượt") || lower.includes("tiền vào")) return "G";
-  return source.tone || "B";
-}
-
-
-function normalizeRealtimeSignalLogs(payload) {
-  const channel = String(payload?.channel || payload?.data?.channel || "");
-  const source = REALTIME_SIGNAL_SOURCE_BY_CHANNEL[channel];
-  if (!source) return [];
-
-  const data = getRealtimePayloadData(payload);
-  const sentAt = getRealtimeSentAt(payload, data);
-  const text = describeRealtimeLogData(data, source);
-  const tone = getRealtimeLogTone(source, text);
-
-  return [{
-    id:`${channel}|${sentAt}|${compactString(text, 80)}`,
-    time:formatRealtimeLogTime(sentAt),
-    date:formatRealtimeLogDate(sentAt),
-    channel,
-    cap:source.cap,
-    tone,
-    txt:text,
-  }];
+function fetchStockNoti(dateKey = formatDateKey(new Date())) {
+  return fetch(getStockNotiUrl(dateKey))
+    .then((response) => {
+      if (!response.ok) throw new Error(`Stock notification failed: ${response.status}`);
+      return response.json();
+    })
+    .then(normalizeStockNotiRows);
 }
 function fetchStockWaveCurrent() {
   return fetch(STOCK_WAVE_CURRENT_URL)
@@ -1267,7 +1195,7 @@ export default function DoSongThiTruong() {
   const [chanSongRows, setChanSongRows] = useState([]);
   const [tickerWave, setTickerWave] = useState(EMPTY_WAVE);
   const [signalRefreshKey, setSignalRefreshKey] = useState(0);
-  const [realtimeSignalLogs, setRealtimeSignalLogs] = useState([]);
+  const [stockNotiRows, setStockNotiRows] = useState([]);
   const tickerRequestKey = latestWave.rawDate || "latest";
   const historySource = historyAllWaves.length ? historyAllWaves : historyWaves;
   const historyDisplayWaves = historySource.filter((item) => !latestWave.rawDate || item.rawDate < latestWave.rawDate);
@@ -1319,24 +1247,12 @@ export default function DoSongThiTruong() {
       if (!active) return;
       socket.emit("message", {
         action:"subscribe",
-        channels:REALTIME_SIGNAL_CHANNELS,
+        channels:[WAVE_CHANNEL],
       });
     });
 
     socket.on("message", (payload) => {
       if (!active) return;
-      const logs = normalizeRealtimeSignalLogs(payload);
-      if (logs.length) {
-        setRealtimeSignalLogs((current) => {
-          const seen = new Set();
-          return [...logs, ...current].filter((item) => {
-            if (seen.has(item.id)) return false;
-            seen.add(item.id);
-            return true;
-          }).slice(0, 80);
-        });
-      }
-
       const data = getSocketWaveData(payload);
       if (!data) return;
 
@@ -1358,6 +1274,21 @@ export default function DoSongThiTruong() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    fetchStockNoti()
+      .then((rows) => {
+        if (active) setStockNotiRows(rows);
+      })
+      .catch((error) => {
+        console.error("Load stock notifications failed", error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
   useEffect(() => {
     let active = true;
 
@@ -1598,7 +1529,7 @@ export default function DoSongThiTruong() {
               <DanhMucDoSong wave={danhMucWave} countWave={realtimeDisplayWave} />
             </div>
             <div className="dosong-mobile-item dosong-order-log">
-              <NhatKy logs={realtimeSignalLogs} />
+              <NhatKy logs={stockNotiRows} />
             </div>
           </div>
           </div>

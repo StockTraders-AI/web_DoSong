@@ -4,6 +4,7 @@ import { handleStockWaveHistory } from './stockWaveHistoryCache.js'
 import { handleStockWaveCurrent, startStockWaveCurrentSocket } from './stockWaveCurrentCache.js'
 import { handleStockWaveTickers } from './stockWaveTickersCache.js'
 import { handleWaveBottomConfirmPairs } from './waveBottomConfirmPairsCache.js'
+import { handleStockNoti, startStockNotiDailyRefresh } from './stockNotiCache.js'
 import { handleUsersRequest } from './usersApi.js'
 import { handlePortfolioChat } from './portfolioChatApi.js'
 import { handleConditionSignalLatest, handleDoSongAdvice } from './conditionSignalApi.js'
@@ -16,11 +17,13 @@ export default defineConfig({
       name: 'stock-wave-history-cache',
       configureServer(server) {
         startStockWaveCurrentSocket()
+        startStockNotiDailyRefresh()
         server.middlewares.use(async (req, res, next) => {
           if (await handleUsersRequest(req, res, req.url)) return
           if (await handlePortfolioChat(req, res, req.url)) return
           if (await handleConditionSignalLatest(req, res, req.url)) return
           if (await handleDoSongAdvice(req, res, req.url)) return
+          if (await handleStockNoti(req, res, req.url)) return
 
           const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`)
           if (req.method === 'GET' && url.pathname === '/api/stock-wave-current') {
