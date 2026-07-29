@@ -364,14 +364,20 @@ function getSocketWaveData(payload) {
   return payload?.data?.data ?? payload?.data?.payload ?? payload?.data ?? payload?.payload ?? payload;
 }
 
-function normalizeStockNotiTitle(title) {
-  const key = String(title || "")
+function normalizeStockNotiType(type) {
+  const key = String(type || "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
   if (key.includes("nganh")) return "nganh";
   if (key.includes("co phieu") || key.includes("ma")) return "ma";
   return "thi_truong";
+}
+
+function getStockNotiCapTag(cap) {
+  if (cap === "ma") return "Cổ phiếu";
+  if (cap === "nganh") return "Ngành";
+  return "Thị trường";
 }
 
 function formatStockNotiTime(value) {
@@ -392,37 +398,13 @@ function formatStockNotiDate(value) {
   return new Intl.DateTimeFormat("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric" }).format(date);
 }
 
-function getNormalizedSearchText(value) {
-  return String(value || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
 function getStockNotiKind(row) {
-  const cap = normalizeStockNotiTitle(row?.title);
-  const content = getNormalizedSearchText(`${row?.title || ""} ${row?.content || ""} ${row?.type || ""}`);
-  if (content.includes("smdt")) return "smdt";
-  if (content.includes("ban") || content.includes("chot loi") || content.includes("giam") || content.includes("thoat")) return "down";
-  if (content.includes("canh bao") || content.includes("cho ban") || content.includes("ap luc")) return "warn";
-  if (cap === "thi_truong" || content.includes("song")) return "wave";
+  const title = String(row?.title || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (title.includes("smdt")) return "smdt";
+  if (title.includes("ban") || title.includes("thoat")) return "down";
+  if (title.includes("canh bao")) return "warn";
+  if (normalizeStockNotiType(row?.type) === "thi_truong") return "wave";
   return "up";
-}
-
-function getStockNotiCapTag(cap) {
-  if (cap === "ma") return "Cổ phiếu";
-  if (cap === "nganh") return "Ngành";
-  return "Thị trường";
-}
-
-function getStockNotiTitle(row) {
-  const content = getNormalizedSearchText(`${row?.content || ""} ${row?.type || ""}`);
-  if (content.includes("smdt")) return "Cảnh báo SMDT";
-  if (content.includes("dong tien") || content.includes("do vao") || content.includes("thoat ra")) return "Cảnh báo dòng tiền";
-  if (content.includes(" ban ") || content.includes("chot loi")) return "Khuyến nghị bán";
-  if (content.includes(" mua ")) return "Khuyến nghị mua";
-  if (normalizeStockNotiTitle(row?.title) === "thi_truong") return "Tín hiệu thị trường";
-  return "Tín hiệu";
 }
 function getStockNotiRows(payload) {
   const reply = payload?.StockNotiReply || payload?.data?.StockNotiReply || payload;
@@ -437,7 +419,7 @@ function normalizeStockNotiRows(payload) {
       const content = String(row?.content || "").trim();
       const date = String(row?.date || payload?.sourceDate || payload?.requestedDate || "").trim();
       if (!content) return null;
-      const cap = normalizeStockNotiTitle(row?.title);
+      const cap = normalizeStockNotiType(row?.type);
       return {
         id:`${date}|${row?.title || ""}|${content}|${index}`,
         t:formatStockNotiTime(date),
@@ -445,7 +427,7 @@ function normalizeStockNotiRows(payload) {
         cap,
         capTag:getStockNotiCapTag(cap),
         k:getStockNotiKind(row),
-        title:getStockNotiTitle(row),
+        title:String(row?.title || "Tín hiệu").trim() || "Tín hiệu",
         x:content,
       };
     })
