@@ -364,16 +364,20 @@ function getSocketWaveData(payload) {
   return payload?.data?.data ?? payload?.data?.payload ?? payload?.data ?? payload?.payload ?? payload;
 }
 
-function normalizeStockNotiType(type, fallbackTitle = "") {
-  const key = String(type || fallbackTitle || "")
+function normalizeSearchText(value) {
+  return String(value || "")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d");
+}
+
+function normalizeStockNotiType(type, fallbackTitle = "") {
+  const key = normalizeSearchText(type || fallbackTitle);
   if (key.includes("nganh")) return "nganh";
   if (key.includes("co phieu") || key.includes("ma")) return "ma";
   return "thi_truong";
 }
-
 function getStockNotiCapTag(cap) {
   if (cap === "ma") return "Cổ phiếu";
   if (cap === "nganh") return "Ngành";
@@ -399,14 +403,15 @@ function formatStockNotiDate(value) {
 }
 
 function getSmdtValue(content) {
-  const match = String(content || "").match(/SMDT\s*đạt\s*(-?\d+(?:[.,]\d+)?)%/i);
+  const normalized = normalizeSearchText(content);
+  const match = normalized.match(/smdt[^0-9-]*(-?\d+(?:[.,]\d+)?)\s*%/i);
   if (!match) return null;
   const value = Number(match[1].replace(",", "."));
   return Number.isFinite(value) ? value : null;
 }
 function getStockNotiKind(row) {
-  const title = String(row?.title || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const content = String(row?.content || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const title = normalizeSearchText(row?.title);
+  const content = normalizeSearchText(row?.content);
   if (title.includes("smdt")) return "smdt";
   if (title.includes("dong tien")) {
     if (content.includes("thoat ra") || content.includes("rut ra") || content.includes("ban ra")) return "down";
@@ -416,7 +421,8 @@ function getStockNotiKind(row) {
   if (title.includes("canh bao")) return "warn";
   if (normalizeStockNotiType(row?.type, row?.title) === "thi_truong") return "wave";
   return "up";
-}function getStockNotiRows(payload) {
+}
+function getStockNotiRows(payload) {
   const reply = payload?.StockNotiReply || payload?.data?.StockNotiReply || payload;
   if (Array.isArray(payload?.rows)) return payload.rows;
   if (Array.isArray(reply?.stockNotifications)) return reply.stockNotifications;
