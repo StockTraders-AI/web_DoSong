@@ -34,6 +34,7 @@ function normalizeText(value) {
 function createStore() {
   return {
     success: true,
+    schemaVersion: CACHE_SCHEMA_VERSION,
     latestDate: "",
     updatedAt: "",
     byDate: {},
@@ -42,8 +43,10 @@ function createStore() {
 
 function normalizeStore(payload) {
   if (payload?.byDate && typeof payload.byDate === "object") {
+    if (payload.schemaVersion !== CACHE_SCHEMA_VERSION) return createStore();
     return {
       success: true,
+      schemaVersion: CACHE_SCHEMA_VERSION,
       latestDate: normalizeText(payload.latestDate),
       updatedAt: normalizeText(payload.updatedAt),
       byDate: payload.byDate,
@@ -84,6 +87,7 @@ function normalizeStockNotiPayload(payload, requestedDate) {
 
   return {
     success: true,
+    schemaVersion: CACHE_SCHEMA_VERSION,
     requestedDate,
     sourceDate: rows[0]?.date?.slice(0, 10) || requestedDate,
     lastAttemptDate: requestedDate,

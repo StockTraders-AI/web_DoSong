@@ -364,8 +364,8 @@ function getSocketWaveData(payload) {
   return payload?.data?.data ?? payload?.data?.payload ?? payload?.data ?? payload?.payload ?? payload;
 }
 
-function normalizeStockNotiType(type) {
-  const key = String(type || "")
+function normalizeStockNotiType(type, fallbackTitle = "") {
+  const key = String(type || fallbackTitle || "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
@@ -403,7 +403,7 @@ function getStockNotiKind(row) {
   if (title.includes("smdt")) return "smdt";
   if (title.includes("ban") || title.includes("thoat")) return "down";
   if (title.includes("canh bao")) return "warn";
-  if (normalizeStockNotiType(row?.type) === "thi_truong") return "wave";
+  if (normalizeStockNotiType(row?.type, row?.title) === "thi_truong") return "wave";
   return "up";
 }
 function getStockNotiRows(payload) {
@@ -419,7 +419,7 @@ function normalizeStockNotiRows(payload) {
       const content = String(row?.content || "").trim();
       const date = String(row?.date || payload?.sourceDate || payload?.requestedDate || "").trim();
       if (!content) return null;
-      const cap = normalizeStockNotiType(row?.type);
+      const cap = normalizeStockNotiType(row?.type, row?.title);
       return {
         id:`${date}|${row?.title || ""}|${content}|${index}`,
         t:formatStockNotiTime(date),
