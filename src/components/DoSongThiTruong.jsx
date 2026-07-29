@@ -1181,100 +1181,68 @@ function NhatKyRows({ rows }) {
     );
   });
 }
-function NhatKyFullScreen({ open, rows, tab, date, count, onTab, onClose }) {
-  if (!open) return null;
-  const C = NHAT_KY_C;
-  const list = rows.filter((d) => tab === "all" || d.cap === tab);
-
-  return (
-    <div style={{ position:"fixed", inset:0, zIndex:2200, background:"rgba(0,0,0,.62)", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-      <div style={{ background:"#0A0D14", borderRadius:14, overflow:"hidden", border:"0.5px solid #1E2A3E", width:"min(430px, calc(100vw - 32px))", maxHeight:"calc(100vh - 32px)", boxShadow:"0 22px 70px rgba(0,0,0,.42)", fontFamily:"-apple-system, Inter, sans-serif" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:12, padding:"16px 18px", borderBottom:"0.5px solid #1E2A3E" }}>
-          <button onClick={onClose} style={{ border:"none", background:"transparent", color:"#F0F4FF", fontSize:20, cursor:"pointer", lineHeight:1, padding:0 }}>←</button>
-          <span style={{ fontSize:16, fontWeight:700, color:"#F0F4FF" }}>Nhật ký tín hiệu</span>
-          <span style={{ fontSize:12, color:"#5C7090" }}>{date}</span>
-        </div>
-        <div style={{ padding:"12px 16px", borderBottom:"0.5px solid #1A2232" }}>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 }}>
-            {NHAT_KY_TABS.map(([id, label]) => {
-              const on = id === tab;
-              return (
-                <button key={id} onClick={() => onTab(id)} style={{ cursor:"pointer", textAlign:"center", padding:"10px 4px", borderRadius:10, background:on ? "rgba(124,58,237,.14)" : C.elev, border:`.5px solid ${on ? C.pd : C.cbdr}` }}>
-                  <div style={{ fontSize:14, fontWeight:600, color:on ? C.B : C.t2 }}>{label}</div>
-                  <div style={{ fontSize:12, color:on ? C.B : C.t4, marginTop:1 }}>({count(id)})</div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <div style={{ height:"min(520px, calc(100vh - 178px))", overflowY:"auto", padding:"2px 18px 20px" }}>
-          {list.length ? (
-            <>
-              <NhatKyRows rows={list} />
-              <div style={{ padding:"14px 0", textAlign:"center", fontSize:11, color:C.t4 }}>— cuộn để xem hết —</div>
-            </>
-          ) : (
-            <div style={{ padding:"28px 0", textAlign:"center", color:C.t4, fontSize:12 }}>Chưa có tín hiệu ở cấp này trong phiên.</div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 function NhatKy({ logs = [], onXemTatCa }) {
   const [tab, setTab] = useState("all");
-  const [openAll, setOpenAll] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const data = logs.map(toNhatKyRow);
   const date = logs[0]?.date || new Intl.DateTimeFormat("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric" }).format(new Date());
   const count = (id) => (id === "all" ? data.length : data.filter((d) => d.cap === id).length);
   const list = data.filter((d) => tab === "all" || d.cap === tab);
   const collapsedLimit = 6;
-  const displayList = list.slice(0, collapsedLimit);
-  const hasMore = data.length > collapsedLimit || list.length > collapsedLimit;
+  const displayList = expanded ? list : list.slice(0, collapsedLimit);
+  const hasMore = list.length > collapsedLimit;
   const C = NHAT_KY_C;
 
-  const openFull = () => {
-    setOpenAll(true);
-    if (onXemTatCa) onXemTatCa();
+  const toggleExpanded = () => {
+    setExpanded((value) => !value);
+    if (!expanded && onXemTatCa) onXemTatCa();
   };
 
+  useEffect(() => {
+    setExpanded(false);
+  }, [tab]);
+
   return (
-    <>
-      <div style={{ background:"#0A0D14", borderRadius:14, overflow:"hidden", border:"0.5px solid #1E2A3E", fontFamily:"-apple-system, Inter, sans-serif" }}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, padding:"16px 18px", borderBottom:"0.5px solid #1E2A3E" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
-            <span style={{ fontSize:16, fontWeight:700, color:"#F0F4FF", whiteSpace:"nowrap" }}>Nhật ký tín hiệu</span>
-            <span style={{ fontSize:12, color:"#5C7090", flexShrink:0 }}>{date}</span>
-          </div>
-          {hasMore && (
-            <button onClick={openFull} style={{ border:"none", background:"transparent", padding:0, fontSize:12, color:C.B, fontWeight:700, cursor:"pointer", flexShrink:0 }}>Xem tất cả →</button>
-          )}
+    <div style={{ background:"#0A0D14", borderRadius:14, overflow:"hidden", border:"0.5px solid #1E2A3E", fontFamily:"-apple-system, Inter, sans-serif" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, padding:"16px 18px", borderBottom:"0.5px solid #1E2A3E" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
+          <span style={{ fontSize:16, fontWeight:700, color:"#F0F4FF", whiteSpace:"nowrap" }}>Nhật ký tín hiệu</span>
+          <span style={{ fontSize:12, color:"#5C7090", flexShrink:0 }}>{date}</span>
         </div>
+        {hasMore && (
+          <button onClick={toggleExpanded} style={{ border:"none", background:"transparent", padding:0, fontSize:12, color:C.B, fontWeight:700, cursor:"pointer", flexShrink:0 }}>
+            {expanded ? "Thu gọn ↑" : "Xem tất cả →"}
+          </button>
+        )}
+      </div>
 
-        <div style={{ padding:"12px 16px", borderBottom:"0.5px solid #1A2232" }}>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 }}>
-            {NHAT_KY_TABS.map(([id, label]) => {
-              const on = id === tab;
-              return (
-                <button key={id} onClick={() => setTab(id)} style={{ cursor:"pointer", textAlign:"center", padding:"10px 4px", borderRadius:10, background:on ? "rgba(124,58,237,.14)" : C.elev, border:`.5px solid ${on ? C.pd : C.cbdr}` }}>
-                  <div style={{ fontSize:14, fontWeight:600, color:on ? C.B : C.t2 }}>{label}</div>
-                  <div style={{ fontSize:12, color:on ? C.B : C.t4, marginTop:1 }}>({count(id)})</div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div style={{ padding:"2px 18px 14px" }}>
-          {list.length === 0 ? (
-            <div style={{ padding:"28px 0", textAlign:"center", color:C.t4, fontSize:12 }}>Chưa có tín hiệu ở cấp này trong phiên.</div>
-          ) : (
-            <NhatKyRows rows={displayList} />
-          )}
+      <div style={{ padding:"12px 16px", borderBottom:"0.5px solid #1A2232" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 }}>
+          {NHAT_KY_TABS.map(([id, label]) => {
+            const on = id === tab;
+            return (
+              <button key={id} onClick={() => setTab(id)} style={{ cursor:"pointer", textAlign:"center", padding:"10px 4px", borderRadius:10, background:on ? "rgba(124,58,237,.14)" : C.elev, border:`.5px solid ${on ? C.pd : C.cbdr}` }}>
+                <div style={{ fontSize:14, fontWeight:600, color:on ? C.B : C.t2 }}>{label}</div>
+                <div style={{ fontSize:12, color:on ? C.B : C.t4, marginTop:1 }}>({count(id)})</div>
+              </button>
+            );
+          })}
         </div>
       </div>
-      <NhatKyFullScreen open={openAll} rows={data} tab={tab} date={date} count={count} onTab={setTab} onClose={() => setOpenAll(false)} />
-    </>
+
+      <div style={{ padding:"2px 18px 14px" }}>
+        {list.length === 0 ? (
+          <div style={{ padding:"28px 0", textAlign:"center", color:C.t4, fontSize:12 }}>Chưa có tín hiệu ở cấp này trong phiên.</div>
+        ) : (
+          <>
+            <NhatKyRows rows={displayList} />
+            {expanded && hasMore && (
+              <div style={{ padding:"14px 0", textAlign:"center", fontSize:11, color:C.t4 }}>— đã hiển thị tất cả {list.length} dòng —</div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
   );
 }// ─────────────────────────────────────────────────────────────
 // ROOT COMPONENT
