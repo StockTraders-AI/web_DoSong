@@ -392,18 +392,38 @@ function formatStockNotiDate(value) {
   return new Intl.DateTimeFormat("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric" }).format(date);
 }
 
-function getStockNotiKind(row) {
-  const cap = normalizeStockNotiTitle(row?.title);
-  const content = String(`${row?.title || ""} ${row?.content || ""} ${row?.type || ""}`)
+function getNormalizedSearchText(value) {
+  return String(value || "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
+}
+
+function getStockNotiKind(row) {
+  const cap = normalizeStockNotiTitle(row?.title);
+  const content = getNormalizedSearchText(`${row?.title || ""} ${row?.content || ""} ${row?.type || ""}`);
+  if (content.includes("smdt")) return "smdt";
   if (content.includes("ban") || content.includes("chot loi") || content.includes("giam") || content.includes("thoat")) return "down";
   if (content.includes("canh bao") || content.includes("cho ban") || content.includes("ap luc")) return "warn";
   if (cap === "thi_truong" || content.includes("song")) return "wave";
   return "up";
 }
 
+function getStockNotiCapTag(cap) {
+  if (cap === "ma") return "Cổ phiếu";
+  if (cap === "nganh") return "Ngành";
+  return "Thị trường";
+}
+
+function getStockNotiTitle(row) {
+  const content = getNormalizedSearchText(`${row?.content || ""} ${row?.type || ""}`);
+  if (content.includes("smdt")) return "Cảnh báo SMDT";
+  if (content.includes("dong tien") || content.includes("do vao") || content.includes("thoat ra")) return "Cảnh báo dòng tiền";
+  if (content.includes(" ban ") || content.includes("chot loi")) return "Khuyến nghị bán";
+  if (content.includes(" mua ")) return "Khuyến nghị mua";
+  if (normalizeStockNotiTitle(row?.title) === "thi_truong") return "Tín hiệu thị trường";
+  return "Tín hiệu";
+}
 function getStockNotiRows(payload) {
   const reply = payload?.StockNotiReply || payload?.data?.StockNotiReply || payload;
   if (Array.isArray(payload?.rows)) return payload.rows;
@@ -417,12 +437,15 @@ function normalizeStockNotiRows(payload) {
       const content = String(row?.content || "").trim();
       const date = String(row?.date || payload?.sourceDate || payload?.requestedDate || "").trim();
       if (!content) return null;
+      const cap = normalizeStockNotiTitle(row?.title);
       return {
         id:`${date}|${row?.title || ""}|${content}|${index}`,
         t:formatStockNotiTime(date),
         date:formatStockNotiDate(date),
-        cap:normalizeStockNotiTitle(row?.title),
+        cap,
+        capTag:getStockNotiCapTag(cap),
         k:getStockNotiKind(row),
+        title:getStockNotiTitle(row),
         x:content,
       };
     })
@@ -1087,9 +1110,10 @@ function getNhatKyKind(row) {
 
 function NhatKyIcon({ k }) {
   const C = NHAT_KY_C;
-  const sk = k === "down" ? C.bac : k === "warn" ? C.cbc : k === "wave" ? C.B : C.cmc;
-  const bg = k === "down" ? C.bab : k === "warn" ? C.cbb : k === "wave" ? C.pb : C.cmb;
-  const bd = k === "down" ? C.bad : k === "warn" ? C.cbd : k === "wave" ? C.pd : C.cmd;
+  const iconKey = k === "smdt" ? "warn" : k;
+  const sk = iconKey === "down" ? C.bac : iconKey === "warn" ? C.cbc : iconKey === "wave" ? C.B : C.cmc;
+  const bg = iconKey === "down" ? C.bab : iconKey === "warn" ? C.cbb : iconKey === "wave" ? C.pb : C.cmb;
+  const bd = iconKey === "down" ? C.bad : iconKey === "warn" ? C.cbd : iconKey === "wave" ? C.pd : C.cmd;
   const paths = {
     up:(
       <>
@@ -1115,7 +1139,7 @@ function NhatKyIcon({ k }) {
 
   return (
     <span style={{ width:26, height:26, borderRadius:"50%", flexShrink:0, marginTop:1, display:"flex", alignItems:"center", justifyContent:"center", background:bg, border:`1px solid ${bd}` }}>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">{paths[k]}</svg>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">{paths[iconKey]}</svg>
     </span>
   );
 }
@@ -1127,65 +1151,37 @@ function toNhatKyRow(row) {
     cap:row.cap,
     k:getNhatKyKind(row),
     x:row.x || row.txt,
+    title:row.title || row.tieuDe || "Tín hiệu",
+    capTag:row.capTag || NHAT_KY_CAP[row.cap] || "Thị trường",
   };
 }
 
-function NhatKy({ logs = [], onXemTatCa }) {
-  const [tab, setTab] = useState("all");
-  const [expanded, setExpanded] = useState(false);
-  const data = logs.map(toNhatKyRow);
-  const date = logs[0]?.date || new Intl.DateTimeFormat("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric" }).format(new Date());
-  const dem = (id) => (id === "all" ? data.length : data.filter((d) => d.cap === id).length);
-  const list = data.filter((d) => tab === "all" || d.cap === tab);
-  const collapsedLimit = 6;
-  const hasMore = list.length > collapsedLimit;
-  const displayList = expanded ? list : list.slice(0, collapsedLimit);
+function getNhatKyTagColor(tag) {
+  if (tag === "Cổ phiếu") return "#22D3EE";
+  if (tag === "Ngành") return "#3DD68C";
+  return "#A78BFA";
+}
+
+function NhatKyRows({ rows, tab, full = false }) {
   const C = NHAT_KY_C;
-
-  useEffect(() => {
-    setExpanded(false);
-  }, [tab]);
-
-  const toggleExpanded = () => {
-    setExpanded((value) => !value);
-    if (!expanded && onXemTatCa) onXemTatCa();
-  };
-
-  return (
-    <div style={{ background:C.surf, border:`.5px solid ${C.cbdr}`, borderRadius:16, padding:"16px 17px", fontFamily:"-apple-system, Inter, sans-serif" }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:15, fontWeight:700, color:C.t1 }}>
-          📓 Nhật ký tín hiệu <span style={{ fontSize:12, color:C.t4, fontWeight:400 }}>({date})</span>
-        </div>
-        {(hasMore || expanded) && (
-          <button onClick={toggleExpanded} style={{ border:"none", background:"transparent", padding:0, fontSize:12, color:C.B, fontWeight:700, cursor:"pointer" }}>
-            {expanded ? "Thu gọn ↑" : "Xem tất cả →"}
-          </button>
-        )}
-      </div>
-
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:12 }}>
-        {NHAT_KY_TABS.map(([id, label]) => {
-          const on = id === tab;
-          return (
-            <button key={id} onClick={() => setTab(id)} style={{ textAlign:"center", padding:"8px 4px", borderRadius:8, cursor:"pointer", fontFamily:"inherit", background:on ? "rgba(124,58,237,.14)" : C.elev, border:`.5px solid ${on ? C.pd : "#242E42"}` }}>
-              <div style={{ fontSize:13, fontWeight:500, color:on ? C.B : C.t2 }}>{label}</div>
-              <div style={{ fontSize:11, color:on ? C.B : C.t4 }}>({dem(id)})</div>
-            </button>
-          );
-        })}
-      </div>
-
-      {list.length === 0 ? (
-        <div style={{ padding:"20px 0", textAlign:"center", color:C.t4, fontSize:12 }}>
-          Chưa có tín hiệu ở cấp này trong phiên.
-        </div>
-      ) : (
-        <div style={{ maxHeight:expanded ? "calc(100vh - 260px)" : "none", overflowY:expanded ? "auto" : "visible", paddingRight:expanded ? 4 : 0 }}>
-          {displayList.map((r, i) => (
-            <div key={r.id || i} style={{ display:"flex", gap:10, padding:"9px 0", borderBottom:i < displayList.length - 1 ? `.5px solid ${C.bdrs}` : "none", fontSize:12, color:C.t2, lineHeight:1.55 }}>
+  return rows.map((r, i) => {
+    const tagColor = getNhatKyTagColor(r.capTag);
+    return (
+      <div key={r.id || i} style={{ display:"flex", gap:10, padding:full ? "11px 0" : "9px 0", borderBottom:i < rows.length - 1 ? `.5px solid ${C.bdrs}` : "none" }}>
+        <NhatKyIcon k={r.k} />
+        <div style={{ flex:1, minWidth:0 }}>
+          {full ? (
+            <>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:2 }}>
+                <span style={{ fontSize:13.5, fontWeight:600, color:C.t1 }}>{r.title}</span>
+                <span style={{ fontSize:10, fontWeight:600, color:tagColor, background:`${tagColor}1A`, borderRadius:6, padding:"1px 7px" }}>{r.capTag}</span>
+                <span style={{ fontSize:11, color:C.t4, marginLeft:"auto" }}>{r.t}</span>
+              </div>
+              <div style={{ fontSize:13, lineHeight:1.5, color:C.t2 }}>{r.x}</div>
+            </>
+          ) : (
+            <div style={{ display:"flex", gap:10, fontSize:12, color:C.t2, lineHeight:1.55 }}>
               <span style={{ color:C.t4, fontSize:11, flexShrink:0, width:36 }}>{r.t}</span>
-              <NhatKyIcon k={r.k} />
               <span>
                 {tab === "all" && (
                   <span style={{ color:C.t4, fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:".04em", marginRight:6 }}>{NHAT_KY_CAP[r.cap]}</span>
@@ -1193,10 +1189,105 @@ function NhatKy({ logs = [], onXemTatCa }) {
                 <b style={{ color:C.t1 }}>AI:</b> {r.x}
               </span>
             </div>
-          ))}
+          )}
         </div>
-      )}
+      </div>
+    );
+  });
+}
+
+function NhatKyFullScreen({ open, rows, tab, date, count, onTab, onClose }) {
+  if (!open) return null;
+  const C = NHAT_KY_C;
+  const list = rows.filter((d) => tab === "all" || d.cap === tab);
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:2200, background:"rgba(0,0,0,.62)", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+      <div style={{ background:"#0A0D14", borderRadius:14, overflow:"hidden", border:"0.5px solid #1E2A3E", width:"min(430px, calc(100vw - 32px))", maxHeight:"calc(100vh - 32px)", boxShadow:"0 22px 70px rgba(0,0,0,.42)" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12, padding:"16px 18px", borderBottom:"0.5px solid #1E2A3E" }}>
+          <button onClick={onClose} style={{ border:"none", background:"transparent", color:"#F0F4FF", fontSize:20, cursor:"pointer", lineHeight:1, padding:0 }}>←</button>
+          <span style={{ fontSize:16, fontWeight:700, color:"#F0F4FF" }}>Nhật ký tín hiệu</span>
+          <span style={{ fontSize:12, color:"#5C7090" }}>{date}</span>
+        </div>
+        <div style={{ padding:"12px 16px", borderBottom:"0.5px solid #1A2232" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 }}>
+            {NHAT_KY_TABS.map(([id, label]) => {
+              const on = id === tab;
+              return (
+                <button key={id} onClick={() => onTab(id)} style={{ cursor:"pointer", textAlign:"center", padding:"10px 4px", borderRadius:10, background:on ? "rgba(124,58,237,.14)" : C.elev, border:`.5px solid ${on ? C.pd : C.cbdr}` }}>
+                  <div style={{ fontSize:14, fontWeight:600, color:on ? C.B : C.t2 }}>{label}</div>
+                  <div style={{ fontSize:12, color:on ? C.B : C.t4, marginTop:1 }}>({count(id)})</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div style={{ height:"min(520px, calc(100vh - 178px))", overflowY:"auto", padding:"2px 18px 20px" }}>
+          {list.length ? (
+            <>
+              <NhatKyRows rows={list} tab={tab} full />
+              <div style={{ padding:"14px 0", textAlign:"center", fontSize:11, color:C.t4 }}>— cuộn để xem hết —</div>
+            </>
+          ) : (
+            <div style={{ padding:"28px 0", textAlign:"center", color:C.t4, fontSize:12 }}>Chưa có tín hiệu ở cấp này trong phiên.</div>
+          )}
+        </div>
+      </div>
     </div>
+  );
+}
+
+function NhatKy({ logs = [], onXemTatCa }) {
+  const [tab, setTab] = useState("all");
+  const [openAll, setOpenAll] = useState(false);
+  const data = logs.map(toNhatKyRow);
+  const date = logs[0]?.date || new Intl.DateTimeFormat("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric" }).format(new Date());
+  const count = (id) => (id === "all" ? data.length : data.filter((d) => d.cap === id).length);
+  const list = data.filter((d) => tab === "all" || d.cap === tab);
+  const collapsedLimit = 6;
+  const displayList = list.slice(0, collapsedLimit);
+  const hasMore = list.length > collapsedLimit;
+  const C = NHAT_KY_C;
+
+  const openFull = () => {
+    setOpenAll(true);
+    if (onXemTatCa) onXemTatCa();
+  };
+
+  return (
+    <>
+      <div style={{ background:C.surf, border:`.5px solid ${C.cbdr}`, borderRadius:16, padding:"16px 17px", fontFamily:"-apple-system, Inter, sans-serif" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:15, fontWeight:700, color:C.t1 }}>
+            📓 Nhật ký tín hiệu <span style={{ fontSize:12, color:C.t4, fontWeight:400 }}>({date})</span>
+          </div>
+          {(hasMore || data.length > collapsedLimit) && (
+            <button onClick={openFull} style={{ border:"none", background:"transparent", padding:0, fontSize:12, color:C.B, fontWeight:700, cursor:"pointer" }}>Xem tất cả →</button>
+          )}
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:12 }}>
+          {NHAT_KY_TABS.map(([id, label]) => {
+            const on = id === tab;
+            return (
+              <button key={id} onClick={() => setTab(id)} style={{ textAlign:"center", padding:"8px 4px", borderRadius:8, cursor:"pointer", fontFamily:"inherit", background:on ? "rgba(124,58,237,.14)" : C.elev, border:`.5px solid ${on ? C.pd : "#242E42"}` }}>
+                <div style={{ fontSize:13, fontWeight:500, color:on ? C.B : C.t2 }}>{label}</div>
+                <div style={{ fontSize:11, color:on ? C.B : C.t4 }}>({count(id)})</div>
+              </button>
+            );
+          })}
+        </div>
+
+        {list.length === 0 ? (
+          <div style={{ padding:"20px 0", textAlign:"center", color:C.t4, fontSize:12 }}>
+            Chưa có tín hiệu ở cấp này trong phiên.
+          </div>
+        ) : (
+          <NhatKyRows rows={displayList} tab={tab} />
+        )}
+      </div>
+      <NhatKyFullScreen open={openAll} rows={data} tab={tab} date={date} count={count} onTab={setTab} onClose={() => setOpenAll(false)} />
+    </>
   );
 }// ─────────────────────────────────────────────────────────────
 // ROOT COMPONENT
@@ -1236,6 +1327,7 @@ export default function DoSongThiTruong() {
   const dateTravelValue = toDate(selectedMainDonutWave.rawDate) || new Date();
   const dateTravelMinDate = toDate(sortedDateTravelWaves[sortedDateTravelWaves.length - 1]?.rawDate) || dateTravelValue;
   const dateTravelMaxDate = toDate(sortedDateTravelWaves[0]?.rawDate) || dateTravelValue;
+  const stockNotiDate = selectedMainDonutWave.rawDate || formatDateKey(new Date());
   const danhMucWave = tickerWave.rawDate
     ? { ...latestWave, ...tickerWave }
     : latestWave;
@@ -1295,7 +1387,7 @@ export default function DoSongThiTruong() {
   useEffect(() => {
     let active = true;
 
-    fetchStockNoti()
+    fetchStockNoti(stockNotiDate)
       .then((rows) => {
         if (active) setStockNotiRows(rows);
       })
@@ -1306,7 +1398,7 @@ export default function DoSongThiTruong() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [stockNotiDate]);
   useEffect(() => {
     let active = true;
 
