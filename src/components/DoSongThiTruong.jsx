@@ -1132,11 +1132,24 @@ function toNhatKyRow(row) {
 
 function NhatKy({ logs = [], onXemTatCa }) {
   const [tab, setTab] = useState("all");
+  const [expanded, setExpanded] = useState(false);
   const data = logs.map(toNhatKyRow);
   const date = logs[0]?.date || new Intl.DateTimeFormat("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric" }).format(new Date());
   const dem = (id) => (id === "all" ? data.length : data.filter((d) => d.cap === id).length);
   const list = data.filter((d) => tab === "all" || d.cap === tab);
+  const collapsedLimit = 6;
+  const hasMore = list.length > collapsedLimit;
+  const displayList = expanded ? list : list.slice(0, collapsedLimit);
   const C = NHAT_KY_C;
+
+  useEffect(() => {
+    setExpanded(false);
+  }, [tab]);
+
+  const toggleExpanded = () => {
+    setExpanded((value) => !value);
+    if (!expanded && onXemTatCa) onXemTatCa();
+  };
 
   return (
     <div style={{ background:C.surf, border:`.5px solid ${C.cbdr}`, borderRadius:16, padding:"16px 17px", fontFamily:"-apple-system, Inter, sans-serif" }}>
@@ -1144,7 +1157,11 @@ function NhatKy({ logs = [], onXemTatCa }) {
         <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:15, fontWeight:700, color:C.t1 }}>
           📓 Nhật ký tín hiệu <span style={{ fontSize:12, color:C.t4, fontWeight:400 }}>({date})</span>
         </div>
-        <span onClick={onXemTatCa} style={{ fontSize:12, color:C.B, fontWeight:700, cursor:"pointer" }}>Xem tất cả →</span>
+        {(hasMore || expanded) && (
+          <button onClick={toggleExpanded} style={{ border:"none", background:"transparent", padding:0, fontSize:12, color:C.B, fontWeight:700, cursor:"pointer" }}>
+            {expanded ? "Thu gọn ↑" : "Xem tất cả →"}
+          </button>
+        )}
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:12 }}>
@@ -1164,23 +1181,24 @@ function NhatKy({ logs = [], onXemTatCa }) {
           Chưa có tín hiệu ở cấp này trong phiên.
         </div>
       ) : (
-        list.map((r, i) => (
-          <div key={r.id || i} style={{ display:"flex", gap:10, padding:"9px 0", borderBottom:i < list.length - 1 ? `.5px solid ${C.bdrs}` : "none", fontSize:12, color:C.t2, lineHeight:1.55 }}>
-            <span style={{ color:C.t4, fontSize:11, flexShrink:0, width:36 }}>{r.t}</span>
-            <NhatKyIcon k={r.k} />
-            <span>
-              {tab === "all" && (
-                <span style={{ color:C.t4, fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:".04em", marginRight:6 }}>{NHAT_KY_CAP[r.cap]}</span>
-              )}
-              <b style={{ color:C.t1 }}>AI:</b> {r.x}
-            </span>
-          </div>
-        ))
+        <div style={{ maxHeight:expanded ? "calc(100vh - 260px)" : "none", overflowY:expanded ? "auto" : "visible", paddingRight:expanded ? 4 : 0 }}>
+          {displayList.map((r, i) => (
+            <div key={r.id || i} style={{ display:"flex", gap:10, padding:"9px 0", borderBottom:i < displayList.length - 1 ? `.5px solid ${C.bdrs}` : "none", fontSize:12, color:C.t2, lineHeight:1.55 }}>
+              <span style={{ color:C.t4, fontSize:11, flexShrink:0, width:36 }}>{r.t}</span>
+              <NhatKyIcon k={r.k} />
+              <span>
+                {tab === "all" && (
+                  <span style={{ color:C.t4, fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:".04em", marginRight:6 }}>{NHAT_KY_CAP[r.cap]}</span>
+                )}
+                <b style={{ color:C.t1 }}>AI:</b> {r.x}
+              </span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
-}
-// ─────────────────────────────────────────────────────────────
+}// ─────────────────────────────────────────────────────────────
 // ROOT COMPONENT
 // ─────────────────────────────────────────────────────────────
 export default function DoSongThiTruong() {
