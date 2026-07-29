@@ -444,6 +444,7 @@ function normalizeStockNotiRows(payload) {
         capTag:getStockNotiCapTag(cap),
         k:getStockNotiKind(row),
         title:String(row?.title || "Tín hiệu").trim() || "Tín hiệu",
+        smdtValue:getSmdtValue(content),
         x:content,
       };
     })
