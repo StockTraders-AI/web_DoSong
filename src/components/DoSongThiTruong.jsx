@@ -1668,7 +1668,7 @@ export default function DoSongThiTruong() {
               <DanhMucDoSong wave={danhMucWave} countWave={realtimeDisplayWave} />
             </div>
             <div className="dosong-mobile-item dosong-order-log">
-              <NhatKy logs={stockNotiRows} theme="light" />
+              <NhatKy logs={stockNotiRows} theme={theme} />
             </div>
           </div>
           </div>
