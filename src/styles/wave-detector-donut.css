@@ -106,7 +106,7 @@
 .wtds-donut-sk::after {
   content: "";
   position: absolute;
-  inset: var(--wtds-donut-hole-inset, 28px);
+  inset: 28px;
   border-radius: 50%;
   background: var(--card);
 }
@@ -115,6 +115,13 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+}
+.wtds-donut-stroke-sk {
+  animation: wtds-loading-ring 1.4s ease-in-out infinite;
+}
+@keyframes wtds-loading-ring {
+  0%, 100% { opacity: .72; }
+  50% { opacity: 1; }
 }
 .wtds-center-value-sk {
   width: 46px;

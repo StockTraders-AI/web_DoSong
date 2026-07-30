@@ -128,7 +128,11 @@ function LoadingDayCard({ themeTokens }) {
       </div>
 
       <div className="wtds-donut-wrap" style={styles.loadingDonutWrap}>
-        <div className="wtds-sk wtds-donut-sk" style={styles.loadingDonut} />
+        <svg width={124} height={124} viewBox="0 0 160 160" aria-hidden="true" style={styles.loadingDonut}>
+          <circle cx={80} cy={80} r={68} fill={themeTokens.ring} stroke={themeTokens.ringBorder} strokeWidth={0.5} />
+          <circle className="wtds-donut-stroke-sk" cx={80} cy={80} r={68} fill="none" stroke={themeTokens.skBase} strokeWidth={16} />
+          <circle cx={80} cy={80} r={41} fill={themeTokens.emptyBg} stroke={themeTokens.ringBorder} strokeWidth={0.5} />
+        </svg>
         <div className="wtds-donut-center">
           <span className="wtds-sk wtds-sk-pill" style={{ width: 40, height: 22, display: "block" }} />
         </div>
@@ -470,14 +474,12 @@ const styles = {
     minHeight: 30,
   },
   loadingDonutWrap: {
-    width: 105,
-    height: 105,
+    width: 124,
+    height: 124,
     margin: "8px auto 4px",
   },
   loadingDonut: {
-    width: 105,
-    height: 105,
-    "--wtds-donut-hole-inset": "21px",
+    display: "block",
   },
   loadingMetricGrid: {
     display: "grid",
