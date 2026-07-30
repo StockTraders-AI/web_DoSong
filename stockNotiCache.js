@@ -9,6 +9,8 @@ const REALTIME_URL = process.env.REALTIME_WAVE_URL || process.env.REALTIME_URL |
 const CACHE_DIR = process.env.STOCK_NOTI_CACHE_DIR || path.join(__dirname, ".stock-wave-cache");
 const CACHE_PATH = path.join(CACHE_DIR, "stock-noti.json");
 const STOCK_NOTI_CHANNEL = "stock-noti";
+const STOCK_NOTI_API_URL = process.env.STOCK_NOTI_API_URL || "https://stocktraders.vn/service/data/getStockNoti";
+const STOCK_NOTI_ACCOUNT = process.env.STOCK_NOTI_ACCOUNT || "thao.dtt";
 const CACHE_SCHEMA_VERSION = 3;
 const MAX_ROWS_PER_DATE = 500;
 
@@ -122,27 +124,58 @@ function mergeRows(existingRows, incomingRows) {
     .slice(0, MAX_ROWS_PER_DATE);
 }
 
+async function cacheStockNotiRows(dateKey, rows, source) {
+  if (!rows.length) return null;
+
+  const store = await readStore();
+  const existing = store.byDate[dateKey]?.rows || [];
+  store.byDate[dateKey] = {
+    success: true,
+    schemaVersion: CACHE_SCHEMA_VERSION,
+    requestedDate: dateKey,
+    sourceDate: dateKey,
+    cachedAt: new Date().toISOString(),
+    source,
+    rows: mergeRows(existing, rows),
+  };
+  store.latestDate = [store.latestDate, dateKey].filter(Boolean).sort().pop() || dateKey;
+  store.updatedAt = new Date().toISOString();
+  await writeStore(store);
+  return store.byDate[dateKey];
+}
+
 async function cacheSocketNotifications(payload) {
   const rows = normalizeStockNotiPayload(payload);
   if (!rows.length) return;
 
-  const store = await readStore();
+  const byDate = new Map();
   rows.forEach((row) => {
     const dateKey = getRowDateKey(row);
-    const existing = store.byDate[dateKey]?.rows || [];
-    store.byDate[dateKey] = {
-      success: true,
-      schemaVersion: CACHE_SCHEMA_VERSION,
-      requestedDate: dateKey,
-      sourceDate: dateKey,
-      cachedAt: new Date().toISOString(),
-      source: "socket",
-      rows: mergeRows(existing, [row]),
-    };
-    store.latestDate = [store.latestDate, dateKey].filter(Boolean).sort().pop() || dateKey;
+    byDate.set(dateKey, [...(byDate.get(dateKey) || []), row]);
   });
-  store.updatedAt = new Date().toISOString();
-  await writeStore(store);
+
+  for (const [dateKey, dateRows] of byDate) {
+    await cacheStockNotiRows(dateKey, dateRows, "socket");
+  }
+}
+
+async function fetchStockNotiFromApi(dateKey, account = STOCK_NOTI_ACCOUNT) {
+  const response = await fetch(STOCK_NOTI_API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ StockNotiRequest: { account, date: dateKey } }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Stock notification API failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+async function cacheApiNotifications(dateKey, payload) {
+  const rows = normalizeStockNotiPayload(payload);
+  return cacheStockNotiRows(dateKey, rows, "api");
 }
 
 function findFallbackPayload(store, dateKey) {
@@ -217,11 +250,26 @@ export async function handleStockNoti(req, res, rawUrl) {
   const dateKey = isDateKey(requestedDate) ? requestedDate : toLocalDateKey();
 
   try {
-    const store = await readStore();
+    let store = await readStore();
+    const exact = store.byDate[dateKey];
+    if (exact?.rows?.length) {
+      sendJson(res, 200, exact);
+      return true;
+    }
+
+    try {
+      const account = normalizeText(url.searchParams.get("account")) || STOCK_NOTI_ACCOUNT;
+      const payload = await fetchStockNotiFromApi(dateKey, account);
+      await cacheApiNotifications(dateKey, payload);
+    } catch (error) {
+      console.error("Fetch stock notification API failed", error.message || error);
+    }
+
+    store = await readStore();
     sendJson(res, 200, responseForDate(store, dateKey));
   } catch (error) {
-    console.error("Stock notification socket cache failed", error);
-    sendJson(res, 502, { success: false, error: error.message || "Cannot load stock notification socket cache." });
+    console.error("Stock notification cache failed", error);
+    sendJson(res, 502, { success: false, error: error.message || "Cannot load stock notification cache." });
   }
 
   return true;

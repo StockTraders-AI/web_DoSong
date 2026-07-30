@@ -50,6 +50,7 @@ const REALTIME_WAVE_URL =
 const WAVE_CHANNEL = "wave";
 const STOCK_NOTI_CHANNEL = "stock-noti";
 const NHAT_KY_C = {
+  mode:"dark",
   t1: "#F0F4FF", t2: "#A8B8D0", t4: "#5C7090",
   surf: "#111520", elev: "#171D2E", cbdr: "#1E2A3E", bdrs: "#1A2232",
   B: "#A78BFA", Bd: "#7C3AED",
@@ -59,6 +60,7 @@ const NHAT_KY_C = {
   pb: "rgba(124,58,237,.16)", pd: "#5B21B6",
 };
 const NHAT_KY_LIGHT_C = {
+  mode:"light",
   t1: "#111827", t2: "#5B6472", t4: "#8A94A6",
   surf: "#FFFFFF", elev: "#F6F7FC", cbdr: "#DDE3EF", bdrs: "#E8ECF4",
   B: "#7C3AED", Bd: "#7C3AED",
@@ -1140,8 +1142,14 @@ function getNhatKyKind(row) {
   return "up";
 }
 
-function getSmdtBand(value) {
+function getSmdtBand(value, mode = "dark") {
   const number = Number(value);
+  if (mode === "light") {
+    if (Number.isFinite(number) && number >= 100) return { bg:"#DCFCE7", bd:"#86EFAC", sk:"#059669" };
+    if (Number.isFinite(number) && number >= 70) return { bg:"#EAF8EF", bd:"#BFEACF", sk:"#16A05D" };
+    if (Number.isFinite(number) && number >= 20) return { bg:"#FFF7E6", bd:"#F3CE8B", sk:"#D97706" };
+    return { bg:"#FFECEF", bd:"#F5B8C3", sk:"#E11D48" };
+  }
   if (Number.isFinite(number) && number >= 100) return { bg:"#0A2A1C", bd:"#124A30", sk:"#3DE8A8" };
   if (Number.isFinite(number) && number >= 70) return { bg:"#0A2318", bd:"#0F3D22", sk:"#3DD68C" };
   if (Number.isFinite(number) && number >= 20) return { bg:"#2B1B08", bd:"#4A3010", sk:"#E89A3C" };
@@ -1151,7 +1159,7 @@ function getSmdtBand(value) {
 function NhatKyIcon({ k, smdtValue, colors = NHAT_KY_C }) {
   const C = colors;
   const iconKey = k === "smdt" ? "smdt" : k;
-  const smdtBand = iconKey === "smdt" ? getSmdtBand(smdtValue) : null;
+  const smdtBand = iconKey === "smdt" ? getSmdtBand(smdtValue, C.mode) : null;
   const sk = smdtBand?.sk || (iconKey === "down" ? C.bac : iconKey === "warn" ? C.cbc : iconKey === "wave" ? C.B : C.cmc);
   const bg = smdtBand?.bg || (iconKey === "down" ? C.bab : iconKey === "warn" ? C.cbb : iconKey === "wave" ? C.pb : C.cmb);
   const bd = smdtBand?.bd || (iconKey === "down" ? C.bad : iconKey === "warn" ? C.cbd : iconKey === "wave" ? C.pd : C.cmd);

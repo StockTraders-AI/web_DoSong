@@ -177,21 +177,29 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
         <div
           aria-hidden="true"
           style={{
-            width: 34,
-            height: 34,
-            borderRadius: 9,
-            background: "var(--B, #7C3AED)",
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            background: "linear-gradient(135deg,#7C3AED,#4F46E5)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: "#FFFFFF",
-            fontSize: 16,
-            fontWeight: 800,
             flexShrink: 0,
-            lineHeight: 1,
           }}
         >
-          {"\u2726"}
+          <svg width="20" height="20" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+            <circle cx="11" cy="11" r="10" stroke="rgba(255,255,255,.25)" strokeWidth="1" />
+            <circle cx="11" cy="11" r="5.5" fill="white" opacity="0.95" />
+            <line x1="11" y1="5.5" x2="11" y2="2" stroke="white" strokeWidth="1.4" strokeLinecap="round" />
+            <line x1="11" y1="16.5" x2="11" y2="20" stroke="white" strokeWidth="1.4" strokeLinecap="round" />
+            <line x1="5.5" y1="11" x2="2" y2="11" stroke="white" strokeWidth="1.4" strokeLinecap="round" />
+            <line x1="16.5" y1="11" x2="20" y2="11" stroke="white" strokeWidth="1.4" strokeLinecap="round" />
+            <line x1="7.1" y1="7.1" x2="4.5" y2="4.5" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
+            <line x1="14.9" y1="7.1" x2="17.5" y2="4.5" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
+            <line x1="7.1" y1="14.9" x2="4.5" y2="17.5" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
+            <line x1="14.9" y1="14.9" x2="17.5" y2="17.5" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
+            <circle cx="11" cy="11" r="2.5" fill="#7C3AED" />
+          </svg>
         </div>
         <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".08em", color: "#C4B5FD", textTransform: "uppercase" }}>
           Khuy{"\u1ebfn"} ngh{"\u1ecb"} t{"\u1eeb"} AI
