@@ -106,7 +106,7 @@
 .wtds-donut-sk::after {
   content: "";
   position: absolute;
-  inset: 28px;
+  inset: var(--wtds-donut-hole-inset, 28px);
   border-radius: 50%;
   background: var(--card);
 }

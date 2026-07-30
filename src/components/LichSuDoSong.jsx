@@ -477,6 +477,7 @@ const styles = {
   loadingDonut: {
     width: 105,
     height: 105,
+    "--wtds-donut-hole-inset": "21px",
   },
   loadingMetricGrid: {
     display: "grid",
