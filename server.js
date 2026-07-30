@@ -6,7 +6,7 @@ import { handleStockWaveHistory, sendJson } from "./stockWaveHistoryCache.js";
 import { handleStockWaveCurrent, startStockWaveCurrentSocket } from "./stockWaveCurrentCache.js";
 import { handleStockWaveTickers } from "./stockWaveTickersCache.js";
 import { handleWaveBottomConfirmPairs } from "./waveBottomConfirmPairsCache.js";
-import { handleStockNoti, startStockNotiDailyRefresh } from "./stockNotiCache.js";
+import { handleStockNoti, startStockNotiSocket } from "./stockNotiCache.js";
 import { handleUsersRequest } from "./usersApi.js";
 import { handlePortfolioChat } from "./portfolioChatApi.js";
 import { handleConditionSignalLatest, handleDoSongAdvice } from "./conditionSignalApi.js";
@@ -16,7 +16,7 @@ const PORT = Number(process.env.PORT || 5173);
 const DIST_DIR = path.join(__dirname, "dist");
 
 startStockWaveCurrentSocket();
-startStockNotiDailyRefresh();
+startStockNotiSocket();
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",

@@ -1,21 +1,19 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { io } from "socket.io-client";
 import { sendJson } from "./stockWaveHistoryCache.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const STOCK_NOTI_API_URL = process.env.STOCK_NOTI_API_URL || "https://stocktraders.vn/service/data/getStockNoti";
+const REALTIME_URL = process.env.REALTIME_WAVE_URL || process.env.REALTIME_URL || "http://112.213.91.235:3005/realtime";
 const CACHE_DIR = process.env.STOCK_NOTI_CACHE_DIR || path.join(__dirname, ".stock-wave-cache");
 const CACHE_PATH = path.join(CACHE_DIR, "stock-noti.json");
-const REFRESH_HOUR = 11;
-const REFRESH_MINUTE = 0;
-const REFRESH_SECOND = 0;
-const MAX_TIMEOUT_MS = 2_147_483_647;
-const CACHE_SCHEMA_VERSION = 2;
+const STOCK_NOTI_CHANNEL = "stock-noti";
+const CACHE_SCHEMA_VERSION = 3;
+const MAX_ROWS_PER_DATE = 500;
 
 let memoryStore = null;
-const pendingRefreshes = new Map();
-let refreshTimer = null;
+let socketStarted = false;
 
 function toLocalDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -43,40 +41,45 @@ function createStore() {
 }
 
 function normalizeStore(payload) {
-  if (payload?.byDate && typeof payload.byDate === "object") {
-    if (payload.schemaVersion !== CACHE_SCHEMA_VERSION) return createStore();
-    return {
-      success: true,
-      schemaVersion: CACHE_SCHEMA_VERSION,
-      latestDate: normalizeText(payload.latestDate),
-      updatedAt: normalizeText(payload.updatedAt),
-      byDate: payload.byDate,
-    };
+  if (payload?.schemaVersion !== CACHE_SCHEMA_VERSION || !payload?.byDate || typeof payload.byDate !== "object") {
+    return createStore();
   }
 
-  if (Array.isArray(payload?.rows)) {
-    const dateKey = normalizeText(payload.requestedDate || payload.sourceDate || payload.rows[0]?.date?.slice(0, 10));
-    const store = createStore();
-    if (isDateKey(dateKey)) {
-      store.byDate[dateKey] = payload;
-      store.latestDate = payload.rows.length ? dateKey : "";
-      store.updatedAt = normalizeText(payload.updatedAt);
-    }
-    return store;
-  }
-
-  return createStore();
+  return {
+    success: true,
+    schemaVersion: CACHE_SCHEMA_VERSION,
+    latestDate: normalizeText(payload.latestDate),
+    updatedAt: normalizeText(payload.updatedAt),
+    byDate: payload.byDate,
+  };
 }
 
-function normalizeStockNotiPayload(payload, requestedDate) {
-  const reply = payload?.StockNotiReply || payload?.data?.StockNotiReply || payload;
-  const rawRows = Array.isArray(reply?.stockNotifications)
-    ? reply.stockNotifications
-    : Array.isArray(payload?.rows)
-      ? payload.rows
-      : [];
+function getPayloadData(payload) {
+  return payload?.data?.data ?? payload?.data?.payload ?? payload?.data ?? payload?.payload ?? payload;
+}
 
-  const rows = rawRows
+function getPayloadChannel(payload) {
+  return String(payload?.channel || payload?.data?.channel || "");
+}
+
+function getRawRows(payload) {
+  const data = getPayloadData(payload);
+  const reply = data?.StockNotiReply || data?.data?.StockNotiReply || data;
+  if (Array.isArray(reply?.stockNotifications)) return reply.stockNotifications;
+  if (Array.isArray(reply?.rows)) return reply.rows;
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === "object" && (data.content || data.title || data.date)) return [data];
+  return [];
+}
+
+function getRowDateKey(row, fallbackDate = toLocalDateKey()) {
+  const text = normalizeText(row?.date);
+  const match = text.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match?.[1] || fallbackDate;
+}
+
+function normalizeStockNotiPayload(payload) {
+  const rows = getRawRows(payload)
     .map((row) => ({
       content: normalizeText(row?.content),
       date: normalizeText(row?.date),
@@ -86,15 +89,7 @@ function normalizeStockNotiPayload(payload, requestedDate) {
     .filter((row) => row.content)
     .sort((a, b) => String(b.date).localeCompare(String(a.date)));
 
-  return {
-    success: true,
-    schemaVersion: CACHE_SCHEMA_VERSION,
-    requestedDate,
-    sourceDate: rows[0]?.date?.slice(0, 10) || requestedDate,
-    lastAttemptDate: requestedDate,
-    updatedAt: new Date().toISOString(),
-    rows,
-  };
+  return rows;
 }
 
 async function readStore() {
@@ -116,15 +111,38 @@ async function writeStore(store) {
   await writeFile(CACHE_PATH, JSON.stringify(store), "utf8");
 }
 
-async function fetchStockNoti(dateKey) {
-  const response = await fetch(STOCK_NOTI_API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ StockNotiRequest: { date: dateKey } }),
+function mergeRows(existingRows, incomingRows) {
+  const byId = new Map();
+  [...incomingRows, ...existingRows].forEach((row) => {
+    const id = `${row.date}|${row.title}|${row.type}|${row.content}`;
+    if (!byId.has(id)) byId.set(id, row);
   });
+  return [...byId.values()]
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+    .slice(0, MAX_ROWS_PER_DATE);
+}
 
-  if (!response.ok) throw new Error(`Stock notification upstream failed: ${response.status}`);
-  return normalizeStockNotiPayload(await response.json(), dateKey);
+async function cacheSocketNotifications(payload) {
+  const rows = normalizeStockNotiPayload(payload);
+  if (!rows.length) return;
+
+  const store = await readStore();
+  rows.forEach((row) => {
+    const dateKey = getRowDateKey(row);
+    const existing = store.byDate[dateKey]?.rows || [];
+    store.byDate[dateKey] = {
+      success: true,
+      schemaVersion: CACHE_SCHEMA_VERSION,
+      requestedDate: dateKey,
+      sourceDate: dateKey,
+      cachedAt: new Date().toISOString(),
+      source: "socket",
+      rows: mergeRows(existing, [row]),
+    };
+    store.latestDate = [store.latestDate, dateKey].filter(Boolean).sort().pop() || dateKey;
+  });
+  store.updatedAt = new Date().toISOString();
+  await writeStore(store);
 }
 
 function findFallbackPayload(store, dateKey) {
@@ -144,125 +162,61 @@ function responseForDate(store, dateKey) {
       ...fallback,
       requestedDate: dateKey,
       stale: true,
-      emptyForDate: exact?.emptyForDate || dateKey,
+      emptyForDate: dateKey,
     };
   }
 
-  return exact || {
+  return {
     success: true,
     schemaVersion: CACHE_SCHEMA_VERSION,
     requestedDate: dateKey,
     sourceDate: dateKey,
-    lastAttemptDate: dateKey,
-    updatedAt: new Date().toISOString(),
-    stale: true,
-    emptyForDate: dateKey,
+    source: "socket-cache",
     rows: [],
   };
 }
 
-export async function refreshStockNoti(dateKey = toLocalDateKey()) {
-  if (!pendingRefreshes.has(dateKey)) {
-    const request = fetchStockNoti(dateKey)
-      .then(async (payload) => {
-        const store = await readStore();
-        if (payload.rows.length) {
-          store.byDate[dateKey] = payload;
-          store.latestDate = [store.latestDate, dateKey].filter(Boolean).sort().pop() || dateKey;
-          store.updatedAt = new Date().toISOString();
-          await writeStore(store);
-          return responseForDate(store, dateKey);
-        }
+export function startStockNotiSocket() {
+  if (socketStarted) return;
+  socketStarted = true;
 
-        const fallback = responseForDate(store, dateKey);
-        if (fallback.rows.length) {
-          store.byDate[dateKey] = { ...payload, stale: true, emptyForDate: dateKey };
-          store.updatedAt = new Date().toISOString();
-          await writeStore(store);
-          return { ...fallback, requestedDate: dateKey, stale: true, emptyForDate: dateKey };
-        }
+  const socket = io(REALTIME_URL, {
+    transports: ["websocket"],
+  });
 
-        return { ...payload, stale: true, emptyForDate: dateKey };
-      })
-      .catch(async (error) => {
-        const store = await readStore();
-        const fallback = responseForDate(store, dateKey);
-        if (fallback.rows.length) {
-          return { ...fallback, stale: true, error: error.message || "Cannot refresh stock notifications." };
-        }
-        throw error;
-      })
-      .finally(() => {
-        pendingRefreshes.delete(dateKey);
-      });
+  socket.on("connect", () => {
+    socket.emit("message", {
+      action: "subscribe",
+      channels: [STOCK_NOTI_CHANNEL],
+    });
+  });
 
-    pendingRefreshes.set(dateKey, request);
-  }
+  socket.on("message", (payload) => {
+    const channel = getPayloadChannel(payload);
+    if (channel && channel !== STOCK_NOTI_CHANNEL) return;
+    cacheSocketNotifications(payload).catch((error) => {
+      console.error("Write stock notification socket cache failed", error);
+    });
+  });
 
-  return pendingRefreshes.get(dateKey);
-}
-function scheduleNextRefresh() {
-  const now = new Date();
-  const next = new Date(now);
-  next.setHours(REFRESH_HOUR, REFRESH_MINUTE, REFRESH_SECOND, 0);
-  if (next <= now) next.setDate(next.getDate() + 1);
-
-  const delay = Math.min(next.getTime() - now.getTime(), MAX_TIMEOUT_MS);
-  refreshTimer = setTimeout(async () => {
-    try {
-      await refreshStockNoti(toLocalDateKey(new Date()));
-    } catch (error) {
-      console.error("Stock notification scheduled refresh failed", error);
-    } finally {
-      scheduleNextRefresh();
-    }
-  }, delay);
+  socket.on("connect_error", (error) => {
+    console.error("Stock notification socket failed", error.message);
+  });
 }
 
-export function startStockNotiDailyRefresh() {
-  if (refreshTimer) return;
-  scheduleNextRefresh();
-}
-
-function shouldRefreshDate(store, dateKey) {
-  const exact = store.byDate[dateKey];
-  if (!exact) {
-    if (dateKey !== toLocalDateKey()) return true;
-    return new Date().getHours() >= REFRESH_HOUR || !findFallbackPayload(store, dateKey);
-  }
-
-  if (!Array.isArray(exact.rows) || exact.rows.length === 0) {
-    return !findFallbackPayload(store, dateKey);
-  }
-
-  if (dateKey !== toLocalDateKey()) return false;
-  if (new Date().getHours() < REFRESH_HOUR) return false;
-  return exact.lastAttemptDate !== dateKey;
-}
 export async function handleStockNoti(req, res, rawUrl) {
   const url = new URL(rawUrl || req.url, `http://${req.headers.host || "localhost"}`);
   if (req.method !== "GET" || url.pathname !== "/api/stock-noti") return false;
 
   const requestedDate = url.searchParams.get("date") || toLocalDateKey();
   const dateKey = isDateKey(requestedDate) ? requestedDate : toLocalDateKey();
-  const forceRefresh = url.searchParams.get("refresh") === "1";
 
   try {
     const store = await readStore();
-    const payload = forceRefresh || shouldRefreshDate(store, dateKey)
-      ? await refreshStockNoti(dateKey)
-      : responseForDate(store, dateKey);
-    sendJson(res, 200, payload);
+    sendJson(res, 200, responseForDate(store, dateKey));
   } catch (error) {
-    const store = await readStore();
-    const fallback = responseForDate(store, dateKey);
-    if (fallback.rows.length) {
-      sendJson(res, 200, { ...fallback, stale: true, error: error.message || "Cannot refresh stock notifications." });
-      return true;
-    }
-
-    console.error("Stock notification cache failed", error);
-    sendJson(res, 502, { success: false, error: error.message || "Cannot load stock notifications." });
+    console.error("Stock notification socket cache failed", error);
+    sendJson(res, 502, { success: false, error: error.message || "Cannot load stock notification socket cache." });
   }
 
   return true;

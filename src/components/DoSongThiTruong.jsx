@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import branchLookup from "../data/branchLookup.json";
 import VongTronDoSong from "./VongTronDoSong.jsx";
@@ -48,6 +48,7 @@ const REALTIME_WAVE_URL =
   import.meta.env.VITE_REALTIME_URL ||
   "http://112.213.91.235:3005/realtime";
 const WAVE_CHANNEL = "wave";
+const STOCK_NOTI_CHANNEL = "stock-noti";
 const NHAT_KY_C = {
   t1: "#F0F4FF", t2: "#A8B8D0", t4: "#5C7090",
   surf: "#111520", elev: "#171D2E", cbdr: "#1E2A3E", bdrs: "#1A2232",
@@ -364,6 +365,25 @@ function getSocketWaveData(payload) {
   return payload?.data?.data ?? payload?.data?.payload ?? payload?.data ?? payload?.payload ?? payload;
 }
 
+function getSocketStockNotiData(payload) {
+  const channel = String(payload?.channel || payload?.data?.channel || "");
+  if (channel && channel !== STOCK_NOTI_CHANNEL) return null;
+  return payload?.data?.data ?? payload?.data?.payload ?? payload?.data ?? payload?.payload ?? payload;
+}
+
+function getStockNotiRawDate(value) {
+  const match = String(value || "").match(/^(\d{4}-\d{2}-\d{2})/);
+  return match?.[1] || "";
+}
+
+function mergeStockNotiRows(current, incoming) {
+  const byId = new Map();
+  [...incoming, ...current].forEach((row) => {
+    if (!row?.id) return;
+    if (!byId.has(row.id)) byId.set(row.id, row);
+  });
+  return [...byId.values()].sort((a, b) => String(b.sortKey || b.id).localeCompare(String(a.sortKey || a.id)));
+}
 function normalizeSearchText(value) {
   return String(value || "")
     .toLowerCase()
@@ -440,6 +460,8 @@ function normalizeStockNotiRows(payload) {
         id:`${date}|${row?.title || ""}|${content}|${index}`,
         t:formatStockNotiTime(date),
         date:formatStockNotiDate(date),
+        rawDate:getStockNotiRawDate(date),
+        sortKey:date,
         cap,
         capTag:getStockNotiCapTag(cap),
         k:getStockNotiKind(row),
@@ -1157,6 +1179,8 @@ function toNhatKyRow(row) {
   return {
     id:row.id,
     t:row.t || row.time,
+    rawDate:row.rawDate,
+    sortKey:row.sortKey,
     cap:row.cap,
     k:getNhatKyKind(row),
     smdtValue:row.smdtValue,
@@ -1270,6 +1294,7 @@ export default function DoSongThiTruong() {
   const [tickerWave, setTickerWave] = useState(EMPTY_WAVE);
   const [signalRefreshKey, setSignalRefreshKey] = useState(0);
   const [stockNotiRows, setStockNotiRows] = useState([]);
+  const stockNotiDateRef = useRef("");
   const tickerRequestKey = latestWave.rawDate || "latest";
   const historySource = historyAllWaves.length ? historyAllWaves : historyWaves;
   const historyDisplayWaves = historySource.filter((item) => !latestWave.rawDate || item.rawDate < latestWave.rawDate);
@@ -1296,6 +1321,10 @@ export default function DoSongThiTruong() {
   const danhMucWave = tickerWave.rawDate
     ? { ...latestWave, ...tickerWave }
     : latestWave;
+  useEffect(() => {
+    stockNotiDateRef.current = stockNotiDate;
+  }, [stockNotiDate]);
+
   const selectedDoSongAdvice = useMemo(() => buildDoSongAdvice(
     [...historySource, mainDonutDisplayWave],
     selectedMainDonutWave.rawDate,
@@ -1322,12 +1351,25 @@ export default function DoSongThiTruong() {
       if (!active) return;
       socket.emit("message", {
         action:"subscribe",
-        channels:[WAVE_CHANNEL],
+        channels:[WAVE_CHANNEL, STOCK_NOTI_CHANNEL],
       });
     });
 
     socket.on("message", (payload) => {
       if (!active) return;
+
+      const notiData = getSocketStockNotiData(payload);
+      if (notiData) {
+        const notiRows = normalizeStockNotiRows(notiData);
+        if (notiRows.length) {
+          const activeDate = stockNotiDateRef.current || formatDateKey(new Date());
+          const matchingRows = notiRows.filter((row) => !row.rawDate || row.rawDate === activeDate);
+          if (matchingRows.length) {
+            setStockNotiRows((current) => mergeStockNotiRows(current, matchingRows));
+          }
+        }
+      }
+
       const data = getSocketWaveData(payload);
       if (!data) return;
 
