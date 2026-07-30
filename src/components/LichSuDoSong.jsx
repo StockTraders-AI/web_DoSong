@@ -470,13 +470,13 @@ const styles = {
     minHeight: 30,
   },
   loadingDonutWrap: {
-    width: 120,
-    height: 120,
+    width: 105,
+    height: 105,
     margin: "8px auto 4px",
   },
   loadingDonut: {
-    width: 120,
-    height: 120,
+    width: 105,
+    height: 105,
   },
   loadingMetricGrid: {
     display: "grid",
