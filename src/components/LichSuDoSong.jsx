@@ -129,7 +129,6 @@ function LoadingDayCard({ themeTokens }) {
 
       <div className="wtds-donut-wrap" style={styles.loadingDonutWrap}>
         <svg width={124} height={124} viewBox="0 0 160 160" aria-hidden="true" style={styles.loadingDonut}>
-          <circle cx={80} cy={80} r={68} fill={themeTokens.ring} stroke={themeTokens.ringBorder} strokeWidth={0.5} />
           <circle className="wtds-donut-stroke-sk" cx={80} cy={80} r={68} fill="none" stroke={themeTokens.skBase} strokeWidth={16} />
           <circle cx={80} cy={80} r={41} fill={themeTokens.emptyBg} stroke={themeTokens.ringBorder} strokeWidth={0.5} />
         </svg>

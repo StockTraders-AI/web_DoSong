@@ -4,6 +4,7 @@ const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stoc
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
 const VNINDEX_TRADE_REAL_URL = process.env.VNINDEX_TRADE_REAL_URL || "https://stocktraders.vn/service/data/getTotalTradeReal";
 const CACHE_VERSION = 14;
+const UPSTREAM_TIMEOUT_MS = Number(process.env.WAVE_BOTTOM_UPSTREAM_TIMEOUT_MS || 120000);
 const ZIGZAG_THRESHOLD = 0.052;
 const MARKET_TIME_ZONE = "Asia/Bangkok";
 const END_OF_DAY_CHECK_HOUR = 18;
@@ -56,6 +57,11 @@ function toNumber(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
+function withTimeout(options = {}) {
+  if (typeof AbortSignal === "undefined" || typeof AbortSignal.timeout !== "function") return options;
+  return { ...options, signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) };
+}
+
 function writeMemoryCache(rows) {
   const payload = {
     success: true,
@@ -66,6 +72,23 @@ function writeMemoryCache(rows) {
   memoryCache = payload;
   memoryCacheKey = getCacheKey();
   return payload;
+}
+
+function buildFallbackPayload(error) {
+  const warning = error?.message || "Cannot refresh wave bottom confirm pairs.";
+  if (memoryCache && memoryCache.cacheVersion === CACHE_VERSION) {
+    return { ...memoryCache, source: "stale-memory", stale: true, warning };
+  }
+
+  return {
+    success: true,
+    cacheVersion: CACHE_VERSION,
+    cachedAt: new Date().toISOString(),
+    rows: [],
+    source: "empty-fallback",
+    stale: true,
+    warning,
+  };
 }
 
 function normalizeTradeRows(payload) {
@@ -239,11 +262,11 @@ function findLowestNearbyLow(pivots, bottom) {
 }
 
 async function fetchPairs() {
-  const response = await fetch(WAVE_BOTTOM_PAIRS_URL, {
+  const response = await fetch(WAVE_BOTTOM_PAIRS_URL, withTimeout({
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(PAIRS_REQUEST),
-  });
+  }));
   if (!response.ok) throw new Error(`Wave bottom pairs upstream failed: ${response.status}`);
   return response.json();
 }
@@ -251,17 +274,17 @@ async function fetchPairs() {
 async function fetchVnindexTrades() {
   const baseUrl = VNINDEX_TRADE_URL.split("?")[0];
   const attempts = [
-    () => fetch(VNINDEX_TRADE_URL, { method: "POST" }),
-    () => fetch(baseUrl, {
+    () => fetch(VNINDEX_TRADE_URL, withTimeout({ method: "POST" })),
+    () => fetch(baseUrl, withTimeout({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ticker: "VNINDEX" }),
-    }),
-    () => fetch(baseUrl, {
+    })),
+    () => fetch(baseUrl, withTimeout({
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ ticker: "VNINDEX" }),
-    }),
+    })),
   ];
 
   const statuses = [];
@@ -275,11 +298,11 @@ async function fetchVnindexTrades() {
 }
 
 async function fetchVnindexTradeReal() {
-  const response = await fetch(VNINDEX_TRADE_REAL_URL, {
+  const response = await fetch(VNINDEX_TRADE_REAL_URL, withTimeout({
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(VNINDEX_TRADE_REAL_REQUEST),
-  });
+  }));
   if (!response.ok) throw new Error(`VNINDEX trade real upstream failed: ${response.status}`);
   return response.json();
 }
@@ -333,8 +356,13 @@ export async function getWaveBottomConfirmPairs() {
       });
   }
 
-  const payload = await pendingRequest;
-  return { ...payload, source: "upstream" };
+  try {
+    const payload = await pendingRequest;
+    return { ...payload, source: "upstream" };
+  } catch (error) {
+    console.warn("Wave bottom confirm pairs upstream unavailable", error);
+    return buildFallbackPayload(error);
+  }
 }
 
 export async function handleWaveBottomConfirmPairs(req, res) {
