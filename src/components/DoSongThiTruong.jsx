@@ -58,7 +58,15 @@ const NHAT_KY_C = {
   bab: "#200A0E", bad: "#3D1018", bac: "#FF2D55",
   pb: "rgba(124,58,237,.16)", pd: "#5B21B6",
 };
-const NHAT_KY_CAP = { thi_truong:"Thị trường", nganh:"Ngành", ma:"Mã" };
+const NHAT_KY_LIGHT_C = {
+  t1: "#111827", t2: "#5B6472", t4: "#8A94A6",
+  surf: "#FFFFFF", elev: "#F6F7FC", cbdr: "#DDE3EF", bdrs: "#E8ECF4",
+  B: "#7C3AED", Bd: "#7C3AED",
+  cmb: "#EAF8EF", cmd: "#BFEACF", cmc: "#16A05D",
+  cbb: "#FFF7E6", cbd: "#F3CE8B", cbc: "#D97706",
+  bab: "#FFECEF", bad: "#F5B8C3", bac: "#E11D48",
+  pb: "rgba(124,58,237,.10)", pd: "#7C3AED",
+};const NHAT_KY_CAP = { thi_truong:"Thị trường", nganh:"Ngành", ma:"Mã" };
 const NHAT_KY_TABS = [["all", "Tất cả"], ["thi_truong", "Thị trường"], ["nganh", "Ngành"], ["ma", "Mã"]];
 const EMPTY_WAVE = {
   rawDate:"",
@@ -1140,8 +1148,8 @@ function getSmdtBand(value) {
   return { bg:"#2A0E12", bd:"#4A1820", sk:"#F0555B" };
 }
 
-function NhatKyIcon({ k, smdtValue }) {
-  const C = NHAT_KY_C;
+function NhatKyIcon({ k, smdtValue, colors = NHAT_KY_C }) {
+  const C = colors;
   const iconKey = k === "smdt" ? "smdt" : k;
   const smdtBand = iconKey === "smdt" ? getSmdtBand(smdtValue) : null;
   const sk = smdtBand?.sk || (iconKey === "down" ? C.bac : iconKey === "warn" ? C.cbc : iconKey === "wave" ? C.B : C.cmc);
@@ -1199,13 +1207,13 @@ function getNhatKyTagColor(tag) {
   return "#A78BFA";
 }
 
-function NhatKyRows({ rows }) {
-  const C = NHAT_KY_C;
+function NhatKyRows({ rows, colors = NHAT_KY_C }) {
+  const C = colors;
   return rows.map((r, i) => {
     const tagColor = getNhatKyTagColor(r.capTag);
     return (
       <div key={r.id || i} style={{ display:"flex", gap:10, padding:"11px 0", borderBottom:i < rows.length - 1 ? `.5px solid ${C.bdrs}` : "none" }}>
-        <NhatKyIcon k={r.k} smdtValue={r.smdtValue} />
+        <NhatKyIcon k={r.k} smdtValue={r.smdtValue} colors={C} />
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:2, minWidth:0 }}>
             <span style={{ fontSize:13.5, fontWeight:600, color:C.t1, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.title}</span>
@@ -1218,7 +1226,7 @@ function NhatKyRows({ rows }) {
     );
   });
 }
-function NhatKy({ logs = [], onXemTatCa }) {
+function NhatKy({ logs = [], onXemTatCa, theme = "dark" }) {
   const [tab, setTab] = useState("all");
   const [expanded, setExpanded] = useState(false);
   const data = logs.map(toNhatKyRow);
@@ -1228,7 +1236,7 @@ function NhatKy({ logs = [], onXemTatCa }) {
   const collapsedLimit = 6;
   const displayList = expanded ? list : list.slice(0, collapsedLimit);
   const hasMore = list.length > collapsedLimit;
-  const C = NHAT_KY_C;
+  const C = theme === "light" ? NHAT_KY_LIGHT_C : NHAT_KY_C;
 
   const toggleExpanded = () => {
     setExpanded((value) => !value);
@@ -1240,11 +1248,11 @@ function NhatKy({ logs = [], onXemTatCa }) {
   }, [tab]);
 
   return (
-    <div style={{ background:"#0A0D14", borderRadius:14, overflow:"hidden", border:"0.5px solid #1E2A3E", fontFamily:"-apple-system, Inter, sans-serif" }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, padding:"16px 18px", borderBottom:"0.5px solid #1E2A3E" }}>
+    <div style={{ background:C.surf, borderRadius:14, overflow:"hidden", border:`0.5px solid ${C.cbdr}`, fontFamily:"-apple-system, Inter, sans-serif", boxShadow:theme === "light" ? "0 10px 28px rgba(15,23,42,.08)" : "none" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, padding:"16px 18px", borderBottom:`0.5px solid ${C.cbdr}` }}>
         <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
-          <span style={{ fontSize:16, fontWeight:700, color:"#F0F4FF", whiteSpace:"nowrap" }}>Nhật ký tín hiệu</span>
-          <span style={{ fontSize:12, color:"#5C7090", flexShrink:0 }}>{date}</span>
+          <span style={{ fontSize:16, fontWeight:700, color:C.t1, whiteSpace:"nowrap" }}>Nhật ký tín hiệu</span>
+          <span style={{ fontSize:12, color:C.t4, flexShrink:0 }}>{date}</span>
         </div>
         {hasMore && (
           <button onClick={toggleExpanded} style={{ border:"none", background:"transparent", padding:0, fontSize:12, color:C.B, fontWeight:700, cursor:"pointer", flexShrink:0 }}>
@@ -1253,7 +1261,7 @@ function NhatKy({ logs = [], onXemTatCa }) {
         )}
       </div>
 
-      <div style={{ padding:"12px 16px", borderBottom:"0.5px solid #1A2232" }}>
+      <div style={{ padding:"12px 16px", borderBottom:`0.5px solid ${C.bdrs}` }}>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 }}>
           {NHAT_KY_TABS.map(([id, label]) => {
             const on = id === tab;
@@ -1272,7 +1280,7 @@ function NhatKy({ logs = [], onXemTatCa }) {
           <div style={{ padding:"28px 0", textAlign:"center", color:C.t4, fontSize:12 }}>Chưa có tín hiệu ở cấp này trong phiên.</div>
         ) : (
           <>
-            <NhatKyRows rows={displayList} />
+            <NhatKyRows rows={displayList} colors={C} />
             {expanded && hasMore && (
               <div style={{ padding:"14px 0", textAlign:"center", fontSize:11, color:C.t4 }}>— đã hiển thị tất cả {list.length} dòng —</div>
             )}
@@ -1650,7 +1658,7 @@ export default function DoSongThiTruong() {
               <DanhMucDoSong wave={danhMucWave} countWave={realtimeDisplayWave} />
             </div>
             <div className="dosong-mobile-item dosong-order-log">
-              <NhatKy logs={stockNotiRows} />
+              <NhatKy logs={stockNotiRows} theme={theme} />
             </div>
           </div>
           </div>
