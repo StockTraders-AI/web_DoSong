@@ -175,6 +175,18 @@ function findConfirmedLowFromDate(lows, confirmQuote, nextConfirmQuote) {
   ) || null;
 }
 
+function findLowestRecentSession(rows, confirmQuote, sessionCount = 5) {
+  if (!confirmQuote) return null;
+  const start = Math.max(0, confirmQuote.index - sessionCount + 1);
+  const recentRows = rows.slice(start, confirmQuote.index + 1);
+  if (!recentRows.length) return null;
+  const lowest = recentRows.reduce(
+    (candidate, row) => row.low < candidate.low ? row : candidate,
+    recentRows[0]
+  );
+  return { ...lowest, price: lowest.low, type: "low", isRecentWindowLow: true };
+}
+
 function findLowPivot(pivots, quoteByDate, rows, pair, nextPair) {
   const lows = pivots.filter((pivot) => pivot.type === "low");
   const bottomDate = String(pair.confirm_wave_date || "");
@@ -187,6 +199,11 @@ function findLowPivot(pivots, quoteByDate, rows, pair, nextPair) {
   if (isLowerThanPreviousSession(bottomQuote, rows)) {
     if (confirmedFromBottom) return confirmedFromBottom;
     return { ...bottomQuote, price: bottomQuote.low, type: "low", isTemporary: true };
+  }
+
+  if (bottomQuote?.index === rows.length - 1) {
+    const recentLow = findLowestRecentSession(rows, bottomQuote);
+    if (recentLow) return recentLow;
   }
 
   if (!lows.length) return null;
