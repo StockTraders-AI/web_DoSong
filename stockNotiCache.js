@@ -191,12 +191,17 @@ export function startStockNotiSocket() {
     });
   });
 
-  socket.on("message", (payload) => {
+  const handleSocketPayload = (payload) => {
     const channel = getPayloadChannel(payload);
     if (channel && channel !== STOCK_NOTI_CHANNEL) return;
     cacheSocketNotifications(payload).catch((error) => {
       console.error("Write stock notification socket cache failed", error);
     });
+  };
+
+  socket.on("message", handleSocketPayload);
+  socket.on(STOCK_NOTI_CHANNEL, (payload) => {
+    handleSocketPayload({ channel: STOCK_NOTI_CHANNEL, data: payload });
   });
 
   socket.on("connect_error", (error) => {

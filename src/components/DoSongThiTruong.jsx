@@ -1366,21 +1366,27 @@ export default function DoSongThiTruong() {
       });
     });
 
-    socket.on("message", (payload) => {
-      if (!active) return;
+    const applyStockNotiPayload = (payload) => {
+      if (!active) return false;
 
       const notiData = getSocketStockNotiData(payload);
-      if (notiData) {
-        console.log("[stock-noti][socket]", { payload, data:notiData });
-        const notiRows = normalizeStockNotiRows(notiData);
-        if (notiRows.length) {
-          const activeDate = stockNotiDateRef.current || formatDateKey(new Date());
-          const matchingRows = notiRows.filter((row) => !row.rawDate || row.rawDate === activeDate);
-          if (matchingRows.length) {
-            setStockNotiRows((current) => mergeStockNotiRows(current, matchingRows));
-          }
-        }
-      }
+      if (!notiData) return false;
+
+      console.log("[stock-noti][socket]", { payload, data:notiData });
+      const notiRows = normalizeStockNotiRows(notiData);
+      if (!notiRows.length) return false;
+
+      const activeDate = stockNotiDateRef.current || formatDateKey(new Date());
+      const matchingRows = notiRows.filter((row) => !row.rawDate || row.rawDate === activeDate);
+      const rowsToMerge = matchingRows.length ? matchingRows : notiRows;
+      setStockNotiRows((current) => mergeStockNotiRows(current, rowsToMerge));
+
+      return true;
+    };
+
+    socket.on("message", (payload) => {
+      if (!active) return;
+      if (applyStockNotiPayload(payload)) return;
 
       const data = getSocketWaveData(payload);
       if (!data) return;
@@ -1390,6 +1396,10 @@ export default function DoSongThiTruong() {
 
       setLatestWave(rows[0]);
       setSignalRefreshKey((key) => key + 1);
+    });
+
+    socket.on(STOCK_NOTI_CHANNEL, (payload) => {
+      applyStockNotiPayload({ channel:STOCK_NOTI_CHANNEL, data:payload });
     });
 
 
@@ -1658,7 +1668,7 @@ export default function DoSongThiTruong() {
               <DanhMucDoSong wave={danhMucWave} countWave={realtimeDisplayWave} />
             </div>
             <div className="dosong-mobile-item dosong-order-log">
-              <NhatKy logs={stockNotiRows} theme={theme} />
+              <NhatKy logs={stockNotiRows} theme="light" />
             </div>
           </div>
           </div>
