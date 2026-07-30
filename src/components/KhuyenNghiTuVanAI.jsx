@@ -173,6 +173,30 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
 
   return (
     <div style={{ background: "linear-gradient(0deg, rgba(124,58,237,.12), rgba(124,58,237,.12)), var(--surf, #111520)", border: "1px solid #5B21B6", borderRadius: 16, padding: "16px 17px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
+        <div
+          aria-hidden="true"
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 9,
+            background: "var(--B, #7C3AED)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#FFFFFF",
+            fontSize: 16,
+            fontWeight: 800,
+            flexShrink: 0,
+            lineHeight: 1,
+          }}
+        >
+          {"\u2726"}
+        </div>
+        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".08em", color: "#C4B5FD", textTransform: "uppercase" }}>
+          Khuy{"\u1ebfn"} ngh{"\u1ecb"} t{"\u1eeb"} AI
+        </span>
+      </div>
       {title ? (
         <div style={{ fontSize: 15, fontWeight: 800, color: "var(--t1, #F0F4FF)", marginBottom: 6 }}>
           {title}

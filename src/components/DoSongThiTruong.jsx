@@ -486,7 +486,10 @@ function fetchStockNoti(dateKey = formatDateKey(new Date())) {
       if (!response.ok) throw new Error(`Stock notification failed: ${response.status}`);
       return response.json();
     })
-    .then(normalizeStockNotiRows);
+    .then((payload) => {
+      console.log("[stock-noti][cache]", { dateKey, payload });
+      return normalizeStockNotiRows(payload);
+    });
 }
 function fetchStockWaveCurrent() {
   return fetch(STOCK_WAVE_CURRENT_URL)
@@ -1360,6 +1363,7 @@ export default function DoSongThiTruong() {
 
       const notiData = getSocketStockNotiData(payload);
       if (notiData) {
+        console.log("[stock-noti][socket]", { payload, data:notiData });
         const notiRows = normalizeStockNotiRows(notiData);
         if (notiRows.length) {
           const activeDate = stockNotiDateRef.current || formatDateKey(new Date());
