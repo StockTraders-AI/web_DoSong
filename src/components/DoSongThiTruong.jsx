@@ -535,9 +535,10 @@ function getHistoryUrl(referenceDate) {
   return url.toString();
 }
 
-function fetchStockWaveHistory(referenceDate) {
+function fetchStockWaveHistory(referenceDate, force = false) {
+  if (force) stockWaveHistoryRequests.delete(referenceDate);
   if (!stockWaveHistoryRequests.has(referenceDate)) {
-    const request = fetch(getHistoryUrl(referenceDate))
+    const request = fetch(getHistoryUrl(referenceDate), { cache: "no-store" })
       .then((response) => {
         if (!response.ok) throw new Error(`Stock wave history failed: ${response.status}`);
         return response.json();
@@ -584,9 +585,10 @@ function fetchStockWaveTickers(cacheKey = "latest") {
 
   return stockWaveTickerRequests.get(cacheKey);
 }
-function fetchWaveBottomConfirmPairs() {
+function fetchWaveBottomConfirmPairs(force = false) {
+  if (force) waveBottomConfirmPairsRequest = null;
   if (!waveBottomConfirmPairsRequest) {
-    waveBottomConfirmPairsRequest = fetch(WAVE_BOTTOM_CONFIRM_PAIRS_URL, { method: "POST" })
+    waveBottomConfirmPairsRequest = fetch(WAVE_BOTTOM_CONFIRM_PAIRS_URL, { method: "POST", cache: "no-store" })
       .then((response) => {
         if (!response.ok) throw new Error(`Wave bottom confirm pairs failed: ${response.status}`);
         return response.json();
@@ -701,7 +703,7 @@ function toHistorySampleDay(row) {
   };
 }
 
-function HistNavigator({ data, totalDays: apiTotalDays, theme = "dark", loading = false }) {
+function HistNavigator({ data, totalDays: apiTotalDays, theme = "dark", loading = false, onRefresh = null }) {
   const [page, setPage] = useState(1);
   const perPage = 3;
   const totalDays = apiTotalDays || data.length;
@@ -724,6 +726,7 @@ function HistNavigator({ data, totalDays: apiTotalDays, theme = "dark", loading 
       onPage={setPage}
       theme={theme}
       loading={loading}
+      onTitleRefresh={onRefresh}
     />
   );
 }
@@ -834,7 +837,7 @@ function DanhMucDoSong({ wave = EMPTY_WAVE, countWave = wave }) {
 // ─────────────────────────────────────────────────────────────
 // LỊCH SỬ CHÂN SÓNG
 // ─────────────────────────────────────────────────────────────
-function ChanSong({ data = [] }) {
+function ChanSong({ data = [], onRefresh = null }) {
   const [showAll, setShowAll] = useState(false);
 
   const sortedRows = [...data].sort((a, b) =>
@@ -928,7 +931,7 @@ function ChanSong({ data = [] }) {
             margin: 0,
           }}
         >
-          <span>Lịch sử chân sóng</span>
+          <span><span onClick={onRefresh || undefined} title="Tải lại lịch sử chân sóng" style={{ cursor: onRefresh ? "pointer" : "inherit" }}>Lịch</span> sử chân sóng</span>
         </div>
 
         <span
@@ -1367,6 +1370,31 @@ export default function DoSongThiTruong() {
     [...historySource, mainDonutDisplayWave],
     selectedMainDonutWave.rawDate,
   ), [historySource, mainDonutDisplayWave, selectedMainDonutWave.rawDate]);
+  function refreshHistoryFromTitle() {
+    if (!latestWave.rawDate) return;
+    setHistoryLoading(true);
+    fetchStockWaveHistory(latestWave.rawDate, true)
+      .then(({ rows, allRows }) => {
+        setHistoryWaves(rows);
+        setHistoryAllWaves(allRows?.length ? allRows : rows);
+      })
+      .catch((error) => {
+        console.error("Reload stock wave history failed", error);
+      })
+      .finally(() => {
+        setHistoryLoading(false);
+      });
+  }
+
+  function refreshChanSongFromTitle() {
+    fetchWaveBottomConfirmPairs(true)
+      .then((rows) => {
+        setChanSongRows(rows);
+      })
+      .catch((error) => {
+        console.error("Reload wave bottom confirm pairs failed", error);
+      });
+  }
 
   useEffect(() => {
     let active = true;
@@ -1691,12 +1719,12 @@ export default function DoSongThiTruong() {
 
             {/* Lịch sử dò sóng */}
             <div className="dosong-mobile-item dosong-order-history">
-              <HistNavigator data={selectedHistoryDisplayWaves} totalDays={selectedHistoryDisplayWaves.length} theme={theme} loading={historyLoading} />
+              <HistNavigator data={selectedHistoryDisplayWaves} totalDays={selectedHistoryDisplayWaves.length} theme={theme} loading={historyLoading} onRefresh={refreshHistoryFromTitle} />
             </div>
 
             {/* Lịch sử chân sóng */}
             <div className="dosong-mobile-item dosong-order-chan">
-              <ChanSong data={selectedChanSongRows} />
+              <ChanSong data={selectedChanSongRows} onRefresh={refreshChanSongFromTitle} />
             </div>
           </div>
 

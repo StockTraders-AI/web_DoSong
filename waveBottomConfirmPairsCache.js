@@ -12,7 +12,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = path.join(__dirname, ".stock-wave-cache");
 const CACHE_FILE_PREFIX = "wave-bottom-confirm-pairs";
 const UPSTREAM_TIMEOUT_MS = Number(process.env.WAVE_BOTTOM_UPSTREAM_TIMEOUT_MS || 120000);
-const ACTIVE_CACHE_TTL_MS = Number(process.env.WAVE_BOTTOM_ACTIVE_CACHE_TTL_MS || 60000);
 const ZIGZAG_THRESHOLD = 0.052;
 const MARKET_TIME_ZONE = "Asia/Bangkok";
 const REFRESH_SCHEDULE = [
@@ -86,11 +85,6 @@ function isValidCachePayload(payload) {
     payload.cacheVersion === CACHE_VERSION &&
     Array.isArray(payload.rows)
   );
-}
-
-function isFreshCachePayload(payload, ttlMs = ACTIVE_CACHE_TTL_MS) {
-  const cachedAt = Date.parse(payload?.cachedAt || "");
-  return Number.isFinite(cachedAt) && Date.now() - cachedAt < ttlMs;
 }
 
 function withSource(payload, source, extra = {}) {
@@ -626,21 +620,40 @@ export async function getWaveBottomConfirmPairs() {
   };
 
   if (cacheKey && memoryCache && memoryCacheKey === cacheKey && memoryCache.cacheVersion === CACHE_VERSION && Array.isArray(memoryCache.rows)) {
-    if (!activeSlot || isFreshCachePayload(memoryCache)) return withSource(memoryCache, "memory");
-    return refreshNow(memoryCache, "stale-memory");
+    if (activeSlot) {
+      startWaveBottomRefresh(upstreamCacheKey).catch((error) => {
+        console.warn("Wave bottom confirm pairs background refresh failed", error);
+      });
+      return withSource(memoryCache, "memory-refreshing", { refreshing: true });
+    }
+    return withSource(memoryCache, "memory");
   }
 
   if (cacheKey) {
     const slotDiskCache = await readDailyCache(cacheKey);
     if (slotDiskCache) {
-      if (!activeSlot || isFreshCachePayload(slotDiskCache)) return withSource(slotDiskCache, "disk");
-      return refreshNow(slotDiskCache, "stale-disk");
+      if (activeSlot) {
+        startWaveBottomRefresh(upstreamCacheKey).catch((error) => {
+          console.warn("Wave bottom confirm pairs background refresh failed", error);
+        });
+        return withSource(slotDiskCache, "disk-refreshing", { refreshing: true });
+      }
+      return withSource(slotDiskCache, "disk");
     }
   }
 
   const latestDiskCache = await readLatestDiskCache();
   if (latestDiskCache) {
-    if (activeSlot) return refreshNow(latestDiskCache, "stale-disk");
+    if (activeSlot) {
+      startWaveBottomRefresh(upstreamCacheKey).catch((error) => {
+        console.warn("Wave bottom confirm pairs background refresh failed", error);
+      });
+      return withSource(latestDiskCache, "stale-disk-refreshing", {
+        stale: true,
+        refreshing: true,
+        targetCacheKey: upstreamCacheKey,
+      });
+    }
     return withSource(latestDiskCache, "stale-disk-before0915", {
       stale: true,
       nextRefreshTime: nextRefresh?.label || "09:15",
@@ -649,7 +662,17 @@ export async function getWaveBottomConfirmPairs() {
 
   const legacyDiskCache = await readLatestLegacyDiskCache();
   if (legacyDiskCache) {
-    if (activeSlot) return refreshNow(legacyDiskCache, "legacy-disk", { legacyCache: true });
+    if (activeSlot) {
+      startWaveBottomRefresh(upstreamCacheKey).catch((error) => {
+        console.warn("Wave bottom confirm pairs background refresh failed", error);
+      });
+      return withSource(legacyDiskCache, "legacy-disk-refreshing", {
+        stale: true,
+        legacyCache: true,
+        refreshing: true,
+        targetCacheKey: upstreamCacheKey,
+      });
+    }
     return withSource(legacyDiskCache, "legacy-disk-before0915", {
       stale: true,
       legacyCache: true,

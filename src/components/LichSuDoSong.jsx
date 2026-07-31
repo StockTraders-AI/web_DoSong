@@ -303,6 +303,7 @@ export default function LichSuDoSong({
   onPage = () => {},
   loading = false,
   theme = "dark",
+  onTitleRefresh = null,
 }) {
   const themeTokens = THEMES[theme] || THEMES.dark;
   const viewDays = days.map((day) => ({
@@ -325,7 +326,7 @@ export default function LichSuDoSong({
         <div style={styles.header}>
           <div style={styles.title}>
             <i className="ti ti-clock" style={{ color: themeTokens.muted }} aria-hidden="true" />
-            Lịch sử dò sóng
+            <span onClick={onTitleRefresh || undefined} title="Tải lại lịch sử dò sóng" style={{ cursor: onTitleRefresh ? "pointer" : "inherit" }}>Lịch</span> sử dò sóng
           </div>
           <Pager page={page} totalDays={totalDays} pageCount={pageCount} perPage={perPage} onPage={onPage} themeTokens={themeTokens} />
         </div>
