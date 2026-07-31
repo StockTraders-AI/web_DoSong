@@ -7,7 +7,7 @@ import { sendJson } from "./stockWaveHistoryCache.js";
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
 const VNINDEX_TRADE_REAL_URL = process.env.VNINDEX_TRADE_REAL_URL || "https://stocktraders.vn/service/data/getTotalTradeReal";
-const CACHE_VERSION = 15;
+const CACHE_VERSION = 16;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = path.join(__dirname, ".stock-wave-cache");
 const CACHE_FILE_PREFIX = "wave-bottom-confirm-pairs";
@@ -271,10 +271,11 @@ function buildZigzagPivots(rows, threshold = ZIGZAG_THRESHOLD) {
   return pivots;
 }
 
-function isLowerThanPreviousSession(row, rows) {
+function isLowestThanPreviousSessions(row, rows, sessionCount = 5) {
   if (!row || row.index <= 0) return false;
-  const previous = rows[row.index - 1];
-  return previous && row.low < previous.low;
+  const start = Math.max(0, row.index - sessionCount);
+  const previousRows = rows.slice(start, row.index);
+  return previousRows.length > 0 && previousRows.every((previous) => row.low <= previous.low);
 }
 
 function findLowestRecentSession(rows, confirmQuote, sessionCount = 5) {
@@ -296,7 +297,7 @@ function findLowPivot(pivots, quoteByDate, rows, pair) {
   const exactBottom = lows.find((pivot) => pivot.date === bottomDate);
   if (exactBottom) return exactBottom;
 
-  if (isLowerThanPreviousSession(bottomQuote, rows)) {
+  if (isLowestThanPreviousSessions(bottomQuote, rows)) {
     return { ...bottomQuote, price: bottomQuote.low, type: "low", isTemporary: true };
   }
 
