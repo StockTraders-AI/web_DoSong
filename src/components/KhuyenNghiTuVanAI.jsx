@@ -81,24 +81,10 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
     async function loadConditionResponse(attempt = 1) {
       try {
         if (doSongAdvice === null) {
-          console.warn("KHUYEN_NGHI_DOSONG_WAITING", {
-            checkDate,
-            reason: "waiting_for_history_or_previous_session",
-            attempt,
-          });
           if (!cancelled && attempt + 1 < retryDelays.length) scheduleLoad(attempt + 1);
         }
 
         if (doSongAdvice?.engine) {
-          console.warn("KHUYEN_NGHI_DOSONG_REQUEST", {
-            checkDate: checkDate || doSongAdvice.check_date || "",
-            maTrangThai: doSongAdvice.engine?.maTrangThai,
-            pha: doSongAdvice.engine?.pha,
-            signal_keys: doSongAdvice.signal_keys || [],
-            previous_date: doSongAdvice.previous_date || "",
-            source_date_count: Array.isArray(doSongAdvice.source_dates) ? doSongAdvice.source_dates.length : 0,
-            wave: doSongAdvice.wave || {},
-          });
           const res = await fetch("/api/do-song-advice", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -130,8 +116,6 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
               response: engineSignal.response,
               recommendation: engineSignal.recommendation,
             };
-            window.__KHUYEN_NGHI_DOSONG_RESPONSE__ = responseDebug;
-            console.warn("KHUYEN_NGHI_DOSONG_RESPONSE", responseDebug);
             if (hasSignalContent(engineSignal)) {
               if (!cancelled) {
                 cacheLastSignal(engineSignal);

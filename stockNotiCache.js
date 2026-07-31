@@ -16,6 +16,7 @@ const MAX_ROWS_PER_DATE = 500;
 
 let memoryStore = null;
 let socketStarted = false;
+const stockNotiClients = new Set();
 
 function toLocalDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -141,7 +142,9 @@ async function cacheStockNotiRows(dateKey, rows, source) {
   store.latestDate = [store.latestDate, dateKey].filter(Boolean).sort().pop() || dateKey;
   store.updatedAt = new Date().toISOString();
   await writeStore(store);
-  return store.byDate[dateKey];
+  const cached = store.byDate[dateKey];
+  broadcastStockNoti(cached);
+  return cached;
 }
 
 async function cacheSocketNotifications(payload) {
@@ -209,6 +212,36 @@ function responseForDate(store, dateKey) {
   };
 }
 
+function writeStockNotiEvent(res, event, payload) {
+  res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+function broadcastStockNoti(payload) {
+  for (const res of stockNotiClients) {
+    try {
+      writeStockNotiEvent(res, "stock-noti", payload);
+    } catch {
+      stockNotiClients.delete(res);
+    }
+  }
+}
+
+function handleStockNotiStream(req, res) {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+  writeStockNotiEvent(res, "ready", { success: true, channel: STOCK_NOTI_CHANNEL });
+  stockNotiClients.add(res);
+  req.on("close", () => {
+    stockNotiClients.delete(res);
+  });
+}
+
+
 export function startStockNotiSocket() {
   if (socketStarted) return;
   socketStarted = true;
@@ -244,6 +277,11 @@ export function startStockNotiSocket() {
 
 export async function handleStockNoti(req, res, rawUrl) {
   const url = new URL(rawUrl || req.url, `http://${req.headers.host || "localhost"}`);
+  if (req.method === "GET" && url.pathname === "/api/stock-noti/stream") {
+    handleStockNotiStream(req, res);
+    return true;
+  }
+
   if (req.method !== "GET" || url.pathname !== "/api/stock-noti") return false;
 
   const requestedDate = url.searchParams.get("date") || toLocalDateKey();

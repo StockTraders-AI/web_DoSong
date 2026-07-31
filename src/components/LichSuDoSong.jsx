@@ -122,14 +122,14 @@ function Donut({ vals, total, dbg, themeTokens }) {
 
 function LoadingDayCard({ themeTokens }) {
   return (
-    <div style={{ ...styles.loadingCard, background: themeTokens.emptyBg, borderColor: themeTokens.dayBorder }}>
+    <div className="lsds-loading-card" style={{ ...styles.loadingCard, background: themeTokens.emptyBg, borderColor: themeTokens.dayBorder }}>
       <div style={styles.loadingDateRow}>
         <span className="wtds-sk wtds-sk-pill" style={{ width: 46, height: 13 }} />
         <span className="wtds-sk wtds-sk-pill" style={{ width: 24, height: 10, marginTop: 5 }} />
       </div>
 
-      <div className="wtds-donut-wrap" style={styles.loadingDonutWrap}>
-        <svg width={124} height={124} viewBox="0 0 160 160" aria-hidden="true" style={styles.loadingDonut}>
+      <div className="wtds-donut-wrap lsds-loading-donut-wrap" style={styles.loadingDonutWrap}>
+        <svg className="lsds-loading-donut" width={124} height={124} viewBox="0 0 160 160" aria-hidden="true" style={styles.loadingDonut}>
           <circle className="wtds-donut-stroke-sk" cx={80} cy={80} r={68} fill="none" stroke={themeTokens.skBase} strokeWidth={16} />
           <circle cx={80} cy={80} r={41} fill={themeTokens.emptyBg} />
         </svg>
@@ -138,9 +138,9 @@ function LoadingDayCard({ themeTokens }) {
         </div>
       </div>
 
-      <div style={styles.loadingMetricGrid}>
+      <div className="lsds-loading-metric-grid" style={styles.loadingMetricGrid}>
         {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} style={{ ...styles.loadingMetric, background: themeTokens.metric, borderColor: themeTokens.metricBorder }}>
+          <div key={index} className="lsds-loading-metric" style={{ ...styles.loadingMetric, background: themeTokens.metric, borderColor: themeTokens.metricBorder }}>
             <span className="wtds-sk wtds-sk-pill" style={{ width: 58, height: 14 }} />
           </div>
         ))}

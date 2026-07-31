@@ -43,6 +43,7 @@ const STOCK_WAVE_HISTORY_URL = import.meta.env.VITE_STOCK_WAVE_HISTORY_URL || "/
 const STOCK_WAVE_TICKERS_URL = import.meta.env.VITE_STOCK_WAVE_TICKERS_URL || "/api/stock-wave-tickers";
 const WAVE_BOTTOM_CONFIRM_PAIRS_URL = import.meta.env.VITE_WAVE_BOTTOM_CONFIRM_PAIRS_URL || "/api/wave-bottom-confirm-pairs";
 const STOCK_NOTI_URL = import.meta.env.VITE_STOCK_NOTI_URL || "/api/stock-noti";
+const STOCK_NOTI_STREAM_URL = import.meta.env.VITE_STOCK_NOTI_STREAM_URL || "/api/stock-noti/stream";
 const REALTIME_WAVE_URL =
   import.meta.env.VITE_REALTIME_WAVE_URL ||
   import.meta.env.VITE_REALTIME_URL ||
@@ -278,7 +279,6 @@ function buildDoSongAdvice(rows, selectedDate) {
         nearest_engine: nearestEnabledEngine,
       };
       window.__DOSONG_DEBUG__ = debugState;
-      console.warn("DOSONG_ENGINE_STATE", debugState);
     }
     if (!DISABLED_DOSONG_STATES.has(String(engine.maTrangThai || "").toLowerCase())) {
       nearestEnabledEngine = engine;
@@ -497,7 +497,6 @@ function fetchStockNoti(dateKey = formatDateKey(new Date())) {
       return response.json();
     })
     .then((payload) => {
-      console.log("[stock-noti][cache]", { dateKey, payload });
       return normalizeStockNotiRows(payload);
     });
 }
@@ -1383,8 +1382,6 @@ export default function DoSongThiTruong() {
 
       const notiData = getSocketStockNotiData(payload);
       if (!notiData) return false;
-
-      console.log("[stock-noti][socket]", { payload, data:notiData });
       const notiRows = normalizeStockNotiRows(notiData);
       if (!notiRows.length) return false;
 
@@ -1414,6 +1411,19 @@ export default function DoSongThiTruong() {
       applyStockNotiPayload({ channel:STOCK_NOTI_CHANNEL, data:payload });
     });
 
+    const stockNotiStream = typeof EventSource !== "undefined"
+      ? new EventSource(STOCK_NOTI_STREAM_URL)
+      : null;
+
+    stockNotiStream?.addEventListener("stock-noti", (event) => {
+      if (!active) return;
+      try {
+        const payload = JSON.parse(event.data);
+        applyStockNotiPayload({ channel:STOCK_NOTI_CHANNEL, data:payload });
+      } catch (error) {
+        console.error("Parse stock-noti stream failed", error);
+      }
+    });
 
     socket.on("connect_error", (error) => {
       console.error("Realtime wave socket failed", error);
@@ -1422,6 +1432,7 @@ export default function DoSongThiTruong() {
     return () => {
       active = false;
       socket.disconnect();
+      stockNotiStream?.close();
     };
   }, []);
 
@@ -1547,7 +1558,11 @@ export default function DoSongThiTruong() {
           .lsds-metric-grid{gap:4px !important; margin:5px 0 7px !important}
           .lsds-metric{gap:4px !important; border-radius:7px !important; padding:5px 4px !important; min-width:0 !important}
           .lsds-metric-value{font-size:12px !important}
-          .lsds-loading-card{padding:9px 6px !important}
+          .lsds-loading-card{padding:10px 6px !important; border-radius:12px !important}
+          .lsds-loading-donut-wrap{width:88px !important; height:88px !important; margin:6px auto 3px !important}
+          .lsds-loading-donut{width:88px !important; height:88px !important}
+          .lsds-loading-metric-grid{gap:4px !important; margin:5px 0 7px !important}
+          .lsds-loading-metric{border-radius:7px !important; padding:6px 4px !important; min-width:0 !important}
         }
         @media (max-width: 560px){
           .dosong-main{padding-left:10px !important; padding-right:10px !important}
