@@ -322,13 +322,19 @@ function getTickerBranch(item) {
 
 function normalizeTickerRows(items) {
   if (!Array.isArray(items)) return [];
-  return items.map((item) => ({
-    ma:item.ticker || item.ma || "-",
-    nganh:getTickerBranch(item),
-    gia:formatTickerNumber(item.close ?? item.gia ?? item.price),
-    vol:formatTickerVolume(item.vol ?? item.volume),
-    tc:Math.max(0, Math.min(100, toNumber(item.reliability ?? item.tc))),
-  }));
+  return items
+    .map((item) => {
+      const rawVolume = toNumber(item.vol ?? item.volume);
+      return {
+        ma:item.ticker || item.ma || "-",
+        nganh:getTickerBranch(item),
+        gia:formatTickerNumber(item.close ?? item.gia ?? item.price),
+        vol:formatTickerVolume(rawVolume),
+        volRaw:rawVolume,
+        tc:Math.max(0, Math.min(100, toNumber(item.reliability ?? item.tc))),
+      };
+    })
+    .sort((a, b) => b.volRaw - a.volRaw);
 }
 
 function getWaveRows(payload) {

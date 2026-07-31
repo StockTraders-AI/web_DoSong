@@ -1,13 +1,20 @@
+import { existsSync } from "node:fs";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { sendJson } from "./stockWaveHistoryCache.js";
 
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
 const VNINDEX_TRADE_REAL_URL = process.env.VNINDEX_TRADE_REAL_URL || "https://stocktraders.vn/service/data/getTotalTradeReal";
 const CACHE_VERSION = 14;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CACHE_DIR = path.join(__dirname, ".stock-wave-cache");
+const CACHE_FILE_PREFIX = "wave-bottom-confirm-pairs";
 const UPSTREAM_TIMEOUT_MS = Number(process.env.WAVE_BOTTOM_UPSTREAM_TIMEOUT_MS || 120000);
 const ZIGZAG_THRESHOLD = 0.052;
 const MARKET_TIME_ZONE = "Asia/Bangkok";
-const END_OF_DAY_CHECK_HOUR = 18;
+const DAILY_REFRESH_HOUR = 10;
 const PAIRS_REQUEST = { dateFrom: null, dateTo: null, count: 4 };
 const VNINDEX_TRADE_REAL_REQUEST = { TotalTradeRealRequest: { account: "stocktraders2013" } };
 let memoryCache = null;
@@ -35,9 +42,24 @@ function getMarketDateKey(date = new Date()) {
 }
 
 function getCacheKey(date = new Date()) {
-  const { date: marketDate, hour } = getMarketNowParts(date);
-  const checkPhase = hour >= END_OF_DAY_CHECK_HOUR ? "after18" : "before18";
-  return `${marketDate}-${checkPhase}`;
+  return getMarketDateKey(date);
+}
+
+function getCacheFilePath(dateKey) {
+  return path.join(CACHE_DIR, `${CACHE_FILE_PREFIX}-${dateKey}.json`);
+}
+
+function isValidCachePayload(payload) {
+  return Boolean(
+    payload &&
+    payload.success === true &&
+    payload.cacheVersion === CACHE_VERSION &&
+    Array.isArray(payload.rows)
+  );
+}
+
+function withSource(payload, source, extra = {}) {
+  return { ...payload, ...extra, source };
 }
 
 function getPairs(payload) {
@@ -62,22 +84,59 @@ function withTimeout(options = {}) {
   return { ...options, signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) };
 }
 
-function writeMemoryCache(rows) {
+function setMemoryCache(payload, cacheKey = getCacheKey()) {
+  memoryCache = payload;
+  memoryCacheKey = cacheKey;
+  return payload;
+}
+
+async function writeDailyCache(rows, cacheKey = getCacheKey()) {
   const payload = {
     success: true,
     cacheVersion: CACHE_VERSION,
+    cacheKey,
     cachedAt: new Date().toISOString(),
     rows,
   };
-  memoryCache = payload;
-  memoryCacheKey = getCacheKey();
-  return payload;
+  await mkdir(CACHE_DIR, { recursive: true });
+  await writeFile(getCacheFilePath(cacheKey), JSON.stringify(payload, null, 2), "utf8");
+  return setMemoryCache(payload, cacheKey);
+}
+
+async function readDailyCache(cacheKey) {
+  if (!cacheKey) return null;
+  try {
+    const payload = JSON.parse(await readFile(getCacheFilePath(cacheKey), "utf8"));
+    if (!isValidCachePayload(payload)) return null;
+    return setMemoryCache({ ...payload, cacheKey: payload.cacheKey || cacheKey }, cacheKey);
+  } catch {
+    return null;
+  }
+}
+
+async function readLatestDiskCache() {
+  try {
+    if (!existsSync(CACHE_DIR)) return null;
+    const files = (await readdir(CACHE_DIR))
+      .filter((file) => file.startsWith(`${CACHE_FILE_PREFIX}-`) && file.endsWith(".json"))
+      .sort()
+      .reverse();
+
+    for (const file of files) {
+      const cacheKey = file.slice(CACHE_FILE_PREFIX.length + 1, -".json".length);
+      const payload = await readDailyCache(cacheKey);
+      if (payload) return payload;
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 function buildFallbackPayload(error) {
   const warning = error?.message || "Cannot refresh wave bottom confirm pairs.";
   if (memoryCache && memoryCache.cacheVersion === CACHE_VERSION) {
-    return { ...memoryCache, source: "stale-memory", stale: true, warning };
+    return withSource(memoryCache, "stale-memory", { stale: true, warning });
   }
 
   return {
@@ -308,8 +367,24 @@ async function fetchVnindexTradeReal() {
 }
 
 export async function getWaveBottomConfirmPairs() {
-  const cacheKey = getCacheKey();
-  if (memoryCache && memoryCacheKey === cacheKey && memoryCache.cacheVersion === CACHE_VERSION) return { ...memoryCache, source: "memory" };
+  const { date: cacheKey, hour } = getMarketNowParts();
+
+  if (memoryCache && memoryCacheKey === cacheKey && memoryCache.cacheVersion === CACHE_VERSION) {
+    return withSource(memoryCache, "memory");
+  }
+
+  const todayDiskCache = await readDailyCache(cacheKey);
+  if (todayDiskCache) return withSource(todayDiskCache, "disk");
+
+  if (hour < DAILY_REFRESH_HOUR) {
+    const latestDiskCache = await readLatestDiskCache();
+    if (latestDiskCache) {
+      return withSource(latestDiskCache, "stale-disk-before10", {
+        stale: latestDiskCache.cacheKey !== cacheKey,
+        nextRefreshHour: DAILY_REFRESH_HOUR,
+      });
+    }
+  }
 
   if (!pendingRequest) {
     pendingRequest = Promise.all([
@@ -349,7 +424,7 @@ export async function getWaveBottomConfirmPairs() {
             reliability: toNumber(pair.reliability),
           };
         });
-        return writeMemoryCache(rows);
+        return writeDailyCache(rows, cacheKey);
       })
       .finally(() => {
         pendingRequest = null;
@@ -358,13 +433,19 @@ export async function getWaveBottomConfirmPairs() {
 
   try {
     const payload = await pendingRequest;
-    return { ...payload, source: "upstream" };
+    return withSource(payload, "upstream");
   } catch (error) {
     console.warn("Wave bottom confirm pairs upstream unavailable", error);
+    const latestDiskCache = await readLatestDiskCache();
+    if (latestDiskCache) {
+      return withSource(latestDiskCache, "stale-disk", {
+        stale: true,
+        warning: error?.message || "Cannot refresh wave bottom confirm pairs.",
+      });
+    }
     return buildFallbackPayload(error);
   }
 }
-
 export async function handleWaveBottomConfirmPairs(req, res) {
   try {
     sendJson(res, 200, await getWaveBottomConfirmPairs());
