@@ -7,7 +7,7 @@ import { sendJson } from "./stockWaveHistoryCache.js";
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
 const VNINDEX_TRADE_REAL_URL = process.env.VNINDEX_TRADE_REAL_URL || "https://stocktraders.vn/service/data/getTotalTradeReal";
-const CACHE_VERSION = 23;
+const CACHE_VERSION = 24;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = path.join(__dirname, ".stock-wave-cache");
 const CACHE_FILE_PREFIX = "wave-bottom-confirm-pairs";
@@ -182,12 +182,14 @@ function findTradeRows(value, depth = 0) {
     value.items,
     value.list,
     value.stockTrades,
+    value.stockTotalReals,
     value.totalTrades,
     value.tradeRows,
     value.TotalTradeReply,
     value.TotalTradeRealReply,
     value.TotalTradeRealReply?.rows,
     value.TotalTradeRealReply?.stockTrades,
+    value.TotalTradeRealReply?.stockTotalReals,
     value.TotalTradeRealReply?.totalTrades,
   ];
 
