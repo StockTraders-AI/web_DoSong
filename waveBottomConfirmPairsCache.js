@@ -7,7 +7,7 @@ import { sendJson } from "./stockWaveHistoryCache.js";
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
 const VNINDEX_TRADE_REAL_URL = process.env.VNINDEX_TRADE_REAL_URL || "https://stocktraders.vn/service/data/getTotalTradeReal";
-const CACHE_VERSION = 17;
+const CACHE_VERSION = 18;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = path.join(__dirname, ".stock-wave-cache");
 const CACHE_FILE_PREFIX = "wave-bottom-confirm-pairs";
@@ -79,7 +79,12 @@ function getCacheFilePath(dateKey) {
 }
 
 function isValidCachePayload(payload) {
-  return Boolean(payload && payload.success === true && Array.isArray(payload.rows));
+  return Boolean(
+    payload &&
+    payload.success === true &&
+    payload.cacheVersion === CACHE_VERSION &&
+    Array.isArray(payload.rows)
+  );
 }
 
 function withSource(payload, source, extra = {}) {
@@ -159,7 +164,7 @@ async function readLatestDiskCache() {
 
 function buildFallbackPayload(error) {
   const warning = error?.message || "Cannot refresh wave bottom confirm pairs.";
-  if (memoryCache && Array.isArray(memoryCache.rows)) {
+  if (memoryCache && memoryCache.cacheVersion === CACHE_VERSION && Array.isArray(memoryCache.rows)) {
     return withSource(memoryCache, "stale-memory", { stale: true, warning });
   }
 
@@ -440,7 +445,7 @@ export async function getWaveBottomConfirmPairs() {
   const { date: cacheDate, cacheKey, activeSlot, nextRefresh } = getRefreshState();
   const upstreamCacheKey = cacheKey || `${cacheDate}-pre0915`;
 
-  if (cacheKey && memoryCache && memoryCacheKey === cacheKey && Array.isArray(memoryCache.rows)) {
+  if (cacheKey && memoryCache && memoryCacheKey === cacheKey && memoryCache.cacheVersion === CACHE_VERSION && Array.isArray(memoryCache.rows)) {
     return withSource(memoryCache, "memory");
   }
 
