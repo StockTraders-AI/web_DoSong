@@ -1,8 +1,15 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { sendJson } from "./stockWaveHistoryCache.js";
 
 const STOCK_WAVE_API_URL = process.env.STOCK_WAVE_API_URL || "https://stocktraders.vn/service/data/getStockWave";
 const STOCK_WAVE_ACCOUNT = process.env.STOCK_WAVE_ACCOUNT || "thao.dtt";
 const TICKERS_REQUEST = { StockWaveRequest: { account: STOCK_WAVE_ACCOUNT } };
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CACHE_DIR = path.join(__dirname, ".stock-wave-cache");
+const CACHE_VERSION = 2;
+const TICKERS_CACHE_PATH = path.join(CACHE_DIR, "tickers-latest.json");
 const memoryCache = new Map();
 const pendingRequests = new Map();
 
@@ -27,16 +34,68 @@ function getRawDate(row) {
   return String(row?.date || row?.tradingDate || row?.ngay || "");
 }
 
-function writeMemoryCache(cacheKey, date, row) {
+function findTickerRow(rows, date) {
+  const sortedRows = rows
+    .filter((item) => getRawDate(item))
+    .sort((a, b) => getRawDate(b).localeCompare(getRawDate(a)));
+  return date ? sortedRows.find((item) => getRawDate(item) <= date) || null : sortedRows[0] || null;
+}
+
+function writeMemoryCache(cacheKey, date, row, sourceRows = []) {
   const payload = {
     success: true,
+    cacheVersion: CACHE_VERSION,
     date,
     cachedAt: new Date().toISOString(),
     row,
     rows: row ? [row] : [],
+    sourceRows,
   };
   memoryCache.set(cacheKey, payload);
   return payload;
+}
+
+async function writeDiskCache(sourceRows) {
+  const payload = {
+    success: true,
+    cacheVersion: CACHE_VERSION,
+    cachedAt: new Date().toISOString(),
+    rows: sourceRows,
+  };
+  await mkdir(CACHE_DIR, { recursive: true });
+  await writeFile(TICKERS_CACHE_PATH, JSON.stringify(payload), "utf8");
+  return payload;
+}
+
+async function readDiskCache() {
+  try {
+    const payload = JSON.parse(await readFile(TICKERS_CACHE_PATH, "utf8"));
+    if (payload?.success !== true || payload.cacheVersion !== CACHE_VERSION || !Array.isArray(payload.rows)) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function buildPayloadFromRows(cacheKey, date, sourceRows, stale = false, warning = "") {
+  const row = findTickerRow(sourceRows, date);
+  const payload = writeMemoryCache(cacheKey, date || getRawDate(row), row, sourceRows);
+  return stale ? { ...payload, stale: true, warning } : payload;
+}
+
+async function fetchTickerRows() {
+  const response = await fetch(STOCK_WAVE_API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(TICKERS_REQUEST),
+  });
+  if (!response.ok) throw new Error(`Stock wave tickers upstream failed: ${response.status}`);
+  const payload = await response.json();
+  const rows = getWaveRows(payload)
+    .filter((item) => getRawDate(item))
+    .sort((a, b) => getRawDate(b).localeCompare(getRawDate(a)));
+  await writeDiskCache(rows);
+  return rows;
 }
 
 export async function getStockWaveTickers(date) {
@@ -51,27 +110,13 @@ export async function getStockWaveTickers(date) {
 
   if (memoryCache.has(cacheKey)) {
     const cached = memoryCache.get(cacheKey);
-    if (!cached?.cacheVersion && cached?.row) return { ...cached, source: "memory" };
+    if (cached?.cacheVersion === CACHE_VERSION && cached?.row) return { ...cached, source: "memory" };
     memoryCache.delete(cacheKey);
   }
 
   if (!pendingRequests.has(cacheKey)) {
-    const request = fetch(STOCK_WAVE_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(TICKERS_REQUEST),
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`Stock wave tickers upstream failed: ${response.status}`);
-        const payload = await response.json();
-        const rows = getWaveRows(payload)
-          .filter((item) => getRawDate(item))
-          .sort((a, b) => getRawDate(b).localeCompare(getRawDate(a)));
-        const row = hasDate
-          ? rows.find((item) => getRawDate(item) <= date) || null
-          : rows[0] || null;
-        return writeMemoryCache(cacheKey, hasDate ? date : getRawDate(row), row);
-      })
+    const request = fetchTickerRows()
+      .then((rows) => buildPayloadFromRows(cacheKey, hasDate ? date : "", rows))
       .finally(() => {
         pendingRequests.delete(cacheKey);
       });
@@ -79,8 +124,17 @@ export async function getStockWaveTickers(date) {
     pendingRequests.set(cacheKey, request);
   }
 
-  const payload = await pendingRequests.get(cacheKey);
-  return { ...payload, source: "upstream" };
+  try {
+    const payload = await pendingRequests.get(cacheKey);
+    return { ...payload, source: "upstream" };
+  } catch (error) {
+    const diskCache = await readDiskCache();
+    if (diskCache) {
+      const payload = buildPayloadFromRows(cacheKey, hasDate ? date : "", diskCache.rows, true, error.message || "Cannot refresh stock wave tickers.");
+      return { ...payload, source: "stale-disk" };
+    }
+    throw error;
+  }
 }
 
 export async function handleStockWaveTickers(req, res, rawUrl) {

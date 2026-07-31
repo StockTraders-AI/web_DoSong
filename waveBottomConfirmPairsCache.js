@@ -143,6 +143,17 @@ async function readDailyCache(cacheKey) {
   }
 }
 
+async function readLegacyDailyCache(cacheKey) {
+  if (!cacheKey) return null;
+  try {
+    const payload = JSON.parse(await readFile(getCacheFilePath(cacheKey), "utf8"));
+    if (!payload || payload.success !== true || !Array.isArray(payload.rows)) return null;
+    return { ...payload, cacheKey: payload.cacheKey || cacheKey };
+  } catch {
+    return null;
+  }
+}
+
 async function readLatestDiskCache() {
   try {
     if (!existsSync(CACHE_DIR)) return null;
@@ -154,6 +165,25 @@ async function readLatestDiskCache() {
     for (const file of files) {
       const cacheKey = file.slice(CACHE_FILE_PREFIX.length + 1, -".json".length);
       const payload = await readDailyCache(cacheKey);
+      if (payload) return payload;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+async function readLatestLegacyDiskCache() {
+  try {
+    if (!existsSync(CACHE_DIR)) return null;
+    const files = (await readdir(CACHE_DIR))
+      .filter((file) => file.startsWith(`${CACHE_FILE_PREFIX}-`) && file.endsWith(".json"))
+      .sort()
+      .reverse();
+
+    for (const file of files) {
+      const cacheKey = file.slice(CACHE_FILE_PREFIX.length + 1, -".json".length);
+      const payload = await readLegacyDailyCache(cacheKey);
       if (payload) return payload;
     }
   } catch {
@@ -473,6 +503,27 @@ export async function getWaveBottomConfirmPairs() {
     });
   }
 
+  const legacyDiskCache = await readLatestLegacyDiskCache();
+  if (legacyDiskCache) {
+    if (activeSlot) {
+      startWaveBottomRefresh(upstreamCacheKey).catch((error) => {
+        console.warn("Wave bottom confirm pairs background refresh failed", error);
+      });
+      return withSource(legacyDiskCache, "legacy-disk-refreshing", {
+        stale: true,
+        legacyCache: true,
+        refreshing: true,
+        targetCacheKey: upstreamCacheKey,
+      });
+    }
+
+    return withSource(legacyDiskCache, "legacy-disk-before0915", {
+      stale: true,
+      legacyCache: true,
+      nextRefreshTime: nextRefresh?.label || "09:15",
+    });
+  }
+
   try {
     const payload = await startWaveBottomRefresh(upstreamCacheKey);
     return withSource(payload, "upstream");
@@ -482,6 +533,14 @@ export async function getWaveBottomConfirmPairs() {
     if (fallbackDiskCache) {
       return withSource(fallbackDiskCache, "stale-disk", {
         stale: true,
+        warning: error?.message || "Cannot refresh wave bottom confirm pairs.",
+      });
+    }
+    const fallbackLegacyDiskCache = await readLatestLegacyDiskCache();
+    if (fallbackLegacyDiskCache) {
+      return withSource(fallbackLegacyDiskCache, "legacy-disk", {
+        stale: true,
+        legacyCache: true,
         warning: error?.message || "Cannot refresh wave bottom confirm pairs.",
       });
     }
