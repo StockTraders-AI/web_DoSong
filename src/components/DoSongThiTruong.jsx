@@ -1530,9 +1530,9 @@ export default function DoSongThiTruong() {
           .dosong-left,.dosong-right{min-width:0 !important; display:contents !important}
           .dosong-mobile-item{min-width:0}
           .dosong-order-main{order:1}
-          .dosong-order-history{order:2}
-          .dosong-order-chan{order:3}
-          .dosong-order-ai{order:4}
+          .dosong-order-ai{order:2}
+          .dosong-order-history{order:3}
+          .dosong-order-chan{order:4}
           .dosong-order-chat{order:5}
           .dosong-order-list{order:6}
           .dosong-order-log{order:7}
