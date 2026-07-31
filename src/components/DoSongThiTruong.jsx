@@ -606,7 +606,7 @@ function Card({ children, style }) {
 function CardHeader({ icon, title, meta, right, mb = 12 }) {
   return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:mb }}>
-      <div style={{ display:"flex", alignItems:"center", gap:7, fontSize:13, fontWeight:700, color:T.t1 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:7, fontFamily:"'Be Vietnam Pro', Inter, sans-serif", fontSize:16, fontWeight:600, lineHeight:1.3, letterSpacing:0, color:T.t1, margin:0 }}>
         <i className={`ti ${icon}`} style={{ fontSize:15, color:T.t3 }} />
         {title}
         {meta && <span style={{ fontSize:10, color:T.t4, fontWeight:400 }}>{meta}</span>}
@@ -906,9 +906,13 @@ function ChanSong({ data = [] }) {
             display: "flex",
             alignItems: "center",
             gap: 8,
-            fontSize: 15,
-            fontWeight: 700,
+            fontFamily: "'Be Vietnam Pro', Inter, sans-serif",
+            fontSize: 16,
+            fontWeight: 600,
+            lineHeight: 1.3,
+            letterSpacing: 0,
             color: T.t1,
+            margin: 0,
           }}
         >
           <span>Lịch sử chân sóng</span>
@@ -1259,7 +1263,7 @@ function NhatKy({ logs = [], onXemTatCa, theme = "dark" }) {
     <div style={{ background:C.surf, borderRadius:14, overflow:"hidden", border:`0.5px solid ${C.cbdr}`, fontFamily:"-apple-system, Inter, sans-serif", boxShadow:theme === "light" ? "0 10px 28px rgba(15,23,42,.08)" : "none" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, padding:"16px 18px", borderBottom:`0.5px solid ${C.cbdr}` }}>
         <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
-          <span style={{ fontSize:16, fontWeight:700, color:C.t1, whiteSpace:"nowrap" }}>Nhật ký tín hiệu</span>
+          <span style={{ fontFamily:"'Be Vietnam Pro', Inter, sans-serif", fontSize:16, fontWeight:600, lineHeight:1.3, letterSpacing:0, color:C.t1, whiteSpace:"nowrap", margin:0 }}>Nhật ký tín hiệu</span>
           <span style={{ fontSize:12, color:C.t4, flexShrink:0 }}>{date}</span>
         </div>
         {hasMore && (
@@ -1529,7 +1533,7 @@ export default function DoSongThiTruong() {
           .dosong-layout th,.dosong-layout td{padding-left:7px !important; padding-right:7px !important}
           .vtds-card{padding:16px 17px !important; max-width:none !important}
           .vtds-header{align-items:flex-start !important; gap:10px !important; margin-bottom:14px !important; flex-wrap:wrap !important}
-          .vtds-title{white-space:normal !important; flex-wrap:wrap !important; font-size:15px !important; min-width:0 !important}
+          .vtds-title{white-space:normal !important; flex-wrap:wrap !important; font-size:16px !important; min-width:0 !important}
           .vtds-trust{padding:7px 13px !important; font-size:13px !important}
           .vtds-body{flex-direction:column !important; align-items:center !important; gap:16px !important; overflow:visible !important}
           .vtds-svg{width:170px !important; height:170px !important}

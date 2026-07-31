@@ -193,7 +193,7 @@ const st = {
     justifyContent: "space-between",
     marginBottom: 20,
   },
-  htitle: { display: "flex", alignItems: "center", gap: 9, fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" },
+  htitle: { display: "flex", alignItems: "center", gap: 9, fontFamily: "'Be Vietnam Pro', Inter, sans-serif", fontSize: 16, fontWeight: 600, lineHeight: 1.3, letterSpacing: 0, margin: 0, whiteSpace: "nowrap" },
   hmeta: { fontSize: 10, fontWeight: 400, marginLeft: 2 },
   trust: {
     display: "flex",

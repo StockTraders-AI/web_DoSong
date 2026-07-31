@@ -209,12 +209,12 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
         <div
           aria-hidden="true"
           style={{
-            width: 54,
-            height: 54,
+            width: 36,
+            height: 36,
             borderRadius: "50%",
             background: "rgba(31, 55, 68, .78)",
-            border: "2px solid rgba(61,214,140,.32)",
-            boxShadow: "0 0 0 2px rgba(124,58,237,.18), inset 0 0 18px rgba(61,214,140,.10)",
+            border: "1px solid rgba(61,214,140,.32)",
+            boxShadow: "0 0 0 1px rgba(124,58,237,.18), inset 0 0 12px rgba(61,214,140,.10)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -222,11 +222,11 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
             flexShrink: 0,
           }}
         >
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 32 32" fill="none" aria-hidden="true">
             <path
               d="M4 17h5l2.8-8 5.1 15 3.1-9 2.6 4H28"
               stroke="currentColor"
-              strokeWidth="2.8"
+              strokeWidth="3"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
