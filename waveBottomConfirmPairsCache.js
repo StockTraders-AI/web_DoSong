@@ -7,7 +7,7 @@ import { sendJson } from "./stockWaveHistoryCache.js";
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
 const VNINDEX_TRADE_REAL_URL = process.env.VNINDEX_TRADE_REAL_URL || "https://stocktraders.vn/service/data/getTotalTradeReal";
-const CACHE_VERSION = 22;
+const CACHE_VERSION = 23;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = path.join(__dirname, ".stock-wave-cache");
 const CACHE_FILE_PREFIX = "wave-bottom-confirm-pairs";
@@ -141,11 +141,73 @@ function getRowDate(row, fallbackDate = "") {
   );
 }
 
-function getTradeRows(payload) {
-  const rows = payload?.data?.rows ?? payload?.data ?? payload?.rows ?? payload;
-  if (Array.isArray(rows)) return rows;
-  if (rows && typeof rows === "object") return [rows];
+function hasTradeFields(row) {
+  return Boolean(
+    row &&
+    typeof row === "object" &&
+    (
+      row.high !== undefined ||
+      row.High !== undefined ||
+      row.h !== undefined ||
+      row.low !== undefined ||
+      row.Low !== undefined ||
+      row.l !== undefined ||
+      row.close !== undefined ||
+      row.Close !== undefined ||
+      row.c !== undefined ||
+      row.price !== undefined ||
+      row.lastPrice !== undefined ||
+      row.matchPrice !== undefined ||
+      row.gia !== undefined
+    )
+  );
+}
+
+function findTradeRows(value, depth = 0) {
+  if (!value || depth > 4) return [];
+  if (Array.isArray(value)) {
+    if (value.some(hasTradeFields)) return value;
+    for (const item of value) {
+      const nested = findTradeRows(item, depth + 1);
+      if (nested.length) return nested;
+    }
+    return [];
+  }
+  if (typeof value !== "object") return [];
+
+  const direct = [
+    value.rows,
+    value.data,
+    value.data?.rows,
+    value.items,
+    value.list,
+    value.stockTrades,
+    value.totalTrades,
+    value.tradeRows,
+    value.TotalTradeReply,
+    value.TotalTradeRealReply,
+    value.TotalTradeRealReply?.rows,
+    value.TotalTradeRealReply?.stockTrades,
+    value.TotalTradeRealReply?.totalTrades,
+  ];
+
+  for (const candidate of direct) {
+    const rows = findTradeRows(candidate, depth + 1);
+    if (rows.length) return rows;
+  }
+
+  if (hasTradeFields(value)) return [value];
+
+  for (const candidate of Object.values(value)) {
+    const rows = findTradeRows(candidate, depth + 1);
+    if (rows.length) return rows;
+  }
+
   return [];
+}
+
+function getTradeRows(payload) {
+  return findTradeRows(payload);
 }
 
 function toNumber(value) {
