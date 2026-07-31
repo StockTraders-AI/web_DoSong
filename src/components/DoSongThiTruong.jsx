@@ -553,14 +553,15 @@ function fetchStockWaveHistory(referenceDate) {
   return stockWaveHistoryRequests.get(referenceDate);
 }
 
-function getTickersUrl() {
+function getTickersUrl(dateKey = "") {
   const url = new URL(STOCK_WAVE_TICKERS_URL, window.location.origin);
+  if (dateKey && dateKey !== "latest") url.searchParams.set("date", dateKey);
   return url.toString();
 }
 
 function fetchStockWaveTickers(cacheKey = "latest") {
   if (!stockWaveTickerRequests.has(cacheKey)) {
-    const request = fetch(getTickersUrl())
+    const request = fetch(getTickersUrl(cacheKey))
       .then((response) => {
         if (!response.ok) throw new Error(`Stock wave tickers failed: ${response.status}`);
         return response.json();
@@ -1323,7 +1324,8 @@ export default function DoSongThiTruong() {
   const [signalRefreshKey, setSignalRefreshKey] = useState(0);
   const [stockNotiRows, setStockNotiRows] = useState([]);
   const stockNotiDateRef = useRef("");
-  const tickerRequestKey = latestWave.rawDate || "latest";
+  const selectedWaveDateRef = useRef("");
+  const tickerRequestKey = selectedWaveDate || latestWave.rawDate || "latest";
   const historySource = historyAllWaves.length ? historyAllWaves : historyWaves;
   const historyDisplayWaves = historySource.filter((item) => !latestWave.rawDate || item.rawDate < latestWave.rawDate);
   const matchingHistoryWave = historySource.find((item) => item.rawDate === latestWave.rawDate);
@@ -1347,11 +1349,12 @@ export default function DoSongThiTruong() {
   const dateTravelMaxDate = toDate(sortedDateTravelWaves[0]?.rawDate) || dateTravelValue;
   const stockNotiDate = selectedMainDonutWave.rawDate || formatDateKey(new Date());
   const danhMucWave = tickerWave.rawDate
-    ? { ...latestWave, ...tickerWave }
-    : latestWave;
+    ? { ...selectedMainDonutWave, ...tickerWave }
+    : selectedMainDonutWave;
   useEffect(() => {
     stockNotiDateRef.current = stockNotiDate;
-  }, [stockNotiDate]);
+    selectedWaveDateRef.current = selectedWaveDate;
+  }, [stockNotiDate, selectedWaveDate]);
 
   const selectedDoSongAdvice = useMemo(() => buildDoSongAdvice(
     [...historySource, mainDonutDisplayWave],
@@ -1394,6 +1397,7 @@ export default function DoSongThiTruong() {
 
       const activeDate = stockNotiDateRef.current || formatDateKey(new Date());
       const matchingRows = notiRows.filter((row) => !row.rawDate || row.rawDate === activeDate);
+      if (selectedWaveDateRef.current && !matchingRows.length) return true;
       const rowsToMerge = matchingRows.length ? matchingRows : notiRows;
       setStockNotiRows((current) => mergeStockNotiRows(current, rowsToMerge));
 
@@ -1705,7 +1709,7 @@ export default function DoSongThiTruong() {
               <TuVanAiCard />
             </div>
             <div className="dosong-mobile-item dosong-order-list">
-              <DanhMucDoSong wave={danhMucWave} countWave={realtimeDisplayWave} />
+              <DanhMucDoSong wave={danhMucWave} countWave={selectedMainDonutWave} />
             </div>
             <div className="dosong-mobile-item dosong-order-log">
               <NhatKy logs={stockNotiRows} theme={theme} />
