@@ -1540,8 +1540,8 @@ export default function DoSongThiTruong() {
           .vtds-boxes{width:100% !important; grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:10px !important}
           .vtds-box{border-radius:14px !important; padding:14px 16px !important; min-height:auto !important}
           .lsds-card{padding:16px 17px !important}
-          .lsds-days-scroll{overflow-x:visible !important}
-          .lsds-days-grid{grid-template-columns:repeat(3,minmax(0,1fr)) !important; min-width:0 !important; gap:7px !important}
+          .lsds-days-scroll{overflow-x:auto !important; overflow-y:hidden !important; padding-bottom:4px; -webkit-overflow-scrolling:touch}
+          .lsds-days-grid{grid-template-columns:repeat(3,minmax(210px,1fr)) !important; min-width:max-content !important; gap:12px !important}
           .lsds-loading-card{padding:9px 6px !important}
         }
         @media (max-width: 560px){
