@@ -1529,12 +1529,12 @@ export default function DoSongThiTruong() {
           .dosong-layout{display:grid !important; grid-template-columns:minmax(0,1fr) !important; gap:14px !important}
           .dosong-left,.dosong-right{min-width:0 !important; display:contents !important}
           .dosong-mobile-item{min-width:0}
-          .dosong-order-ai{order:1}
-          .dosong-order-chat{order:2}
-          .dosong-order-main{order:3}
-          .dosong-order-history{order:4}
-          .dosong-order-list{order:5}
-          .dosong-order-chan{order:6}
+          .dosong-order-main{order:1}
+          .dosong-order-history{order:2}
+          .dosong-order-chan{order:3}
+          .dosong-order-ai{order:4}
+          .dosong-order-chat{order:5}
+          .dosong-order-list{order:6}
           .dosong-order-log{order:7}
           .dosong-sidebar-frame{position:fixed; top:0; left:0; height:100vh; width:224px; z-index:1002; transform:translateX(-100%); transition:transform .22s ease; pointer-events:none}
           .dosong-sidebar-frame.open{transform:translateX(0); pointer-events:auto}
