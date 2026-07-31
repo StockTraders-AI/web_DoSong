@@ -202,7 +202,7 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
             <circle cx="11" cy="11" r="2.5" fill="#7C3AED" />
           </svg>
         </div>
-        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".08em", color: "#C4B5FD", textTransform: "uppercase" }}>
+        <span style={{ fontFamily: "'Be Vietnam Pro', Inter, sans-serif", fontSize: 13, fontWeight: 600, lineHeight: 1.3, letterSpacing: ".5px", color: "var(--text-muted, #A0A6B0)", textTransform: "uppercase" }}>
           Khuy{"\u1ebfn"} ngh{"\u1ecb"} t{"\u1eeb"} AI
         </span>
         </div>
@@ -234,7 +234,7 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
         </div>
       </div>
       {title ? (
-        <div style={{ fontSize: 15, fontWeight: 800, color: "var(--t1, #F0F4FF)", marginBottom: 6 }}>
+        <div style={{ fontFamily: "'Be Vietnam Pro', Inter, sans-serif", fontSize: 16, fontWeight: 600, lineHeight: 1.3, letterSpacing: 0, color: "var(--text-primary, #EAECEF)", margin: "0 0 6px" }}>
           {title}
         </div>
       ) : null}
