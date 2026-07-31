@@ -3,10 +3,38 @@ import { useEffect, useState } from "react";
 const DEFAULT_SIGNAL_KEY = "waitbuy_over_threshold";
 const BUY_SIGNAL_KEY = "buy_over_threshold";
 const EMPTY_SIGNAL = { title: "", response: "", recommendation: "" };
+const LAST_SIGNAL_STORAGE_KEY = "stocktraders:last-do-song-advice";
 
 function hasSignalContent(signal) {
   return Boolean(String(signal?.response || "").trim());
 }
+function readLastSignal() {
+  if (typeof window === "undefined") return EMPTY_SIGNAL;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(LAST_SIGNAL_STORAGE_KEY) || "null");
+    return hasSignalContent(parsed) ? {
+      title: String(parsed.title || "").trim(),
+      response: String(parsed.response || "").trim(),
+      recommendation: String(parsed.recommendation || "").trim(),
+    } : EMPTY_SIGNAL;
+  } catch {
+    return EMPTY_SIGNAL;
+  }
+}
+
+function cacheLastSignal(signal) {
+  if (typeof window === "undefined" || !hasSignalContent(signal)) return;
+  try {
+    window.localStorage.setItem(LAST_SIGNAL_STORAGE_KEY, JSON.stringify({
+      title: String(signal.title || "").trim(),
+      response: String(signal.response || "").trim(),
+      recommendation: String(signal.recommendation || "").trim(),
+    }));
+  } catch {
+    // localStorage may be unavailable in private mode; keeping in-memory state is enough.
+  }
+}
+
 
 function buildDoSongAdviceKey(advice) {
   if (!advice?.engine) return "";
@@ -34,7 +62,7 @@ function getSignalCandidates(signalKey, currentBuy) {
 }
 
 export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, waitbuy = 0, buy = 0, refreshKey = 0, checkDate = "", doSongAdvice }) {
-  const [conditionSignal, setConditionSignal] = useState(EMPTY_SIGNAL);
+  const [conditionSignal, setConditionSignal] = useState(() => readLastSignal());
   const doSongAdviceKey = buildDoSongAdviceKey(doSongAdvice);
 
   useEffect(() => {
@@ -43,8 +71,6 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
     const currentWaitbuy = Number(waitbuy) || 0;
     const currentBuy = Number(buy) || 0;
     const retryDelays = [0, 2000, 6000, 12000];
-
-    setConditionSignal(EMPTY_SIGNAL);
 
     function scheduleLoad(attempt) {
       const delay = retryDelays[attempt] ?? 0;
@@ -61,7 +87,6 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
             attempt,
           });
           if (!cancelled && attempt + 1 < retryDelays.length) scheduleLoad(attempt + 1);
-          return;
         }
 
         if (doSongAdvice?.engine) {
@@ -108,7 +133,10 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
             window.__KHUYEN_NGHI_DOSONG_RESPONSE__ = responseDebug;
             console.warn("KHUYEN_NGHI_DOSONG_RESPONSE", responseDebug);
             if (hasSignalContent(engineSignal)) {
-              if (!cancelled) setConditionSignal(engineSignal);
+              if (!cancelled) {
+                cacheLastSignal(engineSignal);
+                setConditionSignal(engineSignal);
+              }
               return;
             }
           }
@@ -148,13 +176,16 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
         }
 
         if (!cancelled) {
-          setConditionSignal(nextSignal);
-          if (!hasSignalContent(nextSignal) && attempt + 1 < retryDelays.length) scheduleLoad(attempt + 1);
+          if (hasSignalContent(nextSignal)) {
+            cacheLastSignal(nextSignal);
+            setConditionSignal(nextSignal);
+          } else if (attempt + 1 < retryDelays.length) {
+            scheduleLoad(attempt + 1);
+          }
         }
       } catch {
-        if (!cancelled) {
-          setConditionSignal(EMPTY_SIGNAL);
-          if (attempt + 1 < retryDelays.length) scheduleLoad(attempt + 1);
+        if (!cancelled && attempt + 1 < retryDelays.length) {
+          scheduleLoad(attempt + 1);
         }
       }
     }
@@ -168,8 +199,10 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
   }, [signalKey, waitbuy, buy, refreshKey, checkDate, doSongAdviceKey]);
 
   const { title, response, recommendation } = conditionSignal;
-
-  if (!response) return null;
+  const visibleTitle = title || "\u00a0";
+  const visibleResponse = response || "\u00a0";
+  const visibleRecommendation = recommendation || "\u00a0";
+  const textReady = hasSignalContent(conditionSignal);
 
   return (
     <div style={{ background: "linear-gradient(0deg, rgba(124,58,237,.12), rgba(124,58,237,.12)), var(--surf, #111520)", border: "1px solid #5B21B6", borderRadius: 16, padding: "16px 17px" }}>
@@ -233,30 +266,27 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
           </svg>
         </div>
       </div>
-      {title ? (
-        <div style={{ fontFamily: "'Be Vietnam Pro', Inter, sans-serif", fontSize: 16, fontWeight: 600, lineHeight: 1.3, letterSpacing: 0, color: "var(--t1, #F0F4FF)", margin: "0 0 6px" }}>
-          {title}
-        </div>
-      ) : null}
-      <div style={{ fontSize: 12.5, lineHeight: 1.6, color: "var(--t2, #A8B8D0)" }}>
-        {response}
+      <div style={{ fontFamily: "'Be Vietnam Pro', Inter, sans-serif", fontSize: 16, fontWeight: 600, lineHeight: 1.3, letterSpacing: 0, color: "var(--t1, #F0F4FF)", margin: "0 0 6px" }}>
+        {visibleTitle}
       </div>
-      {recommendation ? (
-        <div
-          style={{
-            marginTop: 10,
-            border: "1px solid #5B21B6",
-            borderRadius: 10,
-            padding: "10px 12px",
-            fontSize: 12.5,
-            fontWeight: 700,
-            color: "var(--t1, #0A0A0A)",
-            background: "rgba(124,58,237,.14)",
-          }}
-        >
-          {recommendation}
-        </div>
-      ) : null}
+      <div style={{ fontSize: 12.5, lineHeight: 1.6, color: "var(--t2, #A8B8D0)" }}>
+        {visibleResponse}
+      </div>
+      <div
+        style={{
+          marginTop: 10,
+          border: "1px solid #5B21B6",
+          borderRadius: 10,
+          padding: "10px 12px",
+          fontSize: 12.5,
+          fontWeight: 700,
+          color: "var(--t1, #0A0A0A)",
+          background: "rgba(124,58,237,.14)",
+          opacity: textReady ? 1 : 0,
+        }}
+      >
+        {visibleRecommendation}
+      </div>
     </div>
   );
 }
