@@ -1335,6 +1335,8 @@ export default function DoSongThiTruong() {
   const [stockNotiRows, setStockNotiRows] = useState([]);
   const stockNotiDateRef = useRef("");
   const selectedWaveDateRef = useRef("");
+  const stockNotiRequestSeq = useRef(0);
+  const tickerRequestSeq = useRef(0);
   const tickerRequestKey = selectedWaveDate || latestWave.rawDate || "latest";
   const historySource = historyAllWaves.length ? historyAllWaves : historyWaves;
   const historyDisplayWaves = historySource.filter((item) => !latestWave.rawDate || item.rawDate < latestWave.rawDate);
@@ -1484,13 +1486,18 @@ export default function DoSongThiTruong() {
 
   useEffect(() => {
     let active = true;
+    const requestDate = stockNotiDate;
+    const requestId = stockNotiRequestSeq.current + 1;
+    stockNotiRequestSeq.current = requestId;
+    setStockNotiRows([]);
 
-    fetchStockNoti(stockNotiDate)
+    fetchStockNoti(requestDate)
       .then((rows) => {
-        if (active) setStockNotiRows(rows);
+        if (!active || stockNotiRequestSeq.current !== requestId || stockNotiDateRef.current !== requestDate) return;
+        setStockNotiRows(rows);
       })
       .catch((error) => {
-        console.error("Load stock notifications failed", error);
+        if (active && stockNotiRequestSeq.current === requestId) console.error("Load stock notifications failed", error);
       });
 
     return () => {
@@ -1539,14 +1546,19 @@ export default function DoSongThiTruong() {
 
   useEffect(() => {
     let active = true;
+    const requestKey = tickerRequestKey;
+    const requestId = tickerRequestSeq.current + 1;
+    tickerRequestSeq.current = requestId;
+    setTickerWave(EMPTY_WAVE);
 
-    fetchStockWaveTickers(tickerRequestKey)
+    fetchStockWaveTickers(requestKey)
       .then((row) => {
-        if (!active) return;
-        setTickerWave(row || EMPTY_WAVE);
+        if (!active || tickerRequestSeq.current !== requestId) return;
+        const exactRow = row && row.rawDate === requestKey ? row : null;
+        setTickerWave(exactRow || EMPTY_WAVE);
       })
       .catch((error) => {
-        console.error("Load stock wave ticker list failed", error);
+        if (active && tickerRequestSeq.current === requestId) console.error("Load stock wave ticker list failed", error);
       });
 
     return () => {
