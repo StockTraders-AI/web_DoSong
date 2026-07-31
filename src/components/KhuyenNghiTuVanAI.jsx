@@ -61,7 +61,13 @@ function getSignalCandidates(signalKey, currentBuy) {
   return [...new Set(keys)];
 }
 
-export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, waitbuy = 0, buy = 0, refreshKey = 0, checkDate = "", doSongAdvice, theme = "dark" }) {
+function getAdviceSignalCandidates(adviceMode, signalKey, currentBuy) {
+  if (adviceMode === "buy") return [BUY_SIGNAL_KEY];
+  if (adviceMode === "waitbuy") return [DEFAULT_SIGNAL_KEY];
+  return getSignalCandidates(signalKey || DEFAULT_SIGNAL_KEY, currentBuy);
+}
+
+export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, waitbuy = 0, buy = 0, refreshKey = 0, checkDate = "", doSongAdvice, adviceMode = "engine", theme = "dark" }) {
   const [conditionSignal, setConditionSignal] = useState(() => readLastSignal());
   const doSongAdviceKey = buildDoSongAdviceKey(doSongAdvice);
 
@@ -82,6 +88,52 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
       try {
         if (doSongAdvice === null) {
           if (!cancelled && attempt + 1 < retryDelays.length) scheduleLoad(attempt + 1);
+        }
+
+        const shouldUseConditionAdvice = adviceMode === "buy" || adviceMode === "waitbuy";
+        if (shouldUseConditionAdvice) {
+          const candidates = getAdviceSignalCandidates(adviceMode, signalKey || DEFAULT_SIGNAL_KEY, currentBuy);
+          let nextSignal = EMPTY_SIGNAL;
+
+          for (const candidateKey of candidates) {
+            const params = new URLSearchParams({
+              signal_key: candidateKey,
+              waitbuy: String(currentWaitbuy),
+              buy: String(currentBuy),
+              refresh_key: String(refreshKey),
+              _: String(Date.now()),
+            });
+            if (checkDate) params.set("check_date", checkDate);
+
+            const res = await fetch(`/api/condition-signal-latest?${params.toString()}`, {
+              cache: "no-store",
+            });
+            if (!res.ok) continue;
+
+            const data = await res.json();
+            const candidateSignal = {
+              title: String(data?.title || "").trim(),
+              response: String(data?.response || "").trim(),
+              recommendation: String(data?.recommendation || "").trim(),
+            };
+
+            if (hasSignalContent(candidateSignal)) {
+              nextSignal = candidateSignal;
+              break;
+            }
+          }
+
+          if (!cancelled) {
+            if (hasSignalContent(nextSignal)) {
+              cacheLastSignal(nextSignal);
+              setConditionSignal(nextSignal);
+            } else if (attempt + 1 < retryDelays.length) {
+              scheduleLoad(attempt + 1);
+            } else {
+              setConditionSignal(EMPTY_SIGNAL);
+            }
+          }
+          return;
         }
 
         if (doSongAdvice?.engine) {
@@ -128,7 +180,7 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
           return;
         }
 
-        const candidates = getSignalCandidates(signalKey || DEFAULT_SIGNAL_KEY, currentBuy);
+        const candidates = getAdviceSignalCandidates(adviceMode, signalKey || DEFAULT_SIGNAL_KEY, currentBuy);
         let nextSignal = EMPTY_SIGNAL;
 
         for (const candidateKey of candidates) {
@@ -180,7 +232,7 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
       cancelled = true;
       retryTimers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [signalKey, waitbuy, buy, refreshKey, checkDate, doSongAdviceKey]);
+  }, [signalKey, waitbuy, buy, refreshKey, checkDate, doSongAdviceKey, adviceMode]);
 
   const { title, response, recommendation } = conditionSignal;
   const visibleTitle = title || "\u00a0";

@@ -374,6 +374,46 @@ function getPreviousWaveSessions(rows, referenceDate) {
     .map((item) => ({ ...item, today:false }));
 }
 
+function getFirstDateField(row, keys) {
+  for (const key of keys) {
+    const value = String(row?.[key] || "").trim().slice(0, 10);
+    if (/^20\d{2}-\d{2}-\d{2}$/.test(value)) return value;
+  }
+  return "";
+}
+
+function getSelectedAdviceMode({ selectedDate, chanSongRows, waveDates }) {
+  if (!selectedDate) return "engine";
+  const rows = Array.isArray(chanSongRows) ? chanSongRows : [];
+  const confirmRows = rows
+    .map((row) => ({ row, confirmDate: getFirstDateField(row, ["confirm_wave_date", "confirmDate", "date"]) }))
+    .filter((item) => item.confirmDate);
+
+  if (confirmRows.some((item) => item.confirmDate === selectedDate)) return "buy";
+
+  const explicitProbeKeys = [
+    "probe_wave_date",
+    "waitbuy_wave_date",
+    "prepare_wave_date",
+    "bottom_wave_date",
+    "detect_wave_date",
+    "scan_wave_date",
+    "early_wave_date",
+    "pre_confirm_wave_date",
+  ];
+  if (confirmRows.some((item) => getFirstDateField(item.row, explicitProbeKeys) === selectedDate)) {
+    return "waitbuy";
+  }
+
+  const sortedWaveDates = [...new Set((waveDates || []).filter(Boolean))].sort();
+  const selectedIsPreviousConfirmSession = confirmRows.some((item) => {
+    const previousDate = sortedWaveDates.filter((date) => date < item.confirmDate).pop() || "";
+    return previousDate === selectedDate;
+  });
+
+  return selectedIsPreviousConfirmSession ? "waitbuy" : "engine";
+}
+
 
 
 function getSocketWaveData(payload) {
@@ -406,6 +446,14 @@ function mergeStockNotiRows(current, incoming) {
     if (!byId.has(id)) byId.set(id, { ...row, id });
   });
   return [...byId.values()].sort((a, b) => String(b.sortKey || b.id).localeCompare(String(a.sortKey || a.id)));
+}
+
+function pickStockNotiRowsForDate(rows, dateKey) {
+  if (!dateKey) return rows;
+  const datedRows = rows.filter((row) => row.rawDate && row.rawDate <= dateKey);
+  if (!datedRows.length) return [];
+  const sourceDate = datedRows.reduce((latest, row) => row.rawDate > latest ? row.rawDate : latest, "");
+  return datedRows.filter((row) => row.rawDate === sourceDate);
 }
 function normalizeSearchText(value) {
   return String(value || "")
@@ -529,16 +577,17 @@ const stockWaveHistoryRequests = new Map();
 const stockWaveTickerRequests = new Map();
 let waveBottomConfirmPairsRequest = null;
 
-function getHistoryUrl(referenceDate) {
+function getHistoryUrl(referenceDate, force = false) {
   const url = new URL(STOCK_WAVE_HISTORY_URL, window.location.origin);
   url.searchParams.set("before", referenceDate);
+  if (force) url.searchParams.set("refresh", "1");
   return url.toString();
 }
 
 function fetchStockWaveHistory(referenceDate, force = false) {
   if (force) stockWaveHistoryRequests.delete(referenceDate);
   if (!stockWaveHistoryRequests.has(referenceDate)) {
-    const request = fetch(getHistoryUrl(referenceDate), { cache: "no-store" })
+    const request = fetch(getHistoryUrl(referenceDate, force), { cache: "no-store" })
       .then((response) => {
         if (!response.ok) throw new Error(`Stock wave history failed: ${response.status}`);
         return response.json();
@@ -1254,11 +1303,11 @@ function NhatKyRows({ rows, colors = NHAT_KY_C }) {
     );
   });
 }
-function NhatKy({ logs = [], onXemTatCa, theme = "dark" }) {
+function NhatKy({ logs = [], onXemTatCa, theme = "dark", dateKey = "" }) {
   const [tab, setTab] = useState("all");
   const [expanded, setExpanded] = useState(false);
   const data = logs.map(toNhatKyRow);
-  const date = logs[0]?.date || new Intl.DateTimeFormat("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric" }).format(new Date());
+  const date = logs[0]?.date || (dateKey ? formatStockNotiDate(dateKey) : new Intl.DateTimeFormat("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric" }).format(new Date()));
   const count = (id) => (id === "all" ? data.length : data.filter((d) => d.cap === id).length);
   const list = data.filter((d) => tab === "all" || d.cap === tab);
   const collapsedLimit = 6;
@@ -1356,6 +1405,11 @@ export default function DoSongThiTruong() {
     const rowDate = String(row?.confirm_wave_date || "");
     return !selectedMainDonutWave.rawDate || !rowDate || rowDate <= selectedMainDonutWave.rawDate;
   });
+  const selectedAdviceMode = getSelectedAdviceMode({
+    selectedDate: selectedMainDonutWave.rawDate,
+    chanSongRows,
+    waveDates: dateTravelWaves.map((item) => item.rawDate),
+  });
   const dateTravelValue = toDate(selectedMainDonutWave.rawDate) || new Date();
   const dateTravelMinDate = toDate(sortedDateTravelWaves[sortedDateTravelWaves.length - 1]?.rawDate) || dateTravelValue;
   const dateTravelMaxDate = toDate(sortedDateTravelWaves[0]?.rawDate) || dateTravelValue;
@@ -1363,6 +1417,10 @@ export default function DoSongThiTruong() {
   const danhMucWave = tickerWave.rawDate
     ? { ...selectedMainDonutWave, ...tickerWave }
     : selectedMainDonutWave;
+  const displayStockNotiRows = useMemo(() => {
+    if (!stockNotiDate) return stockNotiRows;
+    return pickStockNotiRowsForDate(stockNotiRows, stockNotiDate);
+  }, [stockNotiRows, stockNotiDate]);
   useEffect(() => {
     stockNotiDateRef.current = stockNotiDate;
     selectedWaveDateRef.current = selectedWaveDate;
@@ -1494,7 +1552,10 @@ export default function DoSongThiTruong() {
     fetchStockNoti(requestDate)
       .then((rows) => {
         if (!active || stockNotiRequestSeq.current !== requestId || stockNotiDateRef.current !== requestDate) return;
-        setStockNotiRows(rows);
+        const nextRows = selectedWaveDate
+          ? pickStockNotiRowsForDate(rows, requestDate)
+          : rows;
+        setStockNotiRows(nextRows);
       })
       .catch((error) => {
         if (active && stockNotiRequestSeq.current === requestId) console.error("Load stock notifications failed", error);
@@ -1503,7 +1564,7 @@ export default function DoSongThiTruong() {
     return () => {
       active = false;
     };
-  }, [stockNotiDate]);
+  }, [stockNotiDate, selectedWaveDate]);
   useEffect(() => {
     let active = true;
 
@@ -1749,6 +1810,7 @@ export default function DoSongThiTruong() {
                 refreshKey={signalRefreshKey}
                 checkDate={selectedMainDonutWave.rawDate}
                 doSongAdvice={selectedDoSongAdvice}
+                adviceMode={selectedAdviceMode}
                 theme={theme}
               />
             </div>
@@ -1759,7 +1821,7 @@ export default function DoSongThiTruong() {
               <DanhMucDoSong wave={danhMucWave} countWave={selectedMainDonutWave} />
             </div>
             <div className="dosong-mobile-item dosong-order-log">
-              <NhatKy logs={stockNotiRows} theme={theme} />
+              <NhatKy logs={displayStockNotiRows} theme={theme} dateKey={stockNotiDate} />
             </div>
           </div>
           </div>

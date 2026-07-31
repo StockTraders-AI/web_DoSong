@@ -177,20 +177,32 @@ async function fetchStockNotiFromApi(dateKey, account = STOCK_NOTI_ACCOUNT) {
 }
 
 async function cacheApiNotifications(dateKey, payload) {
-  const rows = normalizeStockNotiPayload(payload);
+  const rows = normalizeStockNotiPayload(payload)
+    .filter((row) => getRowDateKey(row, dateKey) === dateKey);
   return cacheStockNotiRows(dateKey, rows, "api");
+}
+
+function filterRowsForDate(rows, dateKey) {
+  return Array.isArray(rows)
+    ? rows.filter((row) => getRowDateKey(row, dateKey) === dateKey)
+    : [];
 }
 
 function findFallbackPayload(store, dateKey) {
   const rows = Object.entries(store.byDate)
-    .filter(([key, payload]) => key <= dateKey && Array.isArray(payload?.rows) && payload.rows.length)
+    .map(([key, payload]) => [key, payload, filterRowsForDate(payload?.rows, key)])
+    .filter(([key, , dateRows]) => key <= dateKey && dateRows.length)
     .sort(([a], [b]) => b.localeCompare(a));
-  return rows[0]?.[1] || null;
+  const fallback = rows[0];
+  return fallback
+    ? { ...fallback[1], rows:fallback[2] }
+    : null;
 }
 
 function responseForDate(store, dateKey) {
   const exact = store.byDate[dateKey];
-  if (exact?.rows?.length) return exact;
+  const exactRows = filterRowsForDate(exact?.rows, dateKey);
+  if (exactRows.length) return { ...exact, rows:exactRows };
 
   const fallback = findFallbackPayload(store, dateKey);
   if (fallback) {

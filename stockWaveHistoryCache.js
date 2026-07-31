@@ -151,11 +151,11 @@ async function readLatestDiskCache() {
   }
   return null;
 }
-function startFullHistoryRefresh(requestKey) {
-  if (pendingRequest && pendingRequestKey === requestKey) return pendingRequest;
+function startFullHistoryRefresh(requestKey, force = false) {
+  if (!force && pendingRequest && pendingRequestKey === requestKey) return pendingRequest;
 
   pendingRequestKey = requestKey;
-  pendingRequest = fetch(STOCK_WAVE_API_URL, {
+  const request = fetch(STOCK_WAVE_API_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(HISTORY_REQUEST),
@@ -166,18 +166,24 @@ function startFullHistoryRefresh(requestKey) {
       return writeDailyCache(getWaveRows(payload), requestKey);
     })
     .finally(() => {
-      if (pendingRequestKey === requestKey) {
+      if (pendingRequest === request && pendingRequestKey === requestKey) {
         pendingRequest = null;
         pendingRequestKey = "";
       }
     });
 
-  return pendingRequest;
+  pendingRequest = request;
+  return request;
 }
 
-async function getFullHistory() {
+async function getFullHistory(forceRefresh = false) {
   const { date: cacheDate, cacheKey, activeSlot, nextRefresh } = getRefreshState();
   const upstreamCacheKey = cacheKey || `${cacheDate}-pre0915`;
+
+  if (forceRefresh) {
+    const payload = await startFullHistoryRefresh(upstreamCacheKey, true);
+    return withSource(payload, "upstream-refresh", { refreshed: true });
+  }
 
   if (cacheKey && memoryCache && memoryCacheKey === cacheKey) return withSource(memoryCache, "memory");
 
@@ -219,14 +225,14 @@ async function getFullHistory() {
     throw error;
   }
 }
-export async function getStockWaveHistory(before) {
+export async function getStockWaveHistory(before, forceRefresh = false) {
   if (!isValidDate(before)) {
     const error = new Error("Missing or invalid before date. Use YYYY-MM-DD.");
     error.statusCode = 400;
     throw error;
   }
 
-  const payload = await getFullHistory();
+  const payload = await getFullHistory(forceRefresh);
   return {
     ...payload,
     before,
@@ -246,9 +252,11 @@ export function sendJson(res, status, payload) {
 export async function handleStockWaveHistory(req, res, rawUrl) {
   const url = new URL(rawUrl || req.url, `http://${req.headers.host || "localhost"}`);
   const before = url.searchParams.get("before");
+  const refreshParam = String(url.searchParams.get("refresh") || url.searchParams.get("force") || "").toLowerCase();
+  const forceRefresh = refreshParam === "1" || refreshParam === "true" || refreshParam === "yes";
 
   try {
-    sendJson(res, 200, await getStockWaveHistory(before));
+    sendJson(res, 200, await getStockWaveHistory(before, forceRefresh));
   } catch (error) {
     const status = error.statusCode || 502;
     console.error("Stock wave history cache failed", error);
