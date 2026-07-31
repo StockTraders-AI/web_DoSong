@@ -173,7 +173,8 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
 
   return (
     <div style={{ background: "linear-gradient(0deg, rgba(124,58,237,.12), rgba(124,58,237,.12)), var(--surf, #111520)", border: "1px solid #5B21B6", borderRadius: 16, padding: "16px 17px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
         <div
           aria-hidden="true"
           style={{
@@ -204,6 +205,33 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
         <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".08em", color: "#C4B5FD", textTransform: "uppercase" }}>
           Khuy{"\u1ebfn"} ngh{"\u1ecb"} t{"\u1eeb"} AI
         </span>
+        </div>
+        <div
+          aria-hidden="true"
+          style={{
+            width: 54,
+            height: 54,
+            borderRadius: "50%",
+            background: "rgba(31, 55, 68, .78)",
+            border: "2px solid rgba(61,214,140,.32)",
+            boxShadow: "0 0 0 2px rgba(124,58,237,.18), inset 0 0 18px rgba(61,214,140,.10)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#6EE7B7",
+            flexShrink: 0,
+          }}
+        >
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path
+              d="M4 17h5l2.8-8 5.1 15 3.1-9 2.6 4H28"
+              stroke="currentColor"
+              strokeWidth="2.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
       </div>
       {title ? (
         <div style={{ fontSize: 15, fontWeight: 800, color: "var(--t1, #F0F4FF)", marginBottom: 6 }}>
