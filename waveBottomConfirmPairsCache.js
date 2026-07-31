@@ -7,7 +7,7 @@ import { sendJson } from "./stockWaveHistoryCache.js";
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
 const VNINDEX_TRADE_REAL_URL = process.env.VNINDEX_TRADE_REAL_URL || "https://stocktraders.vn/service/data/getTotalTradeReal";
-const CACHE_VERSION = 18;
+const CACHE_VERSION = 19;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = path.join(__dirname, ".stock-wave-cache");
 const CACHE_FILE_PREFIX = "wave-bottom-confirm-pairs";
@@ -359,6 +359,21 @@ function findNextHighPivot(pivots, bottom) {
   return pivots.find((pivot) => pivot.type === "high" && pivot.index > bottom.index) || null;
 }
 
+function findRunningHighAfterBottom(rows, bottom) {
+  if (!bottom) return null;
+  const nextRows = rows.filter((row) => row.index > bottom.index);
+  if (!nextRows.length) return null;
+  const highest = nextRows.reduce(
+    (candidate, row) => row.high > candidate.high ? row : candidate,
+    nextRows[0]
+  );
+  return { ...highest, price: highest.high, type: "high", isRunningPeak: true };
+}
+
+function findNextHigh(pivots, rows, bottom) {
+  return findNextHighPivot(pivots, bottom) || findRunningHighAfterBottom(rows, bottom);
+}
+
 function findLowestNearbyLow(pivots, bottom) {
   if (!bottom) return null;
   if (bottom.isTemporary) return bottom;
@@ -441,7 +456,7 @@ function startWaveBottomRefresh(requestKey) {
         const confirmDate = String(pair.confirm_wave_date || "");
         const bottom = findLowPivot(pivots, quoteByDate, vnindexRows, pair);
         const displayBottom = findLowestNearbyLow(pivots, bottom);
-        const peak = findNextHighPivot(pivots, bottom);
+        const peak = findNextHigh(pivots, vnindexRows, bottom);
         const increasePoints = bottom && peak ? peak.high - bottom.low : 0;
         const durationSessions = bottom && peak ? peak.index - bottom.index + 1 : 0;
 
