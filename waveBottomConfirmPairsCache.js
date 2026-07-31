@@ -14,12 +14,16 @@ const CACHE_FILE_PREFIX = "wave-bottom-confirm-pairs";
 const UPSTREAM_TIMEOUT_MS = Number(process.env.WAVE_BOTTOM_UPSTREAM_TIMEOUT_MS || 120000);
 const ZIGZAG_THRESHOLD = 0.052;
 const MARKET_TIME_ZONE = "Asia/Bangkok";
-const DAILY_REFRESH_HOUR = 10;
+const REFRESH_SCHEDULE = [
+  { id: "0915", label: "09:15", minutes: 9 * 60 + 15 },
+  { id: "1000", label: "10:00", minutes: 10 * 60 },
+];
 const PAIRS_REQUEST = { dateFrom: null, dateTo: null, count: 4 };
 const VNINDEX_TRADE_REAL_REQUEST = { TotalTradeRealRequest: { account: "stocktraders2013" } };
 let memoryCache = null;
 let memoryCacheKey = "";
 let pendingRequest = null;
+let pendingRequestKey = "";
 
 function getMarketNowParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -28,12 +32,14 @@ function getMarketNowParts(date = new Date()) {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
+    minute: "2-digit",
     hourCycle: "h23",
   }).formatToParts(date);
   const lookup = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   return {
     date: `${lookup.year}-${lookup.month}-${lookup.day}`,
     hour: Number(lookup.hour),
+    minute: Number(lookup.minute),
   };
 }
 
@@ -41,8 +47,31 @@ function getMarketDateKey(date = new Date()) {
   return getMarketNowParts(date).date;
 }
 
+function getRefreshState(date = new Date()) {
+  const marketNow = getMarketNowParts(date);
+  const currentMinutes = marketNow.hour * 60 + marketNow.minute;
+  let activeSlot = null;
+  let nextRefresh = null;
+
+  for (const slot of REFRESH_SCHEDULE) {
+    if (currentMinutes >= slot.minutes) {
+      activeSlot = slot;
+    } else if (!nextRefresh) {
+      nextRefresh = slot;
+    }
+  }
+
+  return {
+    ...marketNow,
+    activeSlot,
+    nextRefresh,
+    cacheKey: activeSlot ? `${marketNow.date}-${activeSlot.id}` : "",
+  };
+}
+
 function getCacheKey(date = new Date()) {
-  return getMarketDateKey(date);
+  const state = getRefreshState(date);
+  return state.cacheKey || `${state.date}-pre0915`;
 }
 
 function getCacheFilePath(dateKey) {
@@ -367,26 +396,31 @@ async function fetchVnindexTradeReal() {
 }
 
 export async function getWaveBottomConfirmPairs() {
-  const { date: cacheKey, hour } = getMarketNowParts();
+  const { date: cacheDate, cacheKey, activeSlot, nextRefresh } = getRefreshState();
+  const upstreamCacheKey = cacheKey || `${cacheDate}-pre0915`;
 
-  if (memoryCache && memoryCacheKey === cacheKey && memoryCache.cacheVersion === CACHE_VERSION) {
+  if (cacheKey && memoryCache && memoryCacheKey === cacheKey && memoryCache.cacheVersion === CACHE_VERSION) {
     return withSource(memoryCache, "memory");
   }
 
-  const todayDiskCache = await readDailyCache(cacheKey);
-  if (todayDiskCache) return withSource(todayDiskCache, "disk");
+  if (cacheKey) {
+    const slotDiskCache = await readDailyCache(cacheKey);
+    if (slotDiskCache) return withSource(slotDiskCache, "disk");
+  }
 
-  if (hour < DAILY_REFRESH_HOUR) {
+  if (!activeSlot) {
     const latestDiskCache = await readLatestDiskCache();
     if (latestDiskCache) {
-      return withSource(latestDiskCache, "stale-disk-before10", {
-        stale: latestDiskCache.cacheKey !== cacheKey,
-        nextRefreshHour: DAILY_REFRESH_HOUR,
+      return withSource(latestDiskCache, "stale-disk-before0915", {
+        stale: true,
+        nextRefreshTime: nextRefresh?.label || "09:15",
       });
     }
   }
 
-  if (!pendingRequest) {
+  if (!pendingRequest || pendingRequestKey !== upstreamCacheKey) {
+    const requestKey = upstreamCacheKey;
+    pendingRequestKey = requestKey;
     pendingRequest = Promise.all([
       fetchPairs(),
       fetchVnindexTrades(),
@@ -424,10 +458,13 @@ export async function getWaveBottomConfirmPairs() {
             reliability: toNumber(pair.reliability),
           };
         });
-        return writeDailyCache(rows, cacheKey);
+        return writeDailyCache(rows, requestKey);
       })
       .finally(() => {
-        pendingRequest = null;
+        if (pendingRequestKey === requestKey) {
+          pendingRequest = null;
+          pendingRequestKey = "";
+        }
       });
   }
 
@@ -446,6 +483,7 @@ export async function getWaveBottomConfirmPairs() {
     return buildFallbackPayload(error);
   }
 }
+
 export async function handleWaveBottomConfirmPairs(req, res) {
   try {
     sendJson(res, 200, await getWaveBottomConfirmPairs());
