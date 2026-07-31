@@ -151,6 +151,30 @@ async function readLatestDiskCache() {
   }
   return null;
 }
+function startFullHistoryRefresh(requestKey) {
+  if (pendingRequest && pendingRequestKey === requestKey) return pendingRequest;
+
+  pendingRequestKey = requestKey;
+  pendingRequest = fetch(STOCK_WAVE_API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(HISTORY_REQUEST),
+  })
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`Stock wave upstream failed: ${response.status}`);
+      const payload = await response.json();
+      return writeDailyCache(getWaveRows(payload), requestKey);
+    })
+    .finally(() => {
+      if (pendingRequestKey === requestKey) {
+        pendingRequest = null;
+        pendingRequestKey = "";
+      }
+    });
+
+  return pendingRequest;
+}
+
 async function getFullHistory() {
   const { date: cacheDate, cacheKey, activeSlot, nextRefresh } = getRefreshState();
   const upstreamCacheKey = cacheKey || `${cacheDate}-pre0915`;
@@ -162,44 +186,32 @@ async function getFullHistory() {
     if (slotDiskCache) return withSource(slotDiskCache, "disk");
   }
 
-  if (!activeSlot) {
-    const latestDiskCache = await readLatestDiskCache();
-    if (latestDiskCache) {
-      return withSource(latestDiskCache, "stale-disk-before0915", {
+  const latestDiskCache = await readLatestDiskCache();
+  if (latestDiskCache) {
+    if (activeSlot) {
+      startFullHistoryRefresh(upstreamCacheKey).catch((error) => {
+        console.warn("Stock wave history background refresh failed", error);
+      });
+      return withSource(latestDiskCache, "stale-disk-refreshing", {
         stale: true,
-        nextRefreshTime: nextRefresh?.label || "09:15",
+        refreshing: true,
+        targetCacheKey: upstreamCacheKey,
       });
     }
-  }
 
-  if (!pendingRequest || pendingRequestKey !== upstreamCacheKey) {
-    const requestKey = upstreamCacheKey;
-    pendingRequestKey = requestKey;
-    pendingRequest = fetch(STOCK_WAVE_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(HISTORY_REQUEST),
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`Stock wave upstream failed: ${response.status}`);
-        const payload = await response.json();
-        return writeDailyCache(getWaveRows(payload), requestKey);
-      })
-      .finally(() => {
-        if (pendingRequestKey === requestKey) {
-          pendingRequest = null;
-          pendingRequestKey = "";
-        }
-      });
+    return withSource(latestDiskCache, "stale-disk-before0915", {
+      stale: true,
+      nextRefreshTime: nextRefresh?.label || "09:15",
+    });
   }
 
   try {
-    const payload = await pendingRequest;
+    const payload = await startFullHistoryRefresh(upstreamCacheKey);
     return withSource(payload, "upstream");
   } catch (error) {
-    const latestDiskCache = await readLatestDiskCache();
-    if (latestDiskCache) {
-      return withSource(latestDiskCache, "stale-disk", {
+    const fallbackDiskCache = await readLatestDiskCache();
+    if (fallbackDiskCache) {
+      return withSource(fallbackDiskCache, "stale-disk", {
         stale: true,
         warning: error?.message || "Cannot refresh stock wave history.",
       });

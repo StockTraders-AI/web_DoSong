@@ -7,7 +7,7 @@ import { sendJson } from "./stockWaveHistoryCache.js";
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
 const VNINDEX_TRADE_REAL_URL = process.env.VNINDEX_TRADE_REAL_URL || "https://stocktraders.vn/service/data/getTotalTradeReal";
-const CACHE_VERSION = 14;
+const CACHE_VERSION = 15;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = path.join(__dirname, ".stock-wave-cache");
 const CACHE_FILE_PREFIX = "wave-bottom-confirm-pairs";
@@ -277,15 +277,6 @@ function isLowerThanPreviousSession(row, rows) {
   return previous && row.low < previous.low;
 }
 
-function findConfirmedLowFromDate(lows, confirmQuote, nextConfirmQuote) {
-  if (!confirmQuote) return null;
-  return lows.find(
-    (pivot) =>
-      pivot.index >= confirmQuote.index &&
-      (!nextConfirmQuote || pivot.index < nextConfirmQuote.index)
-  ) || null;
-}
-
 function findLowestRecentSession(rows, confirmQuote, sessionCount = 5) {
   if (!confirmQuote) return null;
   const start = Math.max(0, confirmQuote.index - sessionCount + 1);
@@ -298,17 +289,14 @@ function findLowestRecentSession(rows, confirmQuote, sessionCount = 5) {
   return { ...lowest, price: lowest.low, type: "low", isRecentWindowLow: true };
 }
 
-function findLowPivot(pivots, quoteByDate, rows, pair, nextPair) {
+function findLowPivot(pivots, quoteByDate, rows, pair) {
   const lows = pivots.filter((pivot) => pivot.type === "low");
   const bottomDate = String(pair.confirm_wave_date || "");
   const bottomQuote = quoteByDate.get(bottomDate);
-  const nextConfirmQuote = nextPair ? quoteByDate.get(String(nextPair.confirm_wave_date || "")) : null;
   const exactBottom = lows.find((pivot) => pivot.date === bottomDate);
   if (exactBottom) return exactBottom;
 
-  const confirmedFromBottom = findConfirmedLowFromDate(lows, bottomQuote, nextConfirmQuote);
   if (isLowerThanPreviousSession(bottomQuote, rows)) {
-    if (confirmedFromBottom) return confirmedFromBottom;
     return { ...bottomQuote, price: bottomQuote.low, type: "low", isTemporary: true };
   }
 
@@ -317,7 +305,10 @@ function findLowPivot(pivots, quoteByDate, rows, pair, nextPair) {
     if (recentLow) return recentLow;
   }
 
-  if (!lows.length) return null;
+  if (!lows.length) {
+    if (bottomQuote) return { ...bottomQuote, price: bottomQuote.low, type: "low", isTemporary: true };
+    return null;
+  }
 
   const prepareDate = String(pair.prepare_bottom_date || "");
   const exactPrepare = lows.find((pivot) => pivot.date === prepareDate);
@@ -326,6 +317,7 @@ function findLowPivot(pivots, quoteByDate, rows, pair, nextPair) {
   if (bottomQuote) {
     const previous = lows.filter((pivot) => pivot.index <= bottomQuote.index);
     if (previous.length) return previous[previous.length - 1];
+    return { ...bottomQuote, price: bottomQuote.low, type: "low", isTemporary: true };
   }
 
   return lows[0];
@@ -395,6 +387,59 @@ async function fetchVnindexTradeReal() {
   return response.json();
 }
 
+function startWaveBottomRefresh(requestKey) {
+  if (pendingRequest && pendingRequestKey === requestKey) return pendingRequest;
+
+  pendingRequestKey = requestKey;
+  pendingRequest = Promise.all([
+    fetchPairs(),
+    fetchVnindexTrades(),
+    fetchVnindexTradeReal().catch((error) => {
+      console.warn("VNINDEX trade real unavailable", error);
+      return [];
+    }),
+  ])
+    .then(([pairsPayload, vnindexPayload, vnindexRealPayload]) => {
+      const vnindexRows = mergeTradeRows(vnindexPayload, vnindexRealPayload);
+      const quoteByDate = buildQuoteLookup(vnindexRows);
+      const pivots = buildZigzagPivots(vnindexRows);
+      const pairs = getPairs(pairsPayload)
+        .slice()
+        .sort((a, b) => rowDateValue(String(a?.confirm_wave_date || "")) - rowDateValue(String(b?.confirm_wave_date || "")));
+      const rows = pairs.map((pair) => {
+        const confirmDate = String(pair.confirm_wave_date || "");
+        const bottom = findLowPivot(pivots, quoteByDate, vnindexRows, pair);
+        const displayBottom = findLowestNearbyLow(pivots, bottom);
+        const peak = bottom?.isTemporary ? null : findNextHighPivot(pivots, bottom);
+        const increasePoints = bottom && peak ? peak.high - bottom.low : 0;
+        const durationSessions = bottom && peak ? peak.index - bottom.index + 1 : 0;
+
+        return {
+          confirm_wave_date: confirmDate,
+          prepare_bottom_date: String(pair.prepare_bottom_date || ""),
+          zigzag_bottom_date: bottom?.date || "",
+          zigzag_peak_date: peak?.date || "",
+          vnindex: toNumber(displayBottom?.price),
+          vnindex_date: displayBottom?.date || "",
+          increase_points: Number(increasePoints.toFixed(2)),
+          zigzag_bottom_price: toNumber(bottom?.low),
+          zigzag_peak_price: toNumber(peak?.high),
+          duration_sessions: durationSessions,
+          reliability: toNumber(pair.reliability),
+        };
+      });
+      return writeDailyCache(rows, requestKey);
+    })
+    .finally(() => {
+      if (pendingRequestKey === requestKey) {
+        pendingRequest = null;
+        pendingRequestKey = "";
+      }
+    });
+
+  return pendingRequest;
+}
+
 export async function getWaveBottomConfirmPairs() {
   const { date: cacheDate, cacheKey, activeSlot, nextRefresh } = getRefreshState();
   const upstreamCacheKey = cacheKey || `${cacheDate}-pre0915`;
@@ -408,74 +453,33 @@ export async function getWaveBottomConfirmPairs() {
     if (slotDiskCache) return withSource(slotDiskCache, "disk");
   }
 
-  if (!activeSlot) {
-    const latestDiskCache = await readLatestDiskCache();
-    if (latestDiskCache) {
-      return withSource(latestDiskCache, "stale-disk-before0915", {
+  const latestDiskCache = await readLatestDiskCache();
+  if (latestDiskCache) {
+    if (activeSlot) {
+      startWaveBottomRefresh(upstreamCacheKey).catch((error) => {
+        console.warn("Wave bottom confirm pairs background refresh failed", error);
+      });
+      return withSource(latestDiskCache, "stale-disk-refreshing", {
         stale: true,
-        nextRefreshTime: nextRefresh?.label || "09:15",
+        refreshing: true,
+        targetCacheKey: upstreamCacheKey,
       });
     }
-  }
 
-  if (!pendingRequest || pendingRequestKey !== upstreamCacheKey) {
-    const requestKey = upstreamCacheKey;
-    pendingRequestKey = requestKey;
-    pendingRequest = Promise.all([
-      fetchPairs(),
-      fetchVnindexTrades(),
-      fetchVnindexTradeReal().catch((error) => {
-        console.warn("VNINDEX trade real unavailable", error);
-        return [];
-      }),
-    ])
-      .then(([pairsPayload, vnindexPayload, vnindexRealPayload]) => {
-        const vnindexRows = mergeTradeRows(vnindexPayload, vnindexRealPayload);
-        const quoteByDate = buildQuoteLookup(vnindexRows);
-        const pivots = buildZigzagPivots(vnindexRows);
-        const pairs = getPairs(pairsPayload)
-          .slice()
-          .sort((a, b) => rowDateValue(String(a?.confirm_wave_date || "")) - rowDateValue(String(b?.confirm_wave_date || "")));
-        const rows = pairs.map((pair, index) => {
-          const confirmDate = String(pair.confirm_wave_date || "");
-          const bottom = findLowPivot(pivots, quoteByDate, vnindexRows, pair, pairs[index + 1]);
-          const displayBottom = findLowestNearbyLow(pivots, bottom);
-          const peak = bottom?.isTemporary ? null : findNextHighPivot(pivots, bottom);
-          const increasePoints = bottom && peak ? peak.high - bottom.low : 0;
-          const durationSessions = bottom && peak ? peak.index - bottom.index + 1 : 0;
-
-          return {
-            confirm_wave_date: confirmDate,
-            prepare_bottom_date: String(pair.prepare_bottom_date || ""),
-            zigzag_bottom_date: bottom?.date || "",
-            zigzag_peak_date: peak?.date || "",
-            vnindex: toNumber(displayBottom?.price),
-            vnindex_date: displayBottom?.date || "",
-            increase_points: Number(increasePoints.toFixed(2)),
-            zigzag_bottom_price: toNumber(bottom?.low),
-            zigzag_peak_price: toNumber(peak?.high),
-            duration_sessions: durationSessions,
-            reliability: toNumber(pair.reliability),
-          };
-        });
-        return writeDailyCache(rows, requestKey);
-      })
-      .finally(() => {
-        if (pendingRequestKey === requestKey) {
-          pendingRequest = null;
-          pendingRequestKey = "";
-        }
-      });
+    return withSource(latestDiskCache, "stale-disk-before0915", {
+      stale: true,
+      nextRefreshTime: nextRefresh?.label || "09:15",
+    });
   }
 
   try {
-    const payload = await pendingRequest;
+    const payload = await startWaveBottomRefresh(upstreamCacheKey);
     return withSource(payload, "upstream");
   } catch (error) {
     console.warn("Wave bottom confirm pairs upstream unavailable", error);
-    const latestDiskCache = await readLatestDiskCache();
-    if (latestDiskCache) {
-      return withSource(latestDiskCache, "stale-disk", {
+    const fallbackDiskCache = await readLatestDiskCache();
+    if (fallbackDiskCache) {
+      return withSource(fallbackDiskCache, "stale-disk", {
         stale: true,
         warning: error?.message || "Cannot refresh wave bottom confirm pairs.",
       });
@@ -483,7 +487,6 @@ export async function getWaveBottomConfirmPairs() {
     return buildFallbackPayload(error);
   }
 }
-
 export async function handleWaveBottomConfirmPairs(req, res) {
   try {
     sendJson(res, 200, await getWaveBottomConfirmPairs());
