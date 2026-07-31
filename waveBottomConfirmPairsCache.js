@@ -79,12 +79,7 @@ function getCacheFilePath(dateKey) {
 }
 
 function isValidCachePayload(payload) {
-  return Boolean(
-    payload &&
-    payload.success === true &&
-    payload.cacheVersion === CACHE_VERSION &&
-    Array.isArray(payload.rows)
-  );
+  return Boolean(payload && payload.success === true && Array.isArray(payload.rows));
 }
 
 function withSource(payload, source, extra = {}) {
@@ -164,7 +159,7 @@ async function readLatestDiskCache() {
 
 function buildFallbackPayload(error) {
   const warning = error?.message || "Cannot refresh wave bottom confirm pairs.";
-  if (memoryCache && memoryCache.cacheVersion === CACHE_VERSION) {
+  if (memoryCache && Array.isArray(memoryCache.rows)) {
     return withSource(memoryCache, "stale-memory", { stale: true, warning });
   }
 
@@ -445,7 +440,7 @@ export async function getWaveBottomConfirmPairs() {
   const { date: cacheDate, cacheKey, activeSlot, nextRefresh } = getRefreshState();
   const upstreamCacheKey = cacheKey || `${cacheDate}-pre0915`;
 
-  if (cacheKey && memoryCache && memoryCacheKey === cacheKey && memoryCache.cacheVersion === CACHE_VERSION) {
+  if (cacheKey && memoryCache && memoryCacheKey === cacheKey && Array.isArray(memoryCache.rows)) {
     return withSource(memoryCache, "memory");
   }
 
