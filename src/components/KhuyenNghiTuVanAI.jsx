@@ -234,7 +234,7 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
         </div>
       </div>
       {title ? (
-        <div style={{ fontFamily: "'Be Vietnam Pro', Inter, sans-serif", fontSize: 16, fontWeight: 600, lineHeight: 1.3, letterSpacing: 0, color: "var(--text-primary, #EAECEF)", margin: "0 0 6px" }}>
+        <div style={{ fontFamily: "'Be Vietnam Pro', Inter, sans-serif", fontSize: 16, fontWeight: 600, lineHeight: 1.3, letterSpacing: 0, color: "var(--t1, #F0F4FF)", margin: "0 0 6px" }}>
           {title}
         </div>
       ) : null}
