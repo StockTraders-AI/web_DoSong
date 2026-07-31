@@ -106,6 +106,7 @@ function Donut({ vals, total, dbg, themeTokens }) {
       viewBox="0 0 160 160"
       role="img"
       aria-label={`Donut ${total} mã`}
+      className="lsds-donut"
       style={{ display: "block", margin: "8px auto 4px" }}
     >
       <circle cx={80} cy={80} r={68} fill={themeTokens.ring} stroke={themeTokens.ringBorder} strokeWidth={0.5} />
@@ -160,6 +161,7 @@ function DayCard({ x, themeTokens }) {
 
   return (
     <div
+      className="lsds-day"
       style={{
         borderRadius: 14,
         padding: "13px 11px",
@@ -192,6 +194,7 @@ function DayCard({ x, themeTokens }) {
       <Donut vals={x.v} total={x.tot} dbg={dbg} themeTokens={themeTokens} />
 
       <div
+        className="lsds-metric-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
@@ -202,6 +205,7 @@ function DayCard({ x, themeTokens }) {
         {x.v.map((n, i) => (
           <div
             key={KEYS[i]}
+            className="lsds-metric"
             style={{
               display: "flex",
               alignItems: "center",
@@ -223,6 +227,7 @@ function DayCard({ x, themeTokens }) {
               }}
             />
             <span
+              className="lsds-metric-value"
               style={{
                 fontSize: 16,
                 fontWeight: 500,
