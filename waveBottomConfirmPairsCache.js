@@ -7,7 +7,7 @@ import { sendJson } from "./stockWaveHistoryCache.js";
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
 const VNINDEX_TRADE_REAL_URL = process.env.VNINDEX_TRADE_REAL_URL || "https://stocktraders.vn/service/data/getTotalTradeReal";
-const CACHE_VERSION = 16;
+const CACHE_VERSION = 17;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = path.join(__dirname, ".stock-wave-cache");
 const CACHE_FILE_PREFIX = "wave-bottom-confirm-pairs";
@@ -406,7 +406,7 @@ function startWaveBottomRefresh(requestKey) {
         const confirmDate = String(pair.confirm_wave_date || "");
         const bottom = findLowPivot(pivots, quoteByDate, vnindexRows, pair);
         const displayBottom = findLowestNearbyLow(pivots, bottom);
-        const peak = bottom?.isTemporary ? null : findNextHighPivot(pivots, bottom);
+        const peak = findNextHighPivot(pivots, bottom);
         const increasePoints = bottom && peak ? peak.high - bottom.low : 0;
         const durationSessions = bottom && peak ? peak.index - bottom.index + 1 : 0;
 
