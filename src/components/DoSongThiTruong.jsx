@@ -1671,6 +1671,7 @@ export default function DoSongThiTruong() {
                 refreshKey={signalRefreshKey}
                 checkDate={selectedMainDonutWave.rawDate}
                 doSongAdvice={selectedDoSongAdvice}
+                theme={theme}
               />
             </div>
             <div className="dosong-mobile-item dosong-order-chat">

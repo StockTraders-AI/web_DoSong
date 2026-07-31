@@ -61,7 +61,7 @@ function getSignalCandidates(signalKey, currentBuy) {
   return [...new Set(keys)];
 }
 
-export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, waitbuy = 0, buy = 0, refreshKey = 0, checkDate = "", doSongAdvice }) {
+export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, waitbuy = 0, buy = 0, refreshKey = 0, checkDate = "", doSongAdvice, theme = "dark" }) {
   const [conditionSignal, setConditionSignal] = useState(() => readLastSignal());
   const doSongAdviceKey = buildDoSongAdviceKey(doSongAdvice);
 
@@ -203,6 +203,18 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
   const visibleResponse = response || "\u00a0";
   const visibleRecommendation = recommendation || "\u00a0";
   const textReady = hasSignalContent(conditionSignal);
+  const isLight = theme === "light";
+  const pulseIconStyle = isLight ? {
+    background: "rgba(224, 247, 242, .88)",
+    border: "1px solid rgba(61,214,140,.26)",
+    boxShadow: "0 0 0 1px rgba(124,58,237,.10), inset 0 0 12px rgba(61,214,140,.08)",
+    color: "#3BAE5F",
+  } : {
+    background: "rgba(31, 55, 68, .78)",
+    border: "1px solid rgba(61,214,140,.32)",
+    boxShadow: "0 0 0 1px rgba(124,58,237,.18), inset 0 0 12px rgba(61,214,140,.10)",
+    color: "#6EE7B7",
+  };
 
   return (
     <div style={{ background: "linear-gradient(0deg, rgba(124,58,237,.12), rgba(124,58,237,.12)), var(--surf, #111520)", border: "1px solid #5B21B6", borderRadius: 16, padding: "16px 17px" }}>
@@ -245,13 +257,13 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
             width: 36,
             height: 36,
             borderRadius: "50%",
-            background: "rgba(31, 55, 68, .78)",
-            border: "1px solid rgba(61,214,140,.32)",
-            boxShadow: "0 0 0 1px rgba(124,58,237,.18), inset 0 0 12px rgba(61,214,140,.10)",
+            background: pulseIconStyle.background,
+            border: pulseIconStyle.border,
+            boxShadow: pulseIconStyle.boxShadow,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: "#6EE7B7",
+            color: pulseIconStyle.color,
             flexShrink: 0,
           }}
         >
