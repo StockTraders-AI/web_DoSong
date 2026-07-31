@@ -392,11 +392,18 @@ function getStockNotiRawDate(value) {
   return match?.[1] || "";
 }
 
+function getStockNotiStableId(row) {
+  return [row?.sortKey || row?.date || "", row?.title || "", row?.capTag || row?.cap || "", row?.x || row?.content || ""]
+    .map((part) => String(part).trim())
+    .join("|");
+}
+
 function mergeStockNotiRows(current, incoming) {
   const byId = new Map();
   [...incoming, ...current].forEach((row) => {
-    if (!row?.id) return;
-    if (!byId.has(row.id)) byId.set(row.id, row);
+    const id = getStockNotiStableId(row);
+    if (!id) return;
+    if (!byId.has(id)) byId.set(id, { ...row, id });
   });
   return [...byId.values()].sort((a, b) => String(b.sortKey || b.id).localeCompare(String(a.sortKey || a.id)));
 }
@@ -467,13 +474,13 @@ function getStockNotiRows(payload) {
 
 function normalizeStockNotiRows(payload) {
   return getStockNotiRows(payload)
-    .map((row, index) => {
+    .map((row) => {
       const content = String(row?.content || "").trim();
       const date = String(row?.date || payload?.sourceDate || payload?.requestedDate || "").trim();
       if (!content) return null;
       const cap = normalizeStockNotiType(row?.type, row?.title);
       return {
-        id:`${date}|${row?.title || ""}|${content}|${index}`,
+        id:getStockNotiStableId({ sortKey:date, title:row?.title || "", capTag:getStockNotiCapTag(cap), x:content }),
         t:formatStockNotiTime(date),
         date:formatStockNotiDate(date),
         rawDate:getStockNotiRawDate(date),
