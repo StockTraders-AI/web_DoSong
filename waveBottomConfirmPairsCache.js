@@ -7,7 +7,7 @@ import { sendJson } from "./stockWaveHistoryCache.js";
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
 const VNINDEX_TRADE_REAL_URL = process.env.VNINDEX_TRADE_REAL_URL || "https://stocktraders.vn/service/data/getTotalTradeReal";
-const CACHE_VERSION = 19;
+const CACHE_VERSION = 20;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = path.join(__dirname, ".stock-wave-cache");
 const CACHE_FILE_PREFIX = "wave-bottom-confirm-pairs";
@@ -361,11 +361,14 @@ function findNextHighPivot(pivots, bottom) {
 
 function findRunningHighAfterBottom(rows, bottom) {
   if (!bottom) return null;
-  const nextRows = rows.filter((row) => row.index > bottom.index);
-  if (!nextRows.length) return null;
-  const highest = nextRows.reduce(
+  const thresholdHigh = bottom.low * (1 + ZIGZAG_THRESHOLD);
+  const confirmedRows = rows.filter(
+    (row) => row.index > bottom.index && row.high >= thresholdHigh
+  );
+  if (!confirmedRows.length) return null;
+  const highest = confirmedRows.reduce(
     (candidate, row) => row.high > candidate.high ? row : candidate,
-    nextRows[0]
+    confirmedRows[0]
   );
   return { ...highest, price: highest.high, type: "high", isRunningPeak: true };
 }
