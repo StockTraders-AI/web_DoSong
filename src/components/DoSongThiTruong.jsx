@@ -1389,7 +1389,7 @@ export default function DoSongThiTruong() {
       const notiData = getSocketStockNotiData(payload);
       if (!notiData) return false;
       const notiRows = normalizeStockNotiRows(notiData);
-      console.info("[stock-noti][realtime]", { source, payload, data:notiData, rowCount:notiRows.length, rows:notiRows });
+      console.log("[stock-noti][realtime]", { source, payload, data:notiData, rowCount:notiRows.length, rows:notiRows });
       if (!notiRows.length) return false;
 
       const activeDate = stockNotiDateRef.current || formatDateKey(new Date());

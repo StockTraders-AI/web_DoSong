@@ -260,8 +260,6 @@ export function startStockNotiSocket() {
   const handleSocketPayload = (payload) => {
     const channel = getPayloadChannel(payload);
     if (channel && channel !== STOCK_NOTI_CHANNEL) return;
-    const rows = normalizeStockNotiPayload(payload);
-    console.info("[stock-noti][server-socket]", { channel:channel || STOCK_NOTI_CHANNEL, rowCount:rows.length, payload });
     cacheSocketNotifications(payload).catch((error) => {
       console.error("Write stock notification socket cache failed", error);
     });
