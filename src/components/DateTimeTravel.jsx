@@ -40,6 +40,27 @@ function parseInputDate(value) {
   return parsed;
 }
 
+function getInputSegment(input) {
+  const start = input?.selectionStart ?? 0;
+  const end = input?.selectionEnd ?? start;
+  const mid = Math.floor((start + end) / 2);
+  if (mid <= 2) return { key:"day", start:0, end:2 };
+  if (mid <= 5) return { key:"month", start:3, end:5 };
+  return { key:"year", start:6, end:10 };
+}
+
+function selectInputSegment(input, segment) {
+  requestAnimationFrame(() => input?.setSelectionRange(segment.start, segment.end));
+}
+
+function stepDatePart(date, part, delta) {
+  const next = new Date(date);
+  if (part === "day") next.setDate(next.getDate() + delta);
+  if (part === "month") next.setMonth(next.getMonth() + delta);
+  if (part === "year") next.setFullYear(next.getFullYear() + delta);
+  return next;
+}
+
 function buildMonthGrid(cursor) {
   const y = cursor.getFullYear();
   const m = cursor.getMonth();
@@ -106,7 +127,7 @@ export default function DateTimeTravel({
     inputRef.current?.select();
   }, [editing]);
 
-  const goTo = (d) => {
+  const goTo = (d, options = {}) => {
     let next = new Date(d);
     if (next > maxDate) next = new Date(maxDate);
     if (next < minDate) next = new Date(minDate);
@@ -114,7 +135,8 @@ export default function DateTimeTravel({
     setCalCursor(new Date(next));
     setInputValue(fmt(next));
     setInputError(false);
-    setEditing(false);
+    if (!options.keepEditing) setEditing(false);
+    if (options.keepOpen) setOpen(true);
     onChange?.(next);
   };
 
@@ -144,6 +166,14 @@ export default function DateTimeTravel({
     setInputValue(fmt(current));
     setInputError(false);
     setEditing(false);
+  };
+
+  const stepInputSegment = (delta) => {
+    const input = inputRef.current;
+    const segment = getInputSegment(input);
+    const baseDate = parseInputDate(inputValue) || current;
+    goTo(stepDatePart(baseDate, segment.key, delta), { keepEditing:true, keepOpen:true });
+    selectInputSegment(input, segment);
   };
 
   const isToday = sameDay(current, maxDate);
@@ -192,6 +222,10 @@ export default function DateTimeTravel({
               setInputError(false);
             }}
             onKeyDown={(event) => {
+              if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+                event.preventDefault();
+                stepInputSegment(event.key === "ArrowUp" ? 1 : -1);
+              }
               if (event.key === "Enter") submitInput();
               if (event.key === "Escape") cancelInput();
             }}
@@ -207,9 +241,11 @@ export default function DateTimeTravel({
           <button
             type="button"
             onClick={() => {
+              setCalCursor(new Date(current));
               setInputValue(fmt(current));
               setInputError(false);
               setEditing(true);
+              setOpen(true);
             }}
             style={st.inlineDateButton}
           >
