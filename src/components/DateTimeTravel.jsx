@@ -95,12 +95,18 @@ export default function DateTimeTravel({
   const current = value ?? internalDate;
   const [open, setOpen] = useState(false);
   const [calCursor, setCalCursor] = useState(new Date(current));
+  const [draftDate, setDraftDate] = useState(new Date(current));
   const [inputValue, setInputValue] = useState(fmt(current));
   const [inputError, setInputError] = useState(false);
   const [editing, setEditing] = useState(false);
   const inputRef = useRef(null);
+  const currentRef = useRef(current);
   const popRef = useRef(null);
   const triggerRef = useRef(null);
+
+  useEffect(() => {
+    currentRef.current = current;
+  }, [current]);
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -110,6 +116,12 @@ export default function DateTimeTravel({
         triggerRef.current &&
         !triggerRef.current.contains(e.target)
       ) {
+        const next = new Date(currentRef.current);
+        setDraftDate(next);
+        setCalCursor(next);
+        setInputValue(fmt(next));
+        setInputError(false);
+        setEditing(false);
         setOpen(false);
       }
     }
@@ -118,8 +130,11 @@ export default function DateTimeTravel({
   }, []);
 
   useEffect(() => {
-    if (!editing) setInputValue(fmt(current));
-  }, [current, editing]);
+    if (editing || open) return;
+    setDraftDate(new Date(current));
+    setCalCursor(new Date(current));
+    setInputValue(fmt(current));
+  }, [current, editing, open]);
 
   useEffect(() => {
     if (!editing) return;
@@ -127,28 +142,47 @@ export default function DateTimeTravel({
     inputRef.current?.select();
   }, [editing]);
 
-  const goTo = (d, options = {}) => {
+  const clampDate = (d) => {
     let next = new Date(d);
     if (next > maxDate) next = new Date(maxDate);
     if (next < minDate) next = new Date(minDate);
-    setInternalDate(next);
+    return next;
+  };
+
+  const setDraft = (d) => {
+    const next = clampDate(d);
+    setDraftDate(next);
     setCalCursor(new Date(next));
     setInputValue(fmt(next));
     setInputError(false);
-    if (!options.keepEditing) setEditing(false);
-    if (options.keepOpen) setOpen(true);
+    return next;
+  };
+
+  const commitDate = (d = draftDate) => {
+    const next = clampDate(d);
+    setInternalDate(next);
+    setDraftDate(next);
+    setCalCursor(new Date(next));
+    setInputValue(fmt(next));
+    setInputError(false);
+    setEditing(false);
+    setOpen(false);
     onChange?.(next);
   };
 
   const stepDay = (delta) => {
-    const d = new Date(current);
+    const baseDate = open || editing ? draftDate : current;
+    const d = new Date(baseDate);
     d.setDate(d.getDate() + delta);
-    goTo(d);
+    if (open || editing) setDraft(d);
+    else commitDate(d);
   };
 
   const openCalendar = () => {
-    setCalCursor(new Date(current));
-    setInputValue(fmt(current));
+    const next = new Date(current);
+    setDraftDate(next);
+    setCalCursor(next);
+    setInputValue(fmt(next));
     setInputError(false);
     setOpen((o) => !o);
   };
@@ -159,27 +193,33 @@ export default function DateTimeTravel({
       setInputError(true);
       return;
     }
-    goTo(parsed);
+    commitDate(parsed);
   };
 
   const cancelInput = () => {
-    setInputValue(fmt(current));
+    const next = new Date(current);
+    setDraftDate(next);
+    setCalCursor(next);
+    setInputValue(fmt(next));
     setInputError(false);
     setEditing(false);
+    setOpen(false);
   };
 
   const stepInputSegment = (delta) => {
     const input = inputRef.current;
     const segment = getInputSegment(input);
-    const baseDate = parseInputDate(inputValue) || current;
-    goTo(stepDatePart(baseDate, segment.key, delta), { keepEditing:true, keepOpen:true });
+    const baseDate = parseInputDate(inputValue) || draftDate || current;
+    setDraft(stepDatePart(baseDate, segment.key, delta));
+    setOpen(true);
     selectInputSegment(input, segment);
   };
 
-  const isToday = sameDay(current, maxDate);
+  const activeDate = open || editing ? draftDate : current;
+  const isToday = sameDay(activeDate, maxDate);
   const cells = buildMonthGrid(calCursor);
-  const prevDisabled = current <= minDate;
-  const nextDisabled = isToday;
+  const prevDisabled = activeDate <= minDate;
+  const nextDisabled = activeDate >= maxDate;
 
   const iconButtonStyle = (disabled) => ({
     width: 26,
@@ -230,9 +270,10 @@ export default function DateTimeTravel({
               if (event.key === "Escape") cancelInput();
             }}
             onBlur={() => {
+              if (open) return;
               if (inputError) return;
               const parsed = parseInputDate(inputValue);
-              if (parsed) goTo(parsed);
+              if (parsed) commitDate(parsed);
               else cancelInput();
             }}
             style={{ ...st.inlineInput, borderColor: inputError ? "var(--R, #EF4444)" : "transparent" }}
@@ -241,8 +282,10 @@ export default function DateTimeTravel({
           <button
             type="button"
             onClick={() => {
-              setCalCursor(new Date(current));
-              setInputValue(fmt(current));
+              const next = new Date(current);
+              setDraftDate(next);
+              setCalCursor(next);
+              setInputValue(fmt(next));
               setInputError(false);
               setEditing(true);
               setOpen(true);
@@ -290,7 +333,7 @@ export default function DateTimeTravel({
             ))}
             {cells.map(({ other, date }, i) => {
               const disabled = date > maxDate || date < minDate;
-              const selected = sameDay(date, current);
+              const selected = sameDay(date, activeDate);
               const today = sameDay(date, maxDate);
               return (
                 <button
@@ -298,8 +341,8 @@ export default function DateTimeTravel({
                   type="button"
                   disabled={disabled}
                   onClick={() => {
-                    goTo(date);
-                    setOpen(false);
+                    setDraft(date);
+                    setEditing(true);
                   }}
                   style={{
                     ...st.day,
@@ -321,14 +364,14 @@ export default function DateTimeTravel({
             <button
               type="button"
               onClick={() => {
-                goTo(new Date(maxDate));
-                setOpen(false);
+                setDraft(new Date(maxDate));
+                setEditing(true);
               }}
               style={{ ...st.footerButton, color: "var(--G, #3DD68C)" }}
             >
               Hôm nay
             </button>
-            <button type="button" onClick={() => setOpen(false)} style={st.footerButton}>
+            <button type="button" onClick={() => commitDate(parseInputDate(inputValue) || draftDate)} style={st.footerButton}>
               Đóng
             </button>
           </div>
