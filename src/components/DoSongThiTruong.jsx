@@ -575,7 +575,37 @@ function fetchStockWaveCurrent() {
 
 const stockWaveHistoryRequests = new Map();
 const stockWaveTickerRequests = new Map();
+const STOCK_WAVE_HISTORY_STORAGE_PREFIX = "stocktraders:stock-wave-history:";
 let waveBottomConfirmPairsRequest = null;
+
+function getStoredStockWaveHistory(referenceDate) {
+  if (!referenceDate || typeof window === "undefined" || !window.localStorage) return null;
+  try {
+    const payload = JSON.parse(window.localStorage.getItem(`${STOCK_WAVE_HISTORY_STORAGE_PREFIX}${referenceDate}`) || "null");
+    if (!payload || payload.referenceDate !== referenceDate || !Array.isArray(payload.allRows)) return null;
+    const allRows = normalizeWavePayload(payload.allRows);
+    const rows = Array.isArray(payload.rows) && payload.rows.length
+      ? normalizeWavePayload(payload.rows)
+      : getPreviousWaveSessions(allRows, referenceDate);
+    return { rows, allRows };
+  } catch {
+    return null;
+  }
+}
+
+function storeStockWaveHistory(referenceDate, rows, allRows) {
+  if (!referenceDate || typeof window === "undefined" || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(`${STOCK_WAVE_HISTORY_STORAGE_PREFIX}${referenceDate}`, JSON.stringify({
+      referenceDate,
+      cachedAt:new Date().toISOString(),
+      rows,
+      allRows:allRows?.length ? allRows : rows,
+    }));
+  } catch {
+    // Ignore storage quota/private-mode failures; network cache still works.
+  }
+}
 
 function getHistoryUrl(referenceDate, force = false) {
   const url = new URL(STOCK_WAVE_HISTORY_URL, window.location.origin);
@@ -1585,13 +1615,20 @@ export default function DoSongThiTruong() {
     if (!latestWave.rawDate) return;
 
     let active = true;
-    setHistoryLoading(true);
+    const cachedHistory = getStoredStockWaveHistory(latestWave.rawDate);
+    if (cachedHistory) {
+      setHistoryWaves(cachedHistory.rows);
+      setHistoryAllWaves(cachedHistory.allRows?.length ? cachedHistory.allRows : cachedHistory.rows);
+    }
+    setHistoryLoading(!cachedHistory);
 
     fetchStockWaveHistory(latestWave.rawDate)
       .then(({ rows, allRows }) => {
         if (!active) return;
+        const nextAllRows = allRows?.length ? allRows : rows;
         setHistoryWaves(rows);
-        setHistoryAllWaves(allRows?.length ? allRows : rows);
+        setHistoryAllWaves(nextAllRows);
+        storeStockWaveHistory(latestWave.rawDate, rows, nextAllRows);
         setHistoryLoading(false);
       })
       .catch((error) => {

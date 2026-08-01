@@ -76,6 +76,8 @@ export default function DateTimeTravel({
   const [calCursor, setCalCursor] = useState(new Date(current));
   const [inputValue, setInputValue] = useState(fmt(current));
   const [inputError, setInputError] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const inputRef = useRef(null);
   const popRef = useRef(null);
   const triggerRef = useRef(null);
 
@@ -94,6 +96,16 @@ export default function DateTimeTravel({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!editing) setInputValue(fmt(current));
+  }, [current, editing]);
+
+  useEffect(() => {
+    if (!editing) return;
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [editing]);
+
   const goTo = (d) => {
     let next = new Date(d);
     if (next > maxDate) next = new Date(maxDate);
@@ -102,6 +114,7 @@ export default function DateTimeTravel({
     setCalCursor(new Date(next));
     setInputValue(fmt(next));
     setInputError(false);
+    setEditing(false);
     onChange?.(next);
   };
 
@@ -125,7 +138,12 @@ export default function DateTimeTravel({
       return;
     }
     goTo(parsed);
-    setOpen(false);
+  };
+
+  const cancelInput = () => {
+    setInputValue(fmt(current));
+    setInputError(false);
+    setEditing(false);
   };
 
   const isToday = sameDay(current, maxDate);
@@ -161,15 +179,44 @@ export default function DateTimeTravel({
         <ChevronLeft size={15} />
       </button>
 
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={openCalendar}
-        style={{ ...st.dateButton, color: isToday ? "var(--G, #3DD68C)" : "var(--t1, #D9E4F5)" }}
-      >
-        <Calendar size={13} style={{ opacity: 0.72, flexShrink: 0 }} />
-        <span>{fmt(current)}</span>
-      </button>
+      <div ref={triggerRef} style={{ ...st.dateButton, color: isToday ? "var(--G, #3DD68C)" : "var(--t1, #D9E4F5)" }}>
+        <button type="button" onClick={openCalendar} style={st.calendarButton} aria-label="Mở lịch">
+          <Calendar size={13} style={{ opacity: 0.72, flexShrink: 0 }} />
+        </button>
+        {editing ? (
+          <input
+            ref={inputRef}
+            value={inputValue}
+            onChange={(event) => {
+              setInputValue(event.target.value);
+              setInputError(false);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") submitInput();
+              if (event.key === "Escape") cancelInput();
+            }}
+            onBlur={() => {
+              if (inputError) return;
+              const parsed = parseInputDate(inputValue);
+              if (parsed) goTo(parsed);
+              else cancelInput();
+            }}
+            style={{ ...st.inlineInput, borderColor: inputError ? "var(--R, #EF4444)" : "transparent" }}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setInputValue(fmt(current));
+              setInputError(false);
+              setEditing(true);
+            }}
+            style={st.inlineDateButton}
+          >
+            {fmt(current)}
+          </button>
+        )}
+      </div>
 
       <button
         type="button"
@@ -183,24 +230,6 @@ export default function DateTimeTravel({
 
       {open && (
         <div ref={popRef} style={st.popover}>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              submitInput();
-            }}
-            style={st.quickForm}
-          >
-            <input
-              value={inputValue}
-              onChange={(event) => {
-                setInputValue(event.target.value);
-                setInputError(false);
-              }}
-              placeholder="dd/mm/yyyy"
-              style={{ ...st.quickInput, borderColor: inputError ? "var(--R, #EF4444)" : "var(--bdr, #242E42)" }}
-            />
-            <button type="submit" style={st.quickButton}>Đi</button>
-          </form>
           <div style={st.monthHeader}>
             <button
               type="button"
@@ -290,49 +319,55 @@ const st = {
   dateButton: {
     display: "inline-flex",
     alignItems: "center",
-    gap: 6,
+    gap: 4,
     height: 26,
     border: 0,
     borderRadius: 8,
     background: "transparent",
-    padding: "0 7px",
+    padding: "0 4px",
     fontSize: 11,
     fontWeight: 700,
     lineHeight: 1,
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
     letterSpacing: 0,
-    cursor: "pointer",
     whiteSpace: "nowrap",
   },
-  quickForm: {
-    display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) 42px",
-    gap: 8,
-    marginBottom: 10,
-  },
-  quickInput: {
-    minWidth: 0,
-    height: 30,
-    border: "0.5px solid var(--bdr, #242E42)",
-    borderRadius: 8,
-    background: "var(--elev, #111520)",
-    color: "var(--t1, #F0F4FF)",
-    padding: "0 10px",
-    fontSize: 12,
-    fontWeight: 700,
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
-    outline: "none",
-  },
-  quickButton: {
-    height: 30,
+  calendarButton: {
+    width: 18,
+    height: 22,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
     border: 0,
-    borderRadius: 8,
-    background: "var(--P, #7C3AED)",
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: 800,
+    borderRadius: 6,
+    background: "transparent",
+    color: "inherit",
     cursor: "pointer",
     padding: 0,
+  },
+  inlineDateButton: {
+    border: 0,
+    borderRadius: 6,
+    background: "transparent",
+    color: "inherit",
+    cursor: "text",
+    padding: "0 3px",
+    font: "inherit",
+    fontWeight: 700,
+    lineHeight: 1,
+  },
+  inlineInput: {
+    width: 78,
+    height: 22,
+    border: "0.5px solid transparent",
+    borderRadius: 6,
+    background: "rgba(255,255,255,.06)",
+    color: "inherit",
+    padding: "0 4px",
+    font: "inherit",
+    fontWeight: 700,
+    lineHeight: 1,
+    outline: "none",
   },
   popover: {
     position: "absolute",
