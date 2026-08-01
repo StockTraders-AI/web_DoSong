@@ -15,6 +15,31 @@ const sameDay = (a, b) =>
 const fmt = (d) =>
   `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 
+function parseInputDate(value) {
+  const text = String(value || "").trim();
+  const match = text.match(/^(\d{1,4})[\/\-.](\d{1,2})[\/\-.](\d{1,4})$/);
+  if (!match) return null;
+
+  let day = Number(match[1]);
+  let month = Number(match[2]);
+  let year = Number(match[3]);
+  if (match[1].length === 4) {
+    year = Number(match[1]);
+    month = Number(match[2]);
+    day = Number(match[3]);
+  }
+
+  const parsed = new Date(year, month - 1, day);
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    return null;
+  }
+  return parsed;
+}
+
 function buildMonthGrid(cursor) {
   const y = cursor.getFullYear();
   const m = cursor.getMonth();
@@ -49,6 +74,8 @@ export default function DateTimeTravel({
   const current = value ?? internalDate;
   const [open, setOpen] = useState(false);
   const [calCursor, setCalCursor] = useState(new Date(current));
+  const [inputValue, setInputValue] = useState(fmt(current));
+  const [inputError, setInputError] = useState(false);
   const popRef = useRef(null);
   const triggerRef = useRef(null);
 
@@ -73,6 +100,8 @@ export default function DateTimeTravel({
     if (next < minDate) next = new Date(minDate);
     setInternalDate(next);
     setCalCursor(new Date(next));
+    setInputValue(fmt(next));
+    setInputError(false);
     onChange?.(next);
   };
 
@@ -84,7 +113,19 @@ export default function DateTimeTravel({
 
   const openCalendar = () => {
     setCalCursor(new Date(current));
+    setInputValue(fmt(current));
+    setInputError(false);
     setOpen((o) => !o);
+  };
+
+  const submitInput = () => {
+    const parsed = parseInputDate(inputValue);
+    if (!parsed) {
+      setInputError(true);
+      return;
+    }
+    goTo(parsed);
+    setOpen(false);
   };
 
   const isToday = sameDay(current, maxDate);
@@ -142,6 +183,24 @@ export default function DateTimeTravel({
 
       {open && (
         <div ref={popRef} style={st.popover}>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitInput();
+            }}
+            style={st.quickForm}
+          >
+            <input
+              value={inputValue}
+              onChange={(event) => {
+                setInputValue(event.target.value);
+                setInputError(false);
+              }}
+              placeholder="dd/mm/yyyy"
+              style={{ ...st.quickInput, borderColor: inputError ? "var(--R, #EF4444)" : "var(--bdr, #242E42)" }}
+            />
+            <button type="submit" style={st.quickButton}>Đi</button>
+          </form>
           <div style={st.monthHeader}>
             <button
               type="button"
@@ -244,6 +303,36 @@ const st = {
     letterSpacing: 0,
     cursor: "pointer",
     whiteSpace: "nowrap",
+  },
+  quickForm: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) 42px",
+    gap: 8,
+    marginBottom: 10,
+  },
+  quickInput: {
+    minWidth: 0,
+    height: 30,
+    border: "0.5px solid var(--bdr, #242E42)",
+    borderRadius: 8,
+    background: "var(--elev, #111520)",
+    color: "var(--t1, #F0F4FF)",
+    padding: "0 10px",
+    fontSize: 12,
+    fontWeight: 700,
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+    outline: "none",
+  },
+  quickButton: {
+    height: 30,
+    border: 0,
+    borderRadius: 8,
+    background: "var(--P, #7C3AED)",
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: 800,
+    cursor: "pointer",
+    padding: 0,
   },
   popover: {
     position: "absolute",

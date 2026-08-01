@@ -74,6 +74,11 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
   useEffect(() => {
     let cancelled = false;
     const retryTimers = [];
+    const shouldUseConditionAdvice = adviceMode === "buy" || adviceMode === "waitbuy";
+
+    if (shouldUseConditionAdvice) {
+      setConditionSignal(EMPTY_SIGNAL);
+    }
     const currentWaitbuy = Number(waitbuy) || 0;
     const currentBuy = Number(buy) || 0;
     const retryDelays = [0, 2000, 6000, 12000];
@@ -89,8 +94,6 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
         if (doSongAdvice === null) {
           if (!cancelled && attempt + 1 < retryDelays.length) scheduleLoad(attempt + 1);
         }
-
-        const shouldUseConditionAdvice = adviceMode === "buy" || adviceMode === "waitbuy";
         if (shouldUseConditionAdvice) {
           const candidates = getAdviceSignalCandidates(adviceMode, signalKey || DEFAULT_SIGNAL_KEY, currentBuy);
           let nextSignal = EMPTY_SIGNAL;
@@ -327,7 +330,7 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
           borderRadius: 10,
           padding: "10px 12px",
           fontSize: 12.5,
-          fontWeight: 700,
+          fontWeight: 400,
           color: "var(--t1, #0A0A0A)",
           background: "rgba(124,58,237,.14)",
           opacity: textReady ? 1 : 0,
