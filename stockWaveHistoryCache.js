@@ -32,10 +32,6 @@ function getMarketNowParts(date = new Date()) {
   return { date: `${lookup.year}-${lookup.month}-${lookup.day}`, hour: Number(lookup.hour), minute: Number(lookup.minute) };
 }
 
-function todayKey(date = new Date()) {
-  return getMarketNowParts(date).date;
-}
-
 function getRefreshState(date = new Date()) {
   const marketNow = getMarketNowParts(date);
   const currentMinutes = marketNow.hour * 60 + marketNow.minute;

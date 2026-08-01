@@ -1511,13 +1511,12 @@ export default function DoSongThiTruong() {
       });
     });
 
-    const applyStockNotiPayload = (payload, source = "socket") => {
+    const applyStockNotiPayload = (payload) => {
       if (!active) return false;
 
       const notiData = getSocketStockNotiData(payload);
       if (!notiData) return false;
       const notiRows = normalizeStockNotiRows(notiData);
-      console.log("[stock-noti][realtime]", { source, payload, data:notiData, rowCount:notiRows.length, rows:notiRows });
       if (!notiRows.length) return false;
 
       const activeDate = stockNotiDateRef.current || formatDateKey(new Date());
@@ -1531,7 +1530,7 @@ export default function DoSongThiTruong() {
 
     socket.on("message", (payload) => {
       if (!active) return;
-      if (applyStockNotiPayload(payload, "socket-message")) return;
+      if (applyStockNotiPayload(payload)) return;
 
       const data = getSocketWaveData(payload);
       if (!data) return;
@@ -1544,7 +1543,7 @@ export default function DoSongThiTruong() {
     });
 
     socket.on(STOCK_NOTI_CHANNEL, (payload) => {
-      applyStockNotiPayload({ channel:STOCK_NOTI_CHANNEL, data:payload }, "socket-event");
+      applyStockNotiPayload({ channel:STOCK_NOTI_CHANNEL, data:payload });
     });
 
     const stockNotiStream = typeof EventSource !== "undefined"
@@ -1555,7 +1554,7 @@ export default function DoSongThiTruong() {
       if (!active) return;
       try {
         const payload = JSON.parse(event.data);
-        applyStockNotiPayload({ channel:STOCK_NOTI_CHANNEL, data:payload }, "stream");
+        applyStockNotiPayload({ channel:STOCK_NOTI_CHANNEL, data:payload });
       } catch (error) {
         console.error("Parse stock-noti stream failed", error);
       }

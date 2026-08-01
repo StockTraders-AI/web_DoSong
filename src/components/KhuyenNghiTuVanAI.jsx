@@ -130,13 +130,17 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
             if (hasSignalContent(nextSignal)) {
               cacheLastSignal(nextSignal);
               setConditionSignal(nextSignal);
-            } else if (attempt + 1 < retryDelays.length) {
+              return;
+            }
+            if (!doSongAdvice?.engine && attempt + 1 < retryDelays.length) {
               scheduleLoad(attempt + 1);
-            } else {
+              return;
+            }
+            if (!doSongAdvice?.engine) {
               setConditionSignal(EMPTY_SIGNAL);
+              return;
             }
           }
-          return;
         }
 
         if (doSongAdvice?.engine) {
@@ -159,17 +163,6 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
               title: String(data?.title || "").trim(),
               response: String(data?.response || "").trim(),
               recommendation: String(data?.recommendation || "").trim(),
-            };
-            const responseDebug = {
-              checkDate: data?.check_date || checkDate || doSongAdvice.check_date || "",
-              flow_id: data?.flow_id || null,
-              signal_keys: data?.signal_keys || [],
-              maTrangThai: data?.maTrangThai || null,
-              pha: data?.pha || null,
-              has_content: hasSignalContent(engineSignal),
-              title: engineSignal.title,
-              response: engineSignal.response,
-              recommendation: engineSignal.recommendation,
             };
             if (hasSignalContent(engineSignal)) {
               if (!cancelled) {
@@ -235,7 +228,7 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
       cancelled = true;
       retryTimers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [signalKey, waitbuy, buy, refreshKey, checkDate, doSongAdviceKey, adviceMode]);
+  }, [signalKey, waitbuy, buy, refreshKey, checkDate, doSongAdvice, doSongAdviceKey, adviceMode]);
 
   const { title, response, recommendation } = conditionSignal;
   const visibleTitle = title || "\u00a0";

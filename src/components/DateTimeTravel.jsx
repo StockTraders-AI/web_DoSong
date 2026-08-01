@@ -17,7 +17,7 @@ const fmt = (d) =>
 
 function parseInputDate(value) {
   const text = String(value || "").trim();
-  const match = text.match(/^(\d{1,4})[\/\-.](\d{1,2})[\/\-.](\d{1,4})$/);
+  const match = text.match(/^(\d{1,4})[/\-.](\d{1,2})[/\-.](\d{1,4})$/);
   if (!match) return null;
 
   let day = Number(match[1]);

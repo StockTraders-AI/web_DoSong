@@ -302,8 +302,8 @@ export async function handleStockNoti(req, res, rawUrl) {
   try {
     let store = await readStore();
     const exact = store.byDate[dateKey];
-    if (exact?.rows?.length) {
-      sendJson(res, 200, exact);
+    if (filterRowsForDate(exact?.rows, dateKey).length) {
+      sendJson(res, 200, responseForDate(store, dateKey));
       return true;
     }
 
