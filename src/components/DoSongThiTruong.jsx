@@ -1700,8 +1700,8 @@ export default function DoSongThiTruong() {
           .dosong-layout table{font-size:12px}
           .dosong-layout th,.dosong-layout td{padding-left:7px !important; padding-right:7px !important}
           .chan-song-table-wrap{overflow-x:auto !important}
-          .chan-song-table{width:100% !important; min-width:100% !important; table-layout:fixed !important}
-          .chan-song-table th,.chan-song-table td{width:16.6667% !important; min-width:0 !important; padding-left:6px !important; padding-right:6px !important; text-align:center !important; overflow:hidden !important; text-overflow:ellipsis !important}
+          .chan-song-table{width:100% !important; min-width:620px !important; table-layout:fixed !important}
+          .chan-song-table th,.chan-song-table td{width:16.6667% !important; min-width:0 !important; padding-left:6px !important; padding-right:6px !important; text-align:center !important; overflow:visible !important; text-overflow:clip !important}
           .chan-song-table th:first-child,.chan-song-table td:first-child{text-align:left !important}
           .chan-song-table th:last-child,.chan-song-table td:last-child{text-align:right !important}
           .vtds-card{padding:16px 17px !important; max-width:none !important}
