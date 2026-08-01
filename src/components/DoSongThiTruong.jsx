@@ -1039,7 +1039,7 @@ function ChanSong({ data = [], onRefresh = null }) {
           className="chan-song-table"
           style={{
             width: "max-content",
-            minWidth: "max(100%, 620px)",
+            minWidth: "max(100%, 580px)",
             borderCollapse: "collapse",
             tableLayout: "auto",
             whiteSpace: "nowrap",
