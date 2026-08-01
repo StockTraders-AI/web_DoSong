@@ -1029,12 +1029,14 @@ function ChanSong({ data = [], onRefresh = null }) {
       </div>
 
       <div
+        className="chan-song-table-wrap"
         style={{
           overflowX: "auto",
           WebkitOverflowScrolling: "touch",
         }}
       >
         <table
+          className="chan-song-table"
           style={{
             width: "max-content",
             minWidth: "max(100%, 620px)",
@@ -1697,6 +1699,11 @@ export default function DoSongThiTruong() {
           .dosong-mobile-backdrop{display:block; position:fixed; inset:0; z-index:1001; background:rgba(0,0,0,.52)}
           .dosong-layout table{font-size:12px}
           .dosong-layout th,.dosong-layout td{padding-left:7px !important; padding-right:7px !important}
+          .chan-song-table-wrap{overflow-x:auto !important}
+          .chan-song-table{width:100% !important; min-width:100% !important; table-layout:fixed !important}
+          .chan-song-table th,.chan-song-table td{width:16.6667% !important; min-width:0 !important; padding-left:6px !important; padding-right:6px !important; text-align:center !important; overflow:hidden !important; text-overflow:ellipsis !important}
+          .chan-song-table th:first-child,.chan-song-table td:first-child{text-align:left !important}
+          .chan-song-table th:last-child,.chan-song-table td:last-child{text-align:right !important}
           .vtds-card{padding:16px 17px !important; max-width:none !important}
           .vtds-header{align-items:flex-start !important; gap:10px !important; margin-bottom:14px !important; flex-wrap:wrap !important}
           .vtds-title{white-space:normal !important; flex-wrap:wrap !important; font-size:16px !important; min-width:0 !important}

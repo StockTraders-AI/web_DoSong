@@ -130,17 +130,13 @@ export default function KhuyenNghiTuVanAI({ signalKey = DEFAULT_SIGNAL_KEY, wait
             if (hasSignalContent(nextSignal)) {
               cacheLastSignal(nextSignal);
               setConditionSignal(nextSignal);
-              return;
-            }
-            if (!doSongAdvice?.engine && attempt + 1 < retryDelays.length) {
+            } else if (attempt + 1 < retryDelays.length) {
               scheduleLoad(attempt + 1);
-              return;
-            }
-            if (!doSongAdvice?.engine) {
+            } else {
               setConditionSignal(EMPTY_SIGNAL);
-              return;
             }
           }
+          return;
         }
 
         if (doSongAdvice?.engine) {
