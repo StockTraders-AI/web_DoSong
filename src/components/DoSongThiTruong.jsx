@@ -1039,7 +1039,7 @@ function ChanSong({ data = [], onRefresh = null }) {
           className="chan-song-table"
           style={{
             width: "max-content",
-            minWidth: "max(100%, 520px)",
+            minWidth: "max(100%, 500px)",
             borderCollapse: "collapse",
             tableLayout: "auto",
             whiteSpace: "nowrap",
@@ -1700,9 +1700,9 @@ export default function DoSongThiTruong() {
           .dosong-layout table{font-size:12px}
           .dosong-layout th,.dosong-layout td{padding-left:7px !important; padding-right:7px !important}
           .chan-song-table-wrap{overflow-x:auto !important}
-          .chan-song-table{width:100% !important; min-width:520px !important; table-layout:fixed !important}
-          .chan-song-table th,.chan-song-table td{width:16.6667% !important; min-width:0 !important; padding-left:4px !important; padding-right:4px !important; text-align:center !important; overflow:visible !important; text-overflow:clip !important}
-          .chan-song-table th{font-size:9px !important}.chan-song-table td{font-size:11.5px !important}.chan-song-table th:first-child,.chan-song-table td:first-child{text-align:left !important}
+          .chan-song-table{width:100% !important; min-width:500px !important; table-layout:fixed !important}
+          .chan-song-table th,.chan-song-table td{width:16.6667% !important; min-width:0 !important; padding-left:3px !important; padding-right:3px !important; text-align:center !important; overflow:visible !important; text-overflow:clip !important}
+          .chan-song-table th:first-child,.chan-song-table td:first-child{text-align:left !important}
           .chan-song-table th:last-child,.chan-song-table td:last-child{text-align:right !important}
           .vtds-card{padding:16px 17px !important; max-width:none !important}
           .vtds-header{align-items:flex-start !important; gap:10px !important; margin-bottom:14px !important; flex-wrap:wrap !important}
