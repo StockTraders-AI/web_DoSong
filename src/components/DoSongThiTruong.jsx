@@ -1060,6 +1060,7 @@ export default function DoSongThiTruong() {
   const [latestWave, setLatestWave] = useState(EMPTY_WAVE);
   const [historyWaves, setHistoryWaves] = useState([]);
   const [historyAllWaves, setHistoryAllWaves] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [chanSongRows, setChanSongRows] = useState([]);
   const [tickerWave, setTickerWave] = useState(EMPTY_WAVE);
   const [signalRefreshKey, setSignalRefreshKey] = useState(0);
@@ -1114,6 +1115,7 @@ export default function DoSongThiTruong() {
   ), [historySource, mainDonutDisplayWave, selectedMainDonutWave.rawDate]);
   function refreshHistoryFromTitle() {
     if (!latestWave.rawDate) return;
+    if (!historyAllWaves.length) setHistoryLoading(true);
     fetchStockWaveHistory(latestWave.rawDate, true)
       .then(({ rows, allRows }) => {
         setHistoryWaves(rows);
@@ -1122,7 +1124,9 @@ export default function DoSongThiTruong() {
       .catch((error) => {
         console.error("Reload stock wave history failed", error);
       })
-      .finally(() => {});
+      .finally(() => {
+        setHistoryLoading(false);
+      });
   }
 
   function refreshChanSongFromTitle() {
@@ -1145,6 +1149,7 @@ export default function DoSongThiTruong() {
         if (snapshot.allRows?.length) {
           setHistoryAllWaves(snapshot.allRows);
           setHistoryWaves(getPreviousWaveSessions(snapshot.allRows, row.rawDate));
+          setHistoryLoading(false);
         }
         setLatestWave(row);
         setSignalRefreshKey((key) => key + 1);
@@ -1265,9 +1270,14 @@ export default function DoSongThiTruong() {
   }, []);
 
   useEffect(() => {
-    if (!latestWave.rawDate || historyAllWaves.length) return;
+    if (!latestWave.rawDate) return;
+    if (historyAllWaves.length) {
+      setHistoryLoading(false);
+      return;
+    }
 
     let active = true;
+    setHistoryLoading(true);
 
     fetchStockWaveHistory(latestWave.rawDate)
       .then(({ rows, allRows }) => {
@@ -1275,8 +1285,10 @@ export default function DoSongThiTruong() {
         const nextAllRows = allRows?.length ? allRows : rows;
         setHistoryWaves(rows);
         setHistoryAllWaves(nextAllRows);
+        setHistoryLoading(false);
       })
       .catch((error) => {
+        if (active) setHistoryLoading(false);
         console.error("Load stock wave history failed", error);
       });
 
@@ -1478,7 +1490,7 @@ export default function DoSongThiTruong() {
 
             {/* Lịch sử dò sóng */}
             <div className="dosong-mobile-item dosong-order-history">
-              <HistNavigator data={selectedHistoryDisplayWaves} totalDays={selectedHistoryDisplayWaves.length} theme={theme} loading={false} onRefresh={refreshHistoryFromTitle} />
+              <HistNavigator data={selectedHistoryDisplayWaves} totalDays={selectedHistoryDisplayWaves.length} theme={theme} loading={historyLoading && !selectedHistoryDisplayWaves.length} onRefresh={refreshHistoryFromTitle} />
             </div>
 
             {/* Lịch sử chân sóng */}
