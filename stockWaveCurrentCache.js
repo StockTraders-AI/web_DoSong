@@ -1,7 +1,6 @@
 import { io } from "socket.io-client";
 import { sendJson } from "./stockWaveHistoryCache.js";
 import {
-  getAllStockWaveRowsFromDb,
   getStockWaveCurrentFromDb,
   insertRawSocketEvent,
   upsertStockWaveCurrent,
@@ -42,28 +41,24 @@ async function writeCurrent(data) {
   if (dateKey) {
     await backfillRecommendationDaily({ from: dateKey, to: dateKey, seedTemplates: true });
   }
-  const allRows = await getAllStockWaveRowsFromDb();
   currentPayload = {
     success: true,
     cachedAt: new Date().toISOString(),
     data,
-    allRows,
     source: "socket",
   };
 }
 
 async function readCurrent() {
-  if (currentPayload?.allRows?.length) return currentPayload;
+  if (currentPayload) return currentPayload;
 
   const data = await getStockWaveCurrentFromDb();
   if (!data) return null;
 
-  const allRows = await getAllStockWaveRowsFromDb();
   currentPayload = {
     success: true,
     cachedAt: new Date().toISOString(),
     data,
-    allRows,
     source: "db",
   };
   return currentPayload;

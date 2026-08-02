@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { createReadStream, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { handleStockWaveHistory, sendJson } from "./stockWaveHistoryCache.js";
+import { handleStockWaveHistory, preloadStockWaveHistorySnapshot, sendJson } from "./stockWaveHistoryCache.js";
 import { handleStockWaveCurrent, startStockWaveCurrentSocket } from "./stockWaveCurrentCache.js";
 import { handleStockWaveTickers } from "./stockWaveTickersCache.js";
 import { handleWaveBottomConfirmPairs } from "./waveBottomConfirmPairsCache.js";
@@ -18,7 +18,11 @@ const PORT = Number(process.env.PORT || 5173);
 const DIST_DIR = path.join(__dirname, "dist");
 
 initStockDataDb()
-  .then(() => console.log(`StockTraders DB ready at ${DB_PATH}`))
+  .then(async () => {
+    console.log(`StockTraders DB ready at ${DB_PATH}`);
+    const rows = await preloadStockWaveHistorySnapshot();
+    console.log(`Stock wave history snapshot ready: ${rows.length} rows`);
+  })
   .catch((error) => console.error("StockTraders DB init failed", error));
 
 startStockWaveCurrentSocket();

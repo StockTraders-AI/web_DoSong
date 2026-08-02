@@ -414,6 +414,46 @@ export async function getAllStockWaveRowsFromDb() {
   return sortAndDedupeWaveRows(records);
 }
 
+export async function getAllStockWaveSummaryRowsFromDb() {
+  const database = await initStockDataDb();
+  const records = database.prepare(`
+    SELECT trading_date, slot, source, buy_count, wait_buy_count, sell_count, wait_sell_count,
+      total_count, reliability, updated_at
+    FROM stock_wave_daily
+    ORDER BY trading_date DESC, updated_at DESC
+  `).all();
+
+  const byDate = new Map();
+  records.forEach((record) => {
+    const current = byDate.get(record.trading_date);
+    if (!current) {
+      byDate.set(record.trading_date, record);
+      return;
+    }
+    const recordRank = getSlotRank(record.slot);
+    const currentRank = getSlotRank(current.slot);
+    if (
+      recordRank > currentRank ||
+      (recordRank === currentRank && String(record.updated_at || "").localeCompare(String(current.updated_at || "")) > 0)
+    ) {
+      byDate.set(record.trading_date, record);
+    }
+  });
+
+  return [...byDate.values()]
+    .sort((a, b) => String(b.trading_date).localeCompare(String(a.trading_date)))
+    .map((record) => ({
+      date: record.trading_date,
+      waitbuy: toNumber(record.wait_buy_count),
+      buy: toNumber(record.buy_count),
+      waitsell: toNumber(record.wait_sell_count),
+      sell: toNumber(record.sell_count),
+      total: toNumber(record.total_count),
+      reliability: record.reliability === undefined || record.reliability === null ? undefined : toNumber(record.reliability),
+      source: record.source,
+    }));
+}
+
 export async function getStockWaveRowForDateFromDb(date = "") {
   const database = await initStockDataDb();
   const records = database.prepare(`

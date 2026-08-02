@@ -1,11 +1,13 @@
 import {
-  getAllStockWaveRowsFromDb,
+  getAllStockWaveSummaryRowsFromDb,
   upsertStockWaveRows,
 } from "./stockDataDb.js";
 
 const STOCK_WAVE_API_URL = process.env.STOCK_WAVE_API_URL || "https://stocktraders.vn/service/data/getStockWave";
 const STOCK_WAVE_ACCOUNT = process.env.STOCK_WAVE_ACCOUNT || "thao.dtt";
 const HISTORY_REQUEST = { StockWaveRequest: { account: STOCK_WAVE_ACCOUNT } };
+let summaryRowsSnapshot = null;
+let summaryRowsSnapshotPromise = null;
 
 function isValidDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value || "");
@@ -36,6 +38,29 @@ function selectPreviousSessions(rows, before) {
     .slice(0, 3);
 }
 
+async function loadSummaryRowsSnapshot() {
+  if (summaryRowsSnapshot) return summaryRowsSnapshot;
+  if (!summaryRowsSnapshotPromise) {
+    summaryRowsSnapshotPromise = getAllStockWaveSummaryRowsFromDb()
+      .then((rows) => {
+        summaryRowsSnapshot = sortWaveRows(rows);
+        return summaryRowsSnapshot;
+      })
+      .finally(() => {
+        summaryRowsSnapshotPromise = null;
+      });
+  }
+  return summaryRowsSnapshotPromise;
+}
+
+export async function preloadStockWaveHistorySnapshot() {
+  return loadSummaryRowsSnapshot();
+}
+
+export function invalidateStockWaveHistorySnapshot() {
+  summaryRowsSnapshot = null;
+}
+
 export async function backfillStockWaveHistoryFromApi() {
   const response = await fetch(STOCK_WAVE_API_URL, {
     method: "POST",
@@ -63,7 +88,7 @@ export async function getStockWaveHistory(before) {
     throw error;
   }
 
-  const allRows = sortWaveRows(await getAllStockWaveRowsFromDb());
+  const allRows = await loadSummaryRowsSnapshot();
   return {
     success: true,
     source: "db",
