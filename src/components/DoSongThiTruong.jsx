@@ -415,7 +415,10 @@ function fetchStockWaveCurrent() {
     })
     .then((payload) => {
       if (!payload) return null;
-      return normalizeWavePayload(payload.data ?? payload)[0] || null;
+      return {
+        row: normalizeWavePayload(payload.data ?? payload)[0] || null,
+        allRows: normalizeWavePayload(payload.allRows ?? []),
+      };
     });
 }
 
@@ -1057,7 +1060,6 @@ export default function DoSongThiTruong() {
   const [latestWave, setLatestWave] = useState(EMPTY_WAVE);
   const [historyWaves, setHistoryWaves] = useState([]);
   const [historyAllWaves, setHistoryAllWaves] = useState([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [chanSongRows, setChanSongRows] = useState([]);
   const [tickerWave, setTickerWave] = useState(EMPTY_WAVE);
   const [signalRefreshKey, setSignalRefreshKey] = useState(0);
@@ -1112,7 +1114,6 @@ export default function DoSongThiTruong() {
   ), [historySource, mainDonutDisplayWave, selectedMainDonutWave.rawDate]);
   function refreshHistoryFromTitle() {
     if (!latestWave.rawDate) return;
-    setHistoryLoading(true);
     fetchStockWaveHistory(latestWave.rawDate, true)
       .then(({ rows, allRows }) => {
         setHistoryWaves(rows);
@@ -1121,9 +1122,7 @@ export default function DoSongThiTruong() {
       .catch((error) => {
         console.error("Reload stock wave history failed", error);
       })
-      .finally(() => {
-        setHistoryLoading(false);
-      });
+      .finally(() => {});
   }
 
   function refreshChanSongFromTitle() {
@@ -1140,8 +1139,13 @@ export default function DoSongThiTruong() {
     let active = true;
 
     fetchStockWaveCurrent()
-      .then((row) => {
+      .then((snapshot) => {
+        const row = snapshot?.row;
         if (!active || !row) return;
+        if (snapshot.allRows?.length) {
+          setHistoryAllWaves(snapshot.allRows);
+          setHistoryWaves(getPreviousWaveSessions(snapshot.allRows, row.rawDate));
+        }
         setLatestWave(row);
         setSignalRefreshKey((key) => key + 1);
       })
@@ -1261,10 +1265,9 @@ export default function DoSongThiTruong() {
   }, []);
 
   useEffect(() => {
-    if (!latestWave.rawDate) return;
+    if (!latestWave.rawDate || historyAllWaves.length) return;
 
     let active = true;
-    setHistoryLoading(true);
 
     fetchStockWaveHistory(latestWave.rawDate)
       .then(({ rows, allRows }) => {
@@ -1272,17 +1275,15 @@ export default function DoSongThiTruong() {
         const nextAllRows = allRows?.length ? allRows : rows;
         setHistoryWaves(rows);
         setHistoryAllWaves(nextAllRows);
-        setHistoryLoading(false);
       })
       .catch((error) => {
-        if (active) setHistoryLoading(false);
         console.error("Load stock wave history failed", error);
       });
 
     return () => {
       active = false;
     };
-  }, [latestWave.rawDate]);
+  }, [latestWave.rawDate, historyAllWaves.length]);
 
 
   useEffect(() => {
@@ -1477,7 +1478,7 @@ export default function DoSongThiTruong() {
 
             {/* Lịch sử dò sóng */}
             <div className="dosong-mobile-item dosong-order-history">
-              <HistNavigator data={selectedHistoryDisplayWaves} totalDays={selectedHistoryDisplayWaves.length} theme={theme} loading={historyLoading} onRefresh={refreshHistoryFromTitle} />
+              <HistNavigator data={selectedHistoryDisplayWaves} totalDays={selectedHistoryDisplayWaves.length} theme={theme} loading={false} onRefresh={refreshHistoryFromTitle} />
             </div>
 
             {/* Lịch sử chân sóng */}
