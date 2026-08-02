@@ -7,6 +7,8 @@ import LichSuDoSong from "./LichSuDoSong.jsx";
 import KhuyenNghiTuVanAI from "./KhuyenNghiTuVanAI.jsx";
 import TuVanAiCard from "./TuVanAiCard.jsx";
 import Sidebar from "../layouts/Sidebar.jsx";
+import NhatKyTinHieu from "./NhatKyTinHieu/index.jsx";
+import { fetchStockNoti, mergeStockNotiRows, normalizeStockNotiRows, pickStockNotiRowsForDate } from "./NhatKyTinHieu/helpers.js";
 import { danhGiaDoSong } from "../utils/doSongEngine.js";
 // ─────────────────────────────────────────────────────────────
 // TOKENS
@@ -42,7 +44,6 @@ const STOCK_WAVE_CURRENT_URL = import.meta.env.VITE_STOCK_WAVE_CURRENT_URL || "/
 const STOCK_WAVE_HISTORY_URL = import.meta.env.VITE_STOCK_WAVE_HISTORY_URL || "/api/stock-wave-history";
 const STOCK_WAVE_TICKERS_URL = import.meta.env.VITE_STOCK_WAVE_TICKERS_URL || "/api/stock-wave-tickers";
 const WAVE_BOTTOM_CONFIRM_PAIRS_URL = import.meta.env.VITE_WAVE_BOTTOM_CONFIRM_PAIRS_URL || "/api/wave-bottom-confirm-pairs";
-const STOCK_NOTI_URL = import.meta.env.VITE_STOCK_NOTI_URL || "/api/stock-noti";
 const STOCK_NOTI_STREAM_URL = import.meta.env.VITE_STOCK_NOTI_STREAM_URL || "/api/stock-noti/stream";
 const REALTIME_WAVE_URL =
   import.meta.env.VITE_REALTIME_WAVE_URL ||
@@ -50,27 +51,6 @@ const REALTIME_WAVE_URL =
   "http://112.213.91.235:3005/realtime";
 const WAVE_CHANNEL = "wave";
 const STOCK_NOTI_CHANNEL = "stock-noti";
-const NHAT_KY_C = {
-  mode:"dark",
-  t1: "#F0F4FF", t2: "#A8B8D0", t4: "#5C7090",
-  surf: "#111520", elev: "#171D2E", cbdr: "#1E2A3E", bdrs: "#1A2232",
-  B: "#A78BFA", Bd: "#7C3AED",
-  cmb: "#0A2318", cmd: "#0F3D22", cmc: "#3DD68C",
-  cbb: "#2B1800", cbd: "#4A2E00", cbc: "#FF9F0A",
-  bab: "#200A0E", bad: "#3D1018", bac: "#FF2D55",
-  pb: "rgba(124,58,237,.16)", pd: "#5B21B6",
-};
-const NHAT_KY_LIGHT_C = {
-  mode:"light",
-  t1: "#111827", t2: "#5B6472", t4: "#8A94A6",
-  surf: "#FFFFFF", elev: "#F6F7FC", cbdr: "#DDE3EF", bdrs: "#E8ECF4",
-  B: "#7C3AED", Bd: "#7C3AED",
-  cmb: "#EAF8EF", cmd: "#BFEACF", cmc: "#16A05D",
-  cbb: "#FFF7E6", cbd: "#F3CE8B", cbc: "#D97706",
-  bab: "#FFECEF", bad: "#F5B8C3", bac: "#E11D48",
-  pb: "rgba(124,58,237,.10)", pd: "#7C3AED",
-};const NHAT_KY_CAP = { thi_truong:"Thị trường", nganh:"Ngành", ma:"Mã" };
-const NHAT_KY_TABS = [["all", "Tất cả"], ["thi_truong", "Thị trường"], ["nganh", "Ngành"], ["ma", "Mã"]];
 const EMPTY_WAVE = {
   rawDate:"",
   date:"--/--/----",
@@ -427,140 +407,6 @@ function getSocketStockNotiData(payload) {
   return payload?.data?.data ?? payload?.data?.payload ?? payload?.data ?? payload?.payload ?? payload;
 }
 
-function getStockNotiRawDate(value) {
-  const match = String(value || "").match(/^(\d{4}-\d{2}-\d{2})/);
-  return match?.[1] || "";
-}
-
-function getStockNotiStableId(row) {
-  return [row?.sortKey || row?.date || "", row?.title || "", row?.capTag || row?.cap || "", row?.x || row?.content || ""]
-    .map((part) => String(part).trim())
-    .join("|");
-}
-
-function mergeStockNotiRows(current, incoming) {
-  const byId = new Map();
-  [...incoming, ...current].forEach((row) => {
-    const id = getStockNotiStableId(row);
-    if (!id) return;
-    if (!byId.has(id)) byId.set(id, { ...row, id });
-  });
-  return [...byId.values()].sort((a, b) => String(b.sortKey || b.id).localeCompare(String(a.sortKey || a.id)));
-}
-
-function pickStockNotiRowsForDate(rows, dateKey) {
-  if (!dateKey) return rows;
-  const datedRows = rows.filter((row) => row.rawDate && row.rawDate <= dateKey);
-  if (!datedRows.length) return [];
-  const sourceDate = datedRows.reduce((latest, row) => row.rawDate > latest ? row.rawDate : latest, "");
-  return datedRows.filter((row) => row.rawDate === sourceDate);
-}
-function normalizeSearchText(value) {
-  return String(value || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/g, "d");
-}
-
-function normalizeStockNotiType(type, fallbackTitle = "") {
-  const key = normalizeSearchText(type || fallbackTitle);
-  if (key.includes("nganh")) return "nganh";
-  if (key.includes("co phieu") || key.includes("ma")) return "ma";
-  return "thi_truong";
-}
-function getStockNotiCapTag(cap) {
-  if (cap === "ma") return "Cổ phiếu";
-  if (cap === "nganh") return "Ngành";
-  return "Thị trường";
-}
-
-function formatStockNotiTime(value) {
-  const text = String(value || "");
-  const match = text.match(/(?:^|[ T])(\d{2}:\d{2})/);
-  if (match) return match[1];
-  const date = new Date(text.replace(" ", "T"));
-  if (Number.isNaN(date.getTime())) return "--:--";
-  return new Intl.DateTimeFormat("vi-VN", { hour:"2-digit", minute:"2-digit", hour12:false }).format(date);
-}
-
-function formatStockNotiDate(value) {
-  const text = String(value || "");
-  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (match) return `${match[3]}/${match[2]}/${match[1]}`;
-  const date = new Date(text.replace(" ", "T"));
-  if (Number.isNaN(date.getTime())) return new Intl.DateTimeFormat("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric" }).format(new Date());
-  return new Intl.DateTimeFormat("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric" }).format(date);
-}
-
-function getSmdtValue(content) {
-  const normalized = normalizeSearchText(content);
-  const match = normalized.match(/smdt[^0-9-]*(-?\d+(?:[.,]\d+)?)\s*%/i);
-  if (!match) return null;
-  const value = Number(match[1].replace(",", "."));
-  return Number.isFinite(value) ? value : null;
-}
-function getStockNotiKind(row) {
-  const title = normalizeSearchText(row?.title);
-  const content = normalizeSearchText(row?.content);
-  if (title.includes("smdt")) return "smdt";
-  if (title.includes("dong tien")) {
-    if (content.includes("thoat ra") || content.includes("rut ra") || content.includes("ban ra")) return "down";
-    if (content.includes("do vao") || content.includes("vao") || content.includes("nhen nhom")) return "up";
-  }
-  if (title.includes("ban") || title.includes("thoat")) return "down";
-  if (title.includes("canh bao")) return "warn";
-  if (normalizeStockNotiType(row?.type, row?.title) === "thi_truong") return "wave";
-  return "up";
-}
-function getStockNotiRows(payload) {
-  const reply = payload?.StockNotiReply || payload?.data?.StockNotiReply || payload;
-  if (Array.isArray(payload?.rows)) return payload.rows;
-  if (Array.isArray(reply?.stockNotifications)) return reply.stockNotifications;
-  return [];
-}
-
-function normalizeStockNotiRows(payload) {
-  return getStockNotiRows(payload)
-    .map((row) => {
-      const content = String(row?.content || "").trim();
-      const date = String(row?.date || payload?.sourceDate || payload?.requestedDate || "").trim();
-      if (!content) return null;
-      const cap = normalizeStockNotiType(row?.type, row?.title);
-      return {
-        id:getStockNotiStableId({ sortKey:date, title:row?.title || "", capTag:getStockNotiCapTag(cap), x:content }),
-        t:formatStockNotiTime(date),
-        date:formatStockNotiDate(date),
-        rawDate:getStockNotiRawDate(date),
-        sortKey:date,
-        cap,
-        capTag:getStockNotiCapTag(cap),
-        k:getStockNotiKind(row),
-        title:String(row?.title || "Tín hiệu").trim() || "Tín hiệu",
-        smdtValue:getSmdtValue(content),
-        x:content,
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => String(b.id).localeCompare(String(a.id)));
-}
-
-function getStockNotiUrl(dateKey) {
-  const url = new URL(STOCK_NOTI_URL, window.location.origin);
-  if (dateKey) url.searchParams.set("date", dateKey);
-  return url.toString();
-}
-
-function fetchStockNoti(dateKey = formatDateKey(new Date())) {
-  return fetch(getStockNotiUrl(dateKey))
-    .then((response) => {
-      if (!response.ok) throw new Error(`Stock notification failed: ${response.status}`);
-      return response.json();
-    })
-    .then((payload) => {
-      return normalizeStockNotiRows(payload);
-    });
-}
 function fetchStockWaveCurrent() {
   return fetch(STOCK_WAVE_CURRENT_URL)
     .then((response) => {
@@ -575,37 +421,8 @@ function fetchStockWaveCurrent() {
 
 const stockWaveHistoryRequests = new Map();
 const stockWaveTickerRequests = new Map();
-const STOCK_WAVE_HISTORY_STORAGE_PREFIX = "stocktraders:stock-wave-history:";
 let waveBottomConfirmPairsRequest = null;
 
-function getStoredStockWaveHistory(referenceDate) {
-  if (!referenceDate || typeof window === "undefined" || !window.localStorage) return null;
-  try {
-    const payload = JSON.parse(window.localStorage.getItem(`${STOCK_WAVE_HISTORY_STORAGE_PREFIX}${referenceDate}`) || "null");
-    if (!payload || payload.referenceDate !== referenceDate || !Array.isArray(payload.allRows)) return null;
-    const allRows = normalizeWavePayload(payload.allRows);
-    const rows = Array.isArray(payload.rows) && payload.rows.length
-      ? normalizeWavePayload(payload.rows)
-      : getPreviousWaveSessions(allRows, referenceDate);
-    return { rows, allRows };
-  } catch {
-    return null;
-  }
-}
-
-function storeStockWaveHistory(referenceDate, rows, allRows) {
-  if (!referenceDate || typeof window === "undefined" || !window.localStorage) return;
-  try {
-    window.localStorage.setItem(`${STOCK_WAVE_HISTORY_STORAGE_PREFIX}${referenceDate}`, JSON.stringify({
-      referenceDate,
-      cachedAt:new Date().toISOString(),
-      rows,
-      allRows:allRows?.length ? allRows : rows,
-    }));
-  } catch {
-    // Ignore storage quota/private-mode failures; network cache still works.
-  }
-}
 
 function getHistoryUrl(referenceDate, force = false) {
   const url = new URL(STOCK_WAVE_HISTORY_URL, window.location.origin);
@@ -913,9 +730,9 @@ function DanhMucDoSong({ wave = EMPTY_WAVE, countWave = wave }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// LỊCH SỬ CHÂN SÓNG
-// ─────────────────────────────────────────────────────────────
+ // -------------------------------------------------------------
+ // LỊCH SỬ CHÂN SÓNG
+ // -------------------------------------------------------------
 function ChanSong({ data = [], onRefresh = null }) {
   const [showAll, setShowAll] = useState(false);
 
@@ -1010,7 +827,7 @@ function ChanSong({ data = [], onRefresh = null }) {
             margin: 0,
           }}
         >
-          <span><span onClick={onRefresh || undefined} title="Tải lại lịch sử chân sóng" style={{ cursor: onRefresh ? "pointer" : "inherit" }}>Lịch</span> sử chân sóng</span>
+          <span><span onClick={onRefresh || undefined} title="Tất cả lịch sử chân sóng" style={{ cursor: onRefresh ? "pointer" : "inherit" }}>Lịch</span> sử chân sóng</span>
         </div>
 
         <span
@@ -1226,181 +1043,12 @@ function ChanSong({ data = [], onRefresh = null }) {
           cursor: canToggle ? "pointer" : "default",
         }}
       >
-        {showAll ? "Thu gọn" : "Xem tất cả lịch sử chân sóng →"}
+        {showAll ? "Thu gọn" : "Xem tất cả lịch sử chân sóng"}
       </div>
     </Card>
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// RIGHT PANEL: Nhật ký tín hiệu
-// ─────────────────────────────────────────────────────────────
-function getNhatKyKind(row) {
-  if (row?.k) return row.k;
-  if (row?.tone === "R") return "down";
-  if (row?.tone === "A") return "warn";
-  if (row?.channel === WAVE_CHANNEL || row?.tone === "B") return "wave";
-  return "up";
-}
-
-function getSmdtBand(value, mode = "dark") {
-  const number = Number(value);
-  if (mode === "light") {
-    if (Number.isFinite(number) && number >= 100) return { bg:"#DCFCE7", bd:"#86EFAC", sk:"#059669" };
-    if (Number.isFinite(number) && number >= 70) return { bg:"#EAF8EF", bd:"#BFEACF", sk:"#16A05D" };
-    if (Number.isFinite(number) && number >= 20) return { bg:"#FFF7E6", bd:"#F3CE8B", sk:"#D97706" };
-    return { bg:"#FFECEF", bd:"#F5B8C3", sk:"#E11D48" };
-  }
-  if (Number.isFinite(number) && number >= 100) return { bg:"#0A2A1C", bd:"#124A30", sk:"#3DE8A8" };
-  if (Number.isFinite(number) && number >= 70) return { bg:"#0A2318", bd:"#0F3D22", sk:"#3DD68C" };
-  if (Number.isFinite(number) && number >= 20) return { bg:"#2B1B08", bd:"#4A3010", sk:"#E89A3C" };
-  return { bg:"#2A0E12", bd:"#4A1820", sk:"#F0555B" };
-}
-
-function NhatKyIcon({ k, smdtValue, colors = NHAT_KY_C }) {
-  const C = colors;
-  const iconKey = k === "smdt" ? "smdt" : k;
-  const smdtBand = iconKey === "smdt" ? getSmdtBand(smdtValue, C.mode) : null;
-  const sk = smdtBand?.sk || (iconKey === "down" ? C.bac : iconKey === "warn" ? C.cbc : iconKey === "wave" ? C.B : C.cmc);
-  const bg = smdtBand?.bg || (iconKey === "down" ? C.bab : iconKey === "warn" ? C.cbb : iconKey === "wave" ? C.pb : C.cmb);
-  const bd = smdtBand?.bd || (iconKey === "down" ? C.bad : iconKey === "warn" ? C.cbd : iconKey === "wave" ? C.pd : C.cmd);
-  const paths = {
-    up:(
-      <>
-        <polyline points="3,17 9,11 13,15 21,7" stroke={sk} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-        <polyline points="15,7 21,7 21,13" stroke={sk} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-      </>
-    ),
-    down:(
-      <>
-        <polyline points="3,7 9,13 13,9 21,17" stroke={sk} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-        <polyline points="15,17 21,17 21,11" stroke={sk} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-      </>
-    ),
-    warn:(
-      <>
-        <circle cx="12" cy="12" r="9" stroke={sk} strokeWidth="2.2" />
-        <line x1="12" y1="7.5" x2="12" y2="13" stroke={sk} strokeWidth="2.4" strokeLinecap="round" />
-        <circle cx="12" cy="16.6" r="1.3" fill={sk} />
-      </>
-    ),
-    wave:<path d="M3 12h3l2.5-6 4 12 2.5-6h6" stroke={sk} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />,
-    smdt:<path d="M12 3c3.2 3 4.5 5.4 4.5 8.2a4.5 4.5 0 0 1-9 0c0-1.3.6-2.4 1.7-3.3.1 1.2.6 1.9 1.2 2.4-.2-2.4-1-4.6 1.6-7.3Z" stroke={sk} strokeWidth="1.9" strokeLinejoin="round" fill={`${sk}22`} />,
-  };
-
-  return (
-    <span style={{ width:26, height:26, borderRadius:"50%", flexShrink:0, marginTop:1, display:"flex", alignItems:"center", justifyContent:"center", background:bg, border:`1px solid ${bd}` }}>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">{paths[iconKey]}</svg>
-    </span>
-  );
-}
-
-function toNhatKyRow(row) {
-  return {
-    id:row.id,
-    t:row.t || row.time,
-    rawDate:row.rawDate,
-    sortKey:row.sortKey,
-    cap:row.cap,
-    k:getNhatKyKind(row),
-    smdtValue:row.smdtValue,
-    x:row.x || row.txt,
-    title:row.title || row.tieuDe || "Tín hiệu",
-    capTag:row.capTag || NHAT_KY_CAP[row.cap] || "Thị trường",
-  };
-}
-
-function getNhatKyTagColor(tag) {
-  if (tag === "Cổ phiếu") return "#22D3EE";
-  if (tag === "Ngành") return "#3DD68C";
-  return "#A78BFA";
-}
-
-function NhatKyRows({ rows, colors = NHAT_KY_C }) {
-  const C = colors;
-  return rows.map((r, i) => {
-    const tagColor = getNhatKyTagColor(r.capTag);
-    return (
-      <div key={r.id || i} style={{ display:"flex", gap:10, padding:"11px 0", borderBottom:i < rows.length - 1 ? `.5px solid ${C.bdrs}` : "none" }}>
-        <NhatKyIcon k={r.k} smdtValue={r.smdtValue} colors={C} />
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:2, minWidth:0 }}>
-            <span style={{ fontSize:13.5, fontWeight:600, color:C.t1, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.title}</span>
-            <span style={{ fontSize:10, fontWeight:600, color:tagColor, background:`${tagColor}1A`, borderRadius:6, padding:"1px 7px", flexShrink:0 }}>{r.capTag}</span>
-            <span style={{ fontSize:11, color:C.t4, marginLeft:"auto", flexShrink:0 }}>{r.t}</span>
-          </div>
-          <div style={{ fontSize:13, lineHeight:1.5, color:C.t2 }}>{r.x}</div>
-        </div>
-      </div>
-    );
-  });
-}
-function NhatKy({ logs = [], onXemTatCa, theme = "dark", dateKey = "" }) {
-  const [tab, setTab] = useState("all");
-  const [expanded, setExpanded] = useState(false);
-  const data = logs.map(toNhatKyRow);
-  const date = logs[0]?.date || (dateKey ? formatStockNotiDate(dateKey) : new Intl.DateTimeFormat("vi-VN", { day:"2-digit", month:"2-digit", year:"numeric" }).format(new Date()));
-  const count = (id) => (id === "all" ? data.length : data.filter((d) => d.cap === id).length);
-  const list = data.filter((d) => tab === "all" || d.cap === tab);
-  const collapsedLimit = 6;
-  const displayList = expanded ? list : list.slice(0, collapsedLimit);
-  const hasMore = list.length > collapsedLimit;
-  const C = theme === "light" ? NHAT_KY_LIGHT_C : NHAT_KY_C;
-
-  const toggleExpanded = () => {
-    setExpanded((value) => !value);
-    if (!expanded && onXemTatCa) onXemTatCa();
-  };
-
-  useEffect(() => {
-    setExpanded(false);
-  }, [tab]);
-
-  return (
-    <div style={{ background:C.surf, borderRadius:14, overflow:"hidden", border:`0.5px solid ${C.cbdr}`, fontFamily:"-apple-system, Inter, sans-serif", boxShadow:theme === "light" ? "0 10px 28px rgba(15,23,42,.08)" : "none" }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, padding:"16px 18px", borderBottom:`0.5px solid ${C.cbdr}` }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
-          <span style={{ fontFamily:"'Be Vietnam Pro', Inter, sans-serif", fontSize:16, fontWeight:600, lineHeight:1.3, letterSpacing:0, color:C.t1, whiteSpace:"nowrap", margin:0 }}>Nhật ký tín hiệu</span>
-          <span style={{ fontSize:12, color:C.t4, flexShrink:0 }}>{date}</span>
-        </div>
-        {hasMore && (
-          <button onClick={toggleExpanded} style={{ border:"none", background:"transparent", padding:0, fontSize:12, color:C.B, fontWeight:700, cursor:"pointer", flexShrink:0 }}>
-            {expanded ? "Thu gọn ↑" : "Xem tất cả →"}
-          </button>
-        )}
-      </div>
-
-      <div style={{ padding:"12px 16px", borderBottom:`0.5px solid ${C.bdrs}` }}>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 }}>
-          {NHAT_KY_TABS.map(([id, label]) => {
-            const on = id === tab;
-            return (
-              <button key={id} onClick={() => setTab(id)} style={{ cursor:"pointer", textAlign:"center", padding:"10px 4px", borderRadius:10, background:on ? "rgba(124,58,237,.14)" : C.elev, border:`.5px solid ${on ? C.pd : C.cbdr}` }}>
-                <div style={{ fontSize:14, fontWeight:600, color:on ? C.B : C.t2 }}>{label}</div>
-                <div style={{ fontSize:12, color:on ? C.B : C.t4, marginTop:1 }}>({count(id)})</div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div style={{ padding:"2px 18px 14px" }}>
-        {list.length === 0 ? (
-          <div style={{ padding:"28px 0", textAlign:"center", color:C.t4, fontSize:12 }}>Chưa có tín hiệu ở cấp này trong phiên.</div>
-        ) : (
-          <>
-            <NhatKyRows rows={displayList} colors={C} />
-            {expanded && hasMore && (
-              <div style={{ padding:"14px 0", textAlign:"center", fontSize:11, color:C.t4 }}>— đã hiển thị tất cả {list.length} dòng —</div>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}// ─────────────────────────────────────────────────────────────
-// ROOT COMPONENT
-// ─────────────────────────────────────────────────────────────
 export default function DoSongThiTruong() {
   const [theme, setTheme] = useState("dark");
   T = theme === "light" ? LIGHT_T : DARK_T;
@@ -1616,12 +1264,7 @@ export default function DoSongThiTruong() {
     if (!latestWave.rawDate) return;
 
     let active = true;
-    const cachedHistory = getStoredStockWaveHistory(latestWave.rawDate);
-    if (cachedHistory) {
-      setHistoryWaves(cachedHistory.rows);
-      setHistoryAllWaves(cachedHistory.allRows?.length ? cachedHistory.allRows : cachedHistory.rows);
-    }
-    setHistoryLoading(!cachedHistory);
+    setHistoryLoading(true);
 
     fetchStockWaveHistory(latestWave.rawDate)
       .then(({ rows, allRows }) => {
@@ -1629,7 +1272,6 @@ export default function DoSongThiTruong() {
         const nextAllRows = allRows?.length ? allRows : rows;
         setHistoryWaves(rows);
         setHistoryAllWaves(nextAllRows);
-        storeStockWaveHistory(latestWave.rawDate, rows, nextAllRows);
         setHistoryLoading(false);
       })
       .catch((error) => {
@@ -1808,7 +1450,7 @@ export default function DoSongThiTruong() {
           {/* 60/40 content layout */}
           <div className="dosong-layout" style={{ display:"grid", gridTemplateColumns:"minmax(0, 3fr) minmax(0, 2fr)", gap:14 }}>
 
-          {/* ── CỘT TRÁI ── */}
+          {/* CỘT TRÁI */}
           <div className="dosong-left" style={{ display:"flex", flexDirection:"column", gap:14 }}>
             {/* Vòng tròn dò sóng */}
             <div className="dosong-mobile-item dosong-order-main">
@@ -1844,7 +1486,7 @@ export default function DoSongThiTruong() {
             </div>
           </div>
 
-          {/* ── CỘT PHẢI ── */}
+          {/* CỘT PHẢI */}
           <div className="dosong-right" style={{ display:"flex", flexDirection:"column", gap:14, minWidth:0 }}>
             <div className="dosong-mobile-item dosong-order-ai">
               <KhuyenNghiTuVanAI
@@ -1864,7 +1506,7 @@ export default function DoSongThiTruong() {
               <DanhMucDoSong wave={danhMucWave} countWave={selectedMainDonutWave} />
             </div>
             <div className="dosong-mobile-item dosong-order-log">
-              <NhatKy logs={displayStockNotiRows} theme={theme} dateKey={stockNotiDate} />
+              <NhatKyTinHieu rows={displayStockNotiRows} theme={theme} dateKey={stockNotiDate} />
             </div>
           </div>
           </div>

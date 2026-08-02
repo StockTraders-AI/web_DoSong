@@ -1,13 +1,13 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { io } from "socket.io-client";
 import { sendJson } from "./stockWaveHistoryCache.js";
+import {
+  getStockWaveCurrentFromDb,
+  insertRawSocketEvent,
+  upsertStockWaveCurrent,
+} from "./stockDataDb.js";
+import { backfillRecommendationDaily } from "./doSongRecommendationDb.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REALTIME_WAVE_URL = process.env.REALTIME_WAVE_URL || "http://112.213.91.235:3005/realtime";
-const CACHE_DIR = process.env.STOCK_WAVE_CACHE_DIR || path.join(__dirname, ".stock-wave-cache");
-const CURRENT_CACHE_PATH = path.join(CACHE_DIR, "current.json");
 const WAVE_CHANNEL = "wave";
 let currentPayload = null;
 let socketStarted = false;
@@ -17,6 +17,24 @@ function getSocketWaveData(payload) {
   return payload?.data ?? payload;
 }
 
+function getWaveDate(data) {
+  const rows = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.StockWaveRequest?.stockWaves?.waveDatas)
+      ? data.StockWaveRequest.stockWaves.waveDatas
+      : Array.isArray(data?.stockWaves?.waveDatas)
+        ? data.stockWaves.waveDatas
+        : Array.isArray(data?.waveDatas)
+          ? data.waveDatas
+          : Array.isArray(data?.data)
+            ? data.data
+            : [data];
+  const row = rows.find(Boolean) || {};
+  const value = String(row.rawDate || row.date || row.tradingDate || row.ngay || row.tradeDate || "");
+  const match = value.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match?.[1] || "";
+}
+
 async function writeCurrent(data) {
   const payload = {
     success: true,
@@ -24,25 +42,26 @@ async function writeCurrent(data) {
     data,
   };
   currentPayload = payload;
-  await mkdir(CACHE_DIR, { recursive: true });
-  await writeFile(CURRENT_CACHE_PATH, JSON.stringify(payload), "utf8");
+  await upsertStockWaveCurrent(data, { source: "socket" });
+  const dateKey = getWaveDate(data);
+  if (dateKey) {
+    await backfillRecommendationDaily({ from: dateKey, to: dateKey, seedTemplates: true });
+  }
 }
 
 async function readCurrent() {
   if (currentPayload) return currentPayload;
 
-  try {
-    const raw = await readFile(CURRENT_CACHE_PATH, "utf8");
-    const parsed = JSON.parse(raw);
-    if (parsed?.data) {
-      currentPayload = parsed;
-      return parsed;
-    }
-  } catch {
-    // No persisted current snapshot yet.
-  }
+  const data = await getStockWaveCurrentFromDb();
+  if (!data) return null;
 
-  return null;
+  currentPayload = {
+    success: true,
+    cachedAt: new Date().toISOString(),
+    data,
+    source: "db",
+  };
+  return currentPayload;
 }
 
 export function startStockWaveCurrentSocket() {
@@ -64,8 +83,11 @@ export function startStockWaveCurrentSocket() {
     const data = getSocketWaveData(payload);
     if (!data) return;
 
-    writeCurrent(data).catch((error) => {
-      console.error("Write stock wave current cache failed", error);
+    Promise.all([
+      insertRawSocketEvent(WAVE_CHANNEL, payload),
+      writeCurrent(data),
+    ]).catch((error) => {
+      console.error("Write stock wave current DB failed", error);
     });
   });
 

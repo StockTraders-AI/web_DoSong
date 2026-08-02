@@ -1,24 +1,21 @@
-import { existsSync } from "node:fs";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { sendJson } from "./stockWaveHistoryCache.js";
+import {
+  getWaveBottomRowsFromDb,
+  upsertWaveBottomRows,
+} from "./stockDataDb.js";
 
 const WAVE_BOTTOM_PAIRS_URL = process.env.WAVE_BOTTOM_PAIRS_URL || "https://stocktradersai.vn/service/data/getWaveBottomConfirmPairs";
 const VNINDEX_TRADE_URL = process.env.VNINDEX_TRADE_URL || "https://stocktradersai.vn/service/data/getTotalTrade?ticker=VNINDEX";
 const VNINDEX_TRADE_REAL_URL = process.env.VNINDEX_TRADE_REAL_URL || "https://stocktraders.vn/service/data/getTotalTradeReal";
 const CACHE_VERSION = 24;
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CACHE_DIR = path.join(__dirname, ".stock-wave-cache");
-const CACHE_FILE_PREFIX = "wave-bottom-confirm-pairs";
-const UPSTREAM_TIMEOUT_MS = Number(process.env.WAVE_BOTTOM_UPSTREAM_TIMEOUT_MS || 120000);
+const UPSTREAM_TIMEOUT_MS = Number(process.env.WAVE_BOTTOM_UPSTREAM_TIMEOUT_MS || 600000);
 const ZIGZAG_THRESHOLD = 0.052;
 const MARKET_TIME_ZONE = "Asia/Bangkok";
 const REFRESH_SCHEDULE = [
   { id: "0915", label: "09:15", minutes: 9 * 60 + 15 },
   { id: "1000", label: "10:00", minutes: 10 * 60 },
 ];
-const PAIRS_REQUEST = { dateFrom: null, dateTo: null, count: 4 };
+const PAIRS_REQUEST = { count: 4 };
 const VNINDEX_TRADE_REAL_REQUEST = { TotalTradeRealRequest: { account: "stocktraders2013" } };
 let memoryCache = null;
 let memoryCacheKey = "";
@@ -72,19 +69,6 @@ function getRefreshState(date = new Date()) {
 function getCacheKey(date = new Date()) {
   const state = getRefreshState(date);
   return state.cacheKey || `${state.date}-pre0915`;
-}
-
-function getCacheFilePath(dateKey) {
-  return path.join(CACHE_DIR, `${CACHE_FILE_PREFIX}-${dateKey}.json`);
-}
-
-function isValidCachePayload(payload) {
-  return Boolean(
-    payload &&
-    payload.success === true &&
-    payload.cacheVersion === CACHE_VERSION &&
-    Array.isArray(payload.rows)
-  );
 }
 
 function withSource(payload, source, extra = {}) {
@@ -230,86 +214,37 @@ async function writeDailyCache(rows, cacheKey = getCacheKey()) {
     cachedAt: new Date().toISOString(),
     rows,
   };
-  await mkdir(CACHE_DIR, { recursive: true });
-  await writeFile(getCacheFilePath(cacheKey), JSON.stringify(payload, null, 2), "utf8");
+  await upsertWaveBottomRows(rows, { cacheKey, source: "api", calcVersion: String(CACHE_VERSION) });
   return setMemoryCache(payload, cacheKey);
 }
 
 async function readDailyCache(cacheKey) {
   if (!cacheKey) return null;
-  try {
-    const payload = JSON.parse(await readFile(getCacheFilePath(cacheKey), "utf8"));
-    if (!isValidCachePayload(payload)) return null;
-    return setMemoryCache({ ...payload, cacheKey: payload.cacheKey || cacheKey }, cacheKey);
-  } catch {
-    return null;
-  }
-}
-
-async function readLegacyDailyCache(cacheKey) {
-  if (!cacheKey) return null;
-  try {
-    const payload = JSON.parse(await readFile(getCacheFilePath(cacheKey), "utf8"));
-    if (!payload || payload.success !== true || !Array.isArray(payload.rows)) return null;
-    return { ...payload, cacheKey: payload.cacheKey || cacheKey };
-  } catch {
-    return null;
-  }
+  const rows = await getWaveBottomRowsFromDb(cacheKey);
+  if (!rows?.length) return null;
+  return setMemoryCache({
+    success: true,
+    cacheVersion: CACHE_VERSION,
+    cacheKey,
+    cachedAt: new Date().toISOString(),
+    rows,
+  }, cacheKey);
 }
 
 async function readLatestDiskCache() {
-  try {
-    if (!existsSync(CACHE_DIR)) return null;
-    const files = (await readdir(CACHE_DIR))
-      .filter((file) => file.startsWith(`${CACHE_FILE_PREFIX}-`) && file.endsWith(".json"))
-      .sort()
-      .reverse();
-
-    for (const file of files) {
-      const cacheKey = file.slice(CACHE_FILE_PREFIX.length + 1, -".json".length);
-      const payload = await readDailyCache(cacheKey);
-      if (payload) return payload;
-    }
-  } catch {
-    return null;
-  }
-  return null;
+  const rows = await getWaveBottomRowsFromDb();
+  if (!rows?.length) return null;
+  return setMemoryCache({
+    success: true,
+    cacheVersion: CACHE_VERSION,
+    cacheKey: getCacheKey(),
+    cachedAt: new Date().toISOString(),
+    rows,
+  }, getCacheKey());
 }
 
 async function readLatestLegacyDiskCache() {
-  try {
-    if (!existsSync(CACHE_DIR)) return null;
-    const files = (await readdir(CACHE_DIR))
-      .filter((file) => file.startsWith(`${CACHE_FILE_PREFIX}-`) && file.endsWith(".json"))
-      .sort()
-      .reverse();
-
-    for (const file of files) {
-      const cacheKey = file.slice(CACHE_FILE_PREFIX.length + 1, -".json".length);
-      const payload = await readLegacyDailyCache(cacheKey);
-      if (payload) return payload;
-    }
-  } catch {
-    return null;
-  }
   return null;
-}
-
-function buildFallbackPayload(error) {
-  const warning = error?.message || "Cannot refresh wave bottom confirm pairs.";
-  if (memoryCache && memoryCache.cacheVersion === CACHE_VERSION && Array.isArray(memoryCache.rows)) {
-    return withSource(memoryCache, "stale-memory", { stale: true, warning });
-  }
-
-  return {
-    success: true,
-    cacheVersion: CACHE_VERSION,
-    cachedAt: new Date().toISOString(),
-    rows: [],
-    source: "empty-fallback",
-    stale: true,
-    warning,
-  };
 }
 
 function normalizeTradeRows(payload) {
@@ -545,6 +480,49 @@ async function fetchVnindexTradeReal() {
   return response.json();
 }
 
+function buildWaveBottomRows(pairsPayload, vnindexPayload, vnindexRealPayload = []) {
+  const vnindexRows = mergeTradeRows(vnindexPayload, vnindexRealPayload);
+  const quoteByDate = buildQuoteLookup(vnindexRows);
+  const pivots = buildZigzagPivots(vnindexRows);
+  const pairs = getPairs(pairsPayload)
+    .slice()
+    .sort((a, b) => rowDateValue(String(a?.confirm_wave_date || "")) - rowDateValue(String(b?.confirm_wave_date || "")));
+
+  return pairs.map((pair) => {
+    const confirmDate = String(pair.confirm_wave_date || "");
+    const bottom = findLowPivot(pivots, quoteByDate, vnindexRows, pair);
+    const displayBottom = findLowestNearbyLow(pivots, bottom);
+    const peak = findNextHigh(pivots, vnindexRows, bottom);
+    const increasePoints = bottom && peak ? peak.high - bottom.low : 0;
+    const durationSessions = bottom && peak ? peak.index - bottom.index + 1 : 0;
+
+    return {
+      confirm_wave_date: confirmDate,
+      prepare_bottom_date: String(pair.prepare_bottom_date || ""),
+      zigzag_bottom_date: bottom?.date || "",
+      zigzag_peak_date: peak?.date || "",
+      vnindex: toNumber(displayBottom?.price),
+      vnindex_date: displayBottom?.date || "",
+      increase_points: Number(increasePoints.toFixed(2)),
+      zigzag_bottom_price: toNumber(bottom?.low),
+      zigzag_peak_price: toNumber(peak?.high),
+      duration_sessions: durationSessions,
+      reliability: toNumber(pair.reliability),
+    };
+  });
+}
+
+export async function buildWaveBottomRowsFromPairs(pairsPayload) {
+  const [vnindexPayload, vnindexRealPayload] = await Promise.all([
+    fetchVnindexTrades(),
+    fetchVnindexTradeReal().catch((error) => {
+      console.warn("VNINDEX trade real unavailable", error);
+      return [];
+    }),
+  ]);
+  return buildWaveBottomRows(pairsPayload, vnindexPayload, vnindexRealPayload);
+}
+
 function startWaveBottomRefresh(requestKey) {
   if (pendingRequest && pendingRequestKey === requestKey) return pendingRequest;
 
@@ -557,37 +535,10 @@ function startWaveBottomRefresh(requestKey) {
       return [];
     }),
   ])
-    .then(([pairsPayload, vnindexPayload, vnindexRealPayload]) => {
-      const vnindexRows = mergeTradeRows(vnindexPayload, vnindexRealPayload);
-      const quoteByDate = buildQuoteLookup(vnindexRows);
-      const pivots = buildZigzagPivots(vnindexRows);
-      const pairs = getPairs(pairsPayload)
-        .slice()
-        .sort((a, b) => rowDateValue(String(a?.confirm_wave_date || "")) - rowDateValue(String(b?.confirm_wave_date || "")));
-      const rows = pairs.map((pair) => {
-        const confirmDate = String(pair.confirm_wave_date || "");
-        const bottom = findLowPivot(pivots, quoteByDate, vnindexRows, pair);
-        const displayBottom = findLowestNearbyLow(pivots, bottom);
-        const peak = findNextHigh(pivots, vnindexRows, bottom);
-        const increasePoints = bottom && peak ? peak.high - bottom.low : 0;
-        const durationSessions = bottom && peak ? peak.index - bottom.index + 1 : 0;
-
-        return {
-          confirm_wave_date: confirmDate,
-          prepare_bottom_date: String(pair.prepare_bottom_date || ""),
-          zigzag_bottom_date: bottom?.date || "",
-          zigzag_peak_date: peak?.date || "",
-          vnindex: toNumber(displayBottom?.price),
-          vnindex_date: displayBottom?.date || "",
-          increase_points: Number(increasePoints.toFixed(2)),
-          zigzag_bottom_price: toNumber(bottom?.low),
-          zigzag_peak_price: toNumber(peak?.high),
-          duration_sessions: durationSessions,
-          reliability: toNumber(pair.reliability),
-        };
-      });
-      return writeDailyCache(rows, requestKey);
-    })
+    .then(([pairsPayload, vnindexPayload, vnindexRealPayload]) => writeDailyCache(
+      buildWaveBottomRows(pairsPayload, vnindexPayload, vnindexRealPayload),
+      requestKey,
+    ))
     .finally(() => {
       if (pendingRequestKey === requestKey) {
         pendingRequest = null;
@@ -597,12 +548,11 @@ function startWaveBottomRefresh(requestKey) {
 
   return pendingRequest;
 }
-
-export async function getWaveBottomConfirmPairs() {
-  const { date: cacheDate, cacheKey, activeSlot, nextRefresh } = getRefreshState();
+export async function getWaveBottomConfirmPairs(forceRefresh = false) {
+  const { date: cacheDate, cacheKey, nextRefresh } = getRefreshState();
   const upstreamCacheKey = cacheKey || `${cacheDate}-pre0915`;
 
-  const refreshNow = async (fallbackPayload = null, fallbackSource = "stale-disk", fallbackExtra = {}) => {
+  const refreshNow = async (fallbackPayload = null, fallbackSource = "stale-db", fallbackExtra = {}) => {
     try {
       const payload = await startWaveBottomRefresh(upstreamCacheKey);
       return withSource(payload, "upstream");
@@ -619,87 +569,42 @@ export async function getWaveBottomConfirmPairs() {
     }
   };
 
+  if (forceRefresh) return refreshNow();
+
   if (cacheKey && memoryCache && memoryCacheKey === cacheKey && memoryCache.cacheVersion === CACHE_VERSION && Array.isArray(memoryCache.rows)) {
-    if (activeSlot) {
-      startWaveBottomRefresh(upstreamCacheKey).catch((error) => {
-        console.warn("Wave bottom confirm pairs background refresh failed", error);
-      });
-      return withSource(memoryCache, "memory-refreshing", { refreshing: true });
-    }
     return withSource(memoryCache, "memory");
   }
 
   if (cacheKey) {
-    const slotDiskCache = await readDailyCache(cacheKey);
-    if (slotDiskCache) {
-      if (activeSlot) {
-        startWaveBottomRefresh(upstreamCacheKey).catch((error) => {
-          console.warn("Wave bottom confirm pairs background refresh failed", error);
-        });
-        return withSource(slotDiskCache, "disk-refreshing", { refreshing: true });
-      }
-      return withSource(slotDiskCache, "disk");
-    }
+    const slotDbCache = await readDailyCache(cacheKey);
+    if (slotDbCache) return withSource(slotDbCache, "db");
   }
 
-  const latestDiskCache = await readLatestDiskCache();
-  if (latestDiskCache) {
-    if (activeSlot) {
-      startWaveBottomRefresh(upstreamCacheKey).catch((error) => {
-        console.warn("Wave bottom confirm pairs background refresh failed", error);
-      });
-      return withSource(latestDiskCache, "stale-disk-refreshing", {
-        stale: true,
-        refreshing: true,
-        targetCacheKey: upstreamCacheKey,
-      });
-    }
-    return withSource(latestDiskCache, "stale-disk-before0915", {
+  const latestDbCache = await readLatestDiskCache();
+  if (latestDbCache) {
+    return withSource(latestDbCache, "stale-db", {
       stale: true,
       nextRefreshTime: nextRefresh?.label || "09:15",
     });
   }
 
-  const legacyDiskCache = await readLatestLegacyDiskCache();
-  if (legacyDiskCache) {
-    if (activeSlot) {
-      startWaveBottomRefresh(upstreamCacheKey).catch((error) => {
-        console.warn("Wave bottom confirm pairs background refresh failed", error);
-      });
-      return withSource(legacyDiskCache, "legacy-disk-refreshing", {
-        stale: true,
-        legacyCache: true,
-        refreshing: true,
-        targetCacheKey: upstreamCacheKey,
-      });
-    }
-    return withSource(legacyDiskCache, "legacy-disk-before0915", {
+  const legacyDbCache = await readLatestLegacyDiskCache();
+  if (legacyDbCache) {
+    return withSource(legacyDbCache, "legacy-db", {
       stale: true,
       legacyCache: true,
       nextRefreshTime: nextRefresh?.label || "09:15",
     });
   }
 
-  try {
-    return await refreshNow();
-  } catch (error) {
-    const fallbackDiskCache = await readLatestDiskCache();
-    if (fallbackDiskCache) {
-      return withSource(fallbackDiskCache, "stale-disk", {
-        stale: true,
-        warning: error?.message || "Cannot refresh wave bottom confirm pairs.",
-      });
-    }
-    const fallbackLegacyDiskCache = await readLatestLegacyDiskCache();
-    if (fallbackLegacyDiskCache) {
-      return withSource(fallbackLegacyDiskCache, "legacy-disk", {
-        stale: true,
-        legacyCache: true,
-        warning: error?.message || "Cannot refresh wave bottom confirm pairs.",
-      });
-    }
-    return buildFallbackPayload(error);
-  }
+  return {
+    success: true,
+    cacheVersion: CACHE_VERSION,
+    cacheKey: cacheKey || upstreamCacheKey,
+    cachedAt: new Date().toISOString(),
+    rows: [],
+    source: "db-empty",
+  };
 }
 export async function handleWaveBottomConfirmPairs(req, res) {
   try {

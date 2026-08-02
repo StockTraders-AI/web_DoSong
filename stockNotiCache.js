@@ -1,13 +1,12 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { io } from "socket.io-client";
 import { sendJson } from "./stockWaveHistoryCache.js";
+import {
+  getStockNotificationsForDateFromDb,
+  insertRawSocketEvent,
+  upsertStockNotifications,
+} from "./stockDataDb.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REALTIME_URL = process.env.REALTIME_WAVE_URL || process.env.REALTIME_URL || "http://112.213.91.235:3005/realtime";
-const CACHE_DIR = process.env.STOCK_NOTI_CACHE_DIR || path.join(__dirname, ".stock-wave-cache");
-const CACHE_PATH = path.join(CACHE_DIR, "stock-noti.json");
 const STOCK_NOTI_CHANNEL = "stock-noti";
 const STOCK_NOTI_API_URL = process.env.STOCK_NOTI_API_URL || "https://stocktraders.vn/service/data/getStockNoti";
 const STOCK_NOTI_ACCOUNT = process.env.STOCK_NOTI_ACCOUNT || "thao.dtt";
@@ -40,20 +39,6 @@ function createStore() {
     latestDate: "",
     updatedAt: "",
     byDate: {},
-  };
-}
-
-function normalizeStore(payload) {
-  if (payload?.schemaVersion !== CACHE_SCHEMA_VERSION || !payload?.byDate || typeof payload.byDate !== "object") {
-    return createStore();
-  }
-
-  return {
-    success: true,
-    schemaVersion: CACHE_SCHEMA_VERSION,
-    latestDate: normalizeText(payload.latestDate),
-    updatedAt: normalizeText(payload.updatedAt),
-    byDate: payload.byDate,
   };
 }
 
@@ -97,21 +82,12 @@ function normalizeStockNotiPayload(payload) {
 
 async function readStore() {
   if (memoryStore) return memoryStore;
-
-  try {
-    const raw = await readFile(CACHE_PATH, "utf8");
-    memoryStore = normalizeStore(JSON.parse(raw));
-  } catch {
-    memoryStore = createStore();
-  }
-
+  memoryStore = createStore();
   return memoryStore;
 }
 
 async function writeStore(store) {
   memoryStore = store;
-  await mkdir(CACHE_DIR, { recursive: true });
-  await writeFile(CACHE_PATH, JSON.stringify(store), "utf8");
 }
 
 function mergeRows(existingRows, incomingRows) {
@@ -142,6 +118,7 @@ async function cacheStockNotiRows(dateKey, rows, source) {
   store.latestDate = [store.latestDate, dateKey].filter(Boolean).sort().pop() || dateKey;
   store.updatedAt = new Date().toISOString();
   await writeStore(store);
+  await upsertStockNotifications(rows, { source });
   const cached = store.byDate[dateKey];
   broadcastStockNoti(cached);
   return cached;
@@ -182,44 +159,21 @@ async function cacheApiNotifications(dateKey, payload) {
   return cacheStockNotiRows(dateKey, rows, "api");
 }
 
-function filterRowsForDate(rows, dateKey) {
-  return Array.isArray(rows)
-    ? rows.filter((row) => getRowDateKey(row, dateKey) === dateKey)
-    : [];
-}
-
-function findFallbackPayload(store, dateKey) {
-  const rows = Object.entries(store.byDate)
-    .map(([key, payload]) => [key, payload, filterRowsForDate(payload?.rows, key)])
-    .filter(([key, , dateRows]) => key <= dateKey && dateRows.length)
-    .sort(([a], [b]) => b.localeCompare(a));
-  const fallback = rows[0];
-  return fallback
-    ? { ...fallback[1], rows:fallback[2] }
-    : null;
-}
-
-function responseForDate(store, dateKey) {
-  const exact = store.byDate[dateKey];
-  const exactRows = filterRowsForDate(exact?.rows, dateKey);
-  if (exactRows.length) return { ...exact, rows:exactRows };
-
-  const fallback = findFallbackPayload(store, dateKey);
-  if (fallback) {
-    return {
-      ...fallback,
-      requestedDate: dateKey,
-      stale: true,
-      emptyForDate: dateKey,
-    };
+export async function backfillStockNotiDate(dateKey, account = STOCK_NOTI_ACCOUNT) {
+  if (!isDateKey(dateKey)) {
+    const error = new Error("Invalid stock notification date. Use YYYY-MM-DD.");
+    error.statusCode = 400;
+    throw error;
   }
 
-  return {
+  const payload = await fetchStockNotiFromApi(dateKey, account);
+  const cached = await cacheApiNotifications(dateKey, payload);
+  return cached || {
     success: true,
     schemaVersion: CACHE_SCHEMA_VERSION,
     requestedDate: dateKey,
     sourceDate: dateKey,
-    source: "socket-cache",
+    source: "api",
     rows: [],
   };
 }
@@ -272,8 +226,11 @@ export function startStockNotiSocket() {
   const handleSocketPayload = (payload) => {
     const channel = getPayloadChannel(payload);
     if (channel && channel !== STOCK_NOTI_CHANNEL) return;
-    cacheSocketNotifications(payload).catch((error) => {
-      console.error("Write stock notification socket cache failed", error);
+    Promise.all([
+      insertRawSocketEvent(STOCK_NOTI_CHANNEL, payload),
+      cacheSocketNotifications(payload),
+    ]).catch((error) => {
+      console.error("Write stock notification DB failed", error);
     });
   };
 
@@ -300,26 +257,18 @@ export async function handleStockNoti(req, res, rawUrl) {
   const dateKey = isDateKey(requestedDate) ? requestedDate : toLocalDateKey();
 
   try {
-    let store = await readStore();
-    const exact = store.byDate[dateKey];
-    if (exact?.rows?.length) {
-      sendJson(res, 200, exact);
-      return true;
-    }
-
-    try {
-      const account = normalizeText(url.searchParams.get("account")) || STOCK_NOTI_ACCOUNT;
-      const payload = await fetchStockNotiFromApi(dateKey, account);
-      await cacheApiNotifications(dateKey, payload);
-    } catch (error) {
-      console.error("Fetch stock notification API failed", error.message || error);
-    }
-
-    store = await readStore();
-    sendJson(res, 200, responseForDate(store, dateKey));
+    const dbRows = await getStockNotificationsForDateFromDb(dateKey);
+    sendJson(res, 200, {
+      success: true,
+      schemaVersion: CACHE_SCHEMA_VERSION,
+      requestedDate: dateKey,
+      sourceDate: dbRows.length ? getRowDateKey(dbRows[0], dateKey) : dateKey,
+      source: "db",
+      rows: dbRows,
+    });
   } catch (error) {
-    console.error("Stock notification cache failed", error);
-    sendJson(res, 502, { success: false, error: error.message || "Cannot load stock notification cache." });
+    console.error("Stock notification DB read failed", error);
+    sendJson(res, 502, { success: false, error: error.message || "Cannot load stock notification DB data." });
   }
 
   return true;

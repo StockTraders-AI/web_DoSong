@@ -10,10 +10,16 @@ import { handleStockNoti, startStockNotiSocket } from "./stockNotiCache.js";
 import { handleUsersRequest } from "./usersApi.js";
 import { handlePortfolioChat } from "./portfolioChatApi.js";
 import { handleConditionSignalLatest, handleDoSongAdvice } from "./conditionSignalApi.js";
+import { handleDoSongRecommendation } from "./doSongRecommendationDb.js";
+import { initStockDataDb, DB_PATH } from "./stockDataDb.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 5173);
 const DIST_DIR = path.join(__dirname, "dist");
+
+initStockDataDb()
+  .then(() => console.log(`StockTraders DB ready at ${DB_PATH}`))
+  .catch((error) => console.error("StockTraders DB init failed", error));
 
 startStockWaveCurrentSocket();
 startStockNotiSocket();
@@ -63,6 +69,7 @@ function serveStatic(req, res, url) {
 createServer(async (req, res) => {
   if (await handleUsersRequest(req, res, req.url)) return;
   if (await handlePortfolioChat(req, res, req.url)) return;
+  if (await handleDoSongRecommendation(req, res, req.url)) return;
   if (await handleConditionSignalLatest(req, res, req.url)) return;
   if (await handleDoSongAdvice(req, res, req.url)) return;
   if (await handleStockNoti(req, res, req.url)) return;

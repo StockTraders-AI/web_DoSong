@@ -8,7 +8,9 @@
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview --host 0.0.0.0 --port 5173",
-    "start": "node server.js"
+    "start": "node server.js",
+    "backfill:db": "node backfillStockDataDb.js",
+    "backfill:recommendations": "node backfillDoSongRecommendations.js"
   },
   "dependencies": {
     "lucide-react": "^1.24.0",
