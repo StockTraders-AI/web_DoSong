@@ -492,10 +492,10 @@ const st = {
   mobilePopover: {
     position: "fixed",
     left: "50vw",
-    top: "max(88px, calc(env(safe-area-inset-top, 0px) + 72px))",
+    top: "max(120px, calc(env(safe-area-inset-top, 0px) + 104px))",
     transform: "translateX(-50%)",
     width: "min(292px, calc(100vw - 28px))",
-    maxHeight: "calc(100dvh - 150px)",
+    maxHeight: "calc(100dvh - 178px)",
     overflowY: "auto",
     zIndex: 1300,
     background: "#121826",
