@@ -835,7 +835,9 @@ function ChanSong({ data = [], onRefresh = null }) {
             padding:"0 24px 0 13px",
             outline:"none",
             cursor:"pointer",
-            appearance:"auto",
+            appearance:"none",
+            WebkitAppearance:"none",
+            MozAppearance:"none",
             boxShadow:T === LIGHT_T ? "0 6px 18px rgba(15,23,42,.06)" : "none",
           }}
         >
@@ -843,6 +845,25 @@ function ChanSong({ data = [], onRefresh = null }) {
             <option key={year} value={year}>{year}</option>
           ))}
         </select>
+        <span
+          style={{
+            position:"absolute",
+            right:10,
+            top:"50%",
+            width:12,
+            height:12,
+            transform:"translateY(-50%)",
+            display:"flex",
+            alignItems:"center",
+            justifyContent:"center",
+            color:T.t3,
+            pointerEvents:"none",
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
       </div>
     </div>
   );
