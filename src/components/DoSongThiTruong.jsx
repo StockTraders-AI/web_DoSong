@@ -818,7 +818,7 @@ function ChanSong({ data = [], onRefresh = null }) {
       <div
         style={{
           position:"relative",
-          width:78,
+          width:68,
           height:32,
           borderRadius:10,
           border:`0.5px solid ${T.Bb}`,
@@ -830,7 +830,7 @@ function ChanSong({ data = [], onRefresh = null }) {
         <span
           style={{
             position:"absolute",
-            left:19,
+            left:13,
             top:"50%",
             transform:"translateY(-50%)",
             color:T.t1,
@@ -866,7 +866,7 @@ function ChanSong({ data = [], onRefresh = null }) {
         <span
           style={{
             position:"absolute",
-            right:8,
+            right:7,
             top:"50%",
             width:12,
             height:12,
