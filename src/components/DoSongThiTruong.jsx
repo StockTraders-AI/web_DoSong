@@ -734,15 +734,31 @@ function DanhMucDoSong({ wave = EMPTY_WAVE, countWave = wave }) {
  // -------------------------------------------------------------
 function ChanSong({ data = [], onRefresh = null }) {
   const [showAll, setShowAll] = useState(false);
+  const [selectedYear, setSelectedYear] = useState("all");
 
   const sortedRows = [...data].sort((a, b) =>
     String(b.confirm_wave_date || "").localeCompare(
       String(a.confirm_wave_date || "")
     )
   );
+  const yearOptions = useMemo(() => {
+    return [...new Set(sortedRows
+      .map((row) => String(row.confirm_wave_date || "").slice(0, 4))
+      .filter((year) => /^\d{4}$/.test(year))
+    )];
+  }, [sortedRows]);
+  const latestYearOption = yearOptions[0] || String(new Date().getFullYear());
+  const filteredRows = selectedYear === "all"
+    ? sortedRows
+    : sortedRows.filter((row) => String(row.confirm_wave_date || "").startsWith(selectedYear));
+  const visibleRows = showAll ? filteredRows : filteredRows.slice(0, 5);
+  const canToggle = filteredRows.length > 5;
 
-  const visibleRows = showAll ? sortedRows : sortedRows.slice(0, 5);
-  const canToggle = sortedRows.length > 5;
+  useEffect(() => {
+    if (selectedYear !== "all" && !yearOptions.includes(selectedYear)) {
+      setSelectedYear("all");
+    }
+  }, [selectedYear, yearOptions]);
 
   function formatIncreasePoints(value) {
     const number = Number(value);
@@ -842,6 +858,80 @@ function ChanSong({ data = [], onRefresh = null }) {
         >
           {showAll ? "Thu gọn" : "Xem tất cả →"}
         </span>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          margin: "-2px 0 14px",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedYear("all");
+            setShowAll(false);
+          }}
+          style={{
+            minWidth: 92,
+            height: 38,
+            borderRadius: 16,
+            border: `0.5px solid ${selectedYear === "all" ? T.bdr : T.bdrs}`,
+            background: selectedYear === "all" ? T.elev : T.surf,
+            color: selectedYear === "all" ? T.t1 : T.t2,
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: "pointer",
+            boxShadow: T === LIGHT_T ? "0 6px 18px rgba(15,23,42,.06)" : "none",
+          }}
+        >
+          {"T\u1ea5t c\u1ea3"}
+        </button>
+        <div style={{ position: "relative" }}>
+          <select
+            value={selectedYear === "all" ? "" : selectedYear}
+            onChange={(event) => {
+              if (!event.target.value) return;
+              setSelectedYear(event.target.value);
+              setShowAll(false);
+            }}
+            style={{
+              minWidth: 116,
+              height: 38,
+              borderRadius: 10,
+              border: `0.5px solid ${selectedYear === "all" ? T.bdrs : T.Bb}`,
+              background: T.surf,
+              color: selectedYear === "all" ? T.t2 : T.t1,
+              fontSize: 14,
+              fontWeight: 700,
+              padding: "0 34px 0 16px",
+              outline: "none",
+              cursor: "pointer",
+              appearance: "none",
+              boxShadow: T === LIGHT_T ? "0 6px 18px rgba(15,23,42,.06)" : "none",
+            }}
+          >
+            <option value="" disabled>{latestYearOption}</option>
+            {yearOptions.map((year) => (
+              <option key={year} value={year}>{year}</option>
+            ))}
+          </select>
+          <span
+            style={{
+              position: "absolute",
+              right: 12,
+              top: "50%",
+              transform: "translateY(-52%)",
+              color: T.t3,
+              fontSize: 15,
+              pointerEvents: "none",
+            }}
+          >
+            {"\u2304"}
+          </span>
+        </div>
       </div>
 
       <div
