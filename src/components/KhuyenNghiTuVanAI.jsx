@@ -60,9 +60,9 @@ export default function KhuyenNghiTuVanAI({ refreshKey = 0, checkDate = "", them
         const nextSignal = normalizeSignal(data || {});
 
         if (cancelled) return;
-        if (hasSignalContent(nextSignal) && matchesRealtimeCounts(data)) {
+        if (hasSignalContent(nextSignal)) {
           setConditionSignal(nextSignal);
-          return;
+          if (matchesRealtimeCounts(data)) return;
         }
 
         if (attempt + 1 < retryDelays.length) {

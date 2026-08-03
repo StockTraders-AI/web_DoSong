@@ -48,10 +48,10 @@ async function writeCurrent(data) {
     data,
     source: "socket",
   };
-  broadcastStockWaveCurrent(currentPayload);
 
   await upsertStockWaveCurrent(data, { source: "socket" });
   invalidateStockWaveHistorySnapshot();
+  broadcastStockWaveCurrent(currentPayload);
   queueRealtimeAiRecommendation(data);
 }
 
