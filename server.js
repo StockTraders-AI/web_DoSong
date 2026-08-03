@@ -52,7 +52,7 @@ function serveStatic(req, res, url) {
   }
 
   const pathname = decodeURIComponent(url.pathname);
-  const requestedPath = pathname === "/" ? "/index.html" : pathname;
+  const requestedPath = pathname === "/do-song-thi-truong" ? "/index.html" : pathname;
   let filePath = path.normalize(path.join(DIST_DIR, requestedPath));
 
   if (!filePath.startsWith(DIST_DIR)) {
@@ -60,9 +60,16 @@ function serveStatic(req, res, url) {
     return;
   }
 
-  if (!existsSync(filePath)) filePath = path.join(DIST_DIR, "index.html");
+  if (!existsSync(filePath)) {
+    sendError(res, 404, "Not found");
+    return;
+  }
 
   const ext = path.extname(filePath);
+  if ((!ext || ext === ".html") && pathname !== "/do-song-thi-truong") {
+    sendError(res, 404, "Not found");
+    return;
+  }
   res.writeHead(200, {
     "Content-Type": contentTypes[ext] || "application/octet-stream",
     "Cache-Control": ext === ".html" ? "no-store" : "public, max-age=31536000, immutable",
