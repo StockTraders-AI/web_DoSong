@@ -327,6 +327,37 @@ export default function DateTimeTravel({
 
       {open && (
         <div ref={popRef} style={isMobile ? { ...st.popover, ...st.mobilePopover } : st.popover}>
+          {isMobile && editing && (
+            <div style={st.mobileEditRow}>
+              <input
+                ref={inputRef}
+                inputMode="numeric"
+                enterKeyHint="done"
+                autoComplete="off"
+                value={inputValue}
+                onChange={(event) => {
+                  setInputValue(event.target.value);
+                  setInputError(false);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+                    event.preventDefault();
+                    stepInputSegment(event.key === "ArrowUp" ? 1 : -1);
+                  }
+                  if (event.key === "Enter") submitInput();
+                  if (event.key === "Escape") cancelInput();
+                }}
+                onBlur={() => {
+                  if (inputError) return;
+                  const parsed = parseInputDate(inputValue);
+                  if (parsed) commitDate(parsed);
+                  else cancelInput();
+                }}
+                style={{ ...st.mobilePopupInput, borderColor: inputError ? "var(--R, #EF4444)" : "#2B3850" }}
+              />
+              <button type="button" onClick={submitInput} style={st.mobilePopupDone}>Đi</button>
+            </div>
+          )}
           <div style={st.monthHeader}>
             <button
               type="button"
@@ -467,6 +498,37 @@ const st = {
   mobileInlineInput: {
     width: 118,
     fontSize: 16,
+  },
+  mobileEditRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  mobilePopupInput: {
+    flex: 1,
+    minWidth: 0,
+    height: 36,
+    border: "1px solid #2B3850",
+    borderRadius: 10,
+    background: "#0F1624",
+    color: "#F3F7FF",
+    padding: "0 12px",
+    fontSize: 16,
+    fontWeight: 800,
+    outline: "none",
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+  },
+  mobilePopupDone: {
+    height: 36,
+    border: 0,
+    borderRadius: 10,
+    background: "var(--G, #3DD68C)",
+    color: "#06140D",
+    padding: "0 13px",
+    fontSize: 13,
+    fontWeight: 800,
+    cursor: "pointer",
   },
   popover: {
     position: "absolute",
