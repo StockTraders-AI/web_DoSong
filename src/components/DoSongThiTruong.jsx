@@ -815,6 +815,74 @@ function ChanSong({ data = [], onRefresh = null }) {
     wordBreak: "keep-all",
   };
 
+  const yearFilterControls = (
+    <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+      <button
+        type="button"
+        onClick={() => {
+          setSelectedYear("all");
+          setShowAll(false);
+        }}
+        style={{
+          minWidth:74,
+          height:32,
+          borderRadius:14,
+          border:`0.5px solid ${selectedYear === "all" ? T.bdr : T.bdrs}`,
+          background:selectedYear === "all" ? T.elev : T.surf,
+          color:selectedYear === "all" ? T.t1 : T.t2,
+          fontSize:13,
+          fontWeight:700,
+          cursor:"pointer",
+          boxShadow:T === LIGHT_T ? "0 6px 18px rgba(15,23,42,.06)" : "none",
+        }}
+      >
+        {"T\u1ea5t c\u1ea3"}
+      </button>
+      <div style={{ position:"relative" }}>
+        <select
+          value={selectedYear === "all" ? latestYearOption : selectedYear}
+          onChange={(event) => {
+            if (!event.target.value) return;
+            setSelectedYear(event.target.value);
+            setShowAll(false);
+          }}
+          style={{
+            minWidth:92,
+            height:32,
+            borderRadius:10,
+            border:`0.5px solid ${selectedYear === "all" ? T.bdrs : T.Bb}`,
+            background:T.surf,
+            color:selectedYear === "all" ? T.t2 : T.t1,
+            fontSize:13,
+            fontWeight:700,
+            padding:"0 28px 0 13px",
+            outline:"none",
+            cursor:"pointer",
+            appearance:"none",
+            boxShadow:T === LIGHT_T ? "0 6px 18px rgba(15,23,42,.06)" : "none",
+          }}
+        >
+          {yearOptions.map((year) => (
+            <option key={year} value={year}>{year}</option>
+          ))}
+        </select>
+        <span
+          style={{
+            position:"absolute",
+            right:10,
+            top:"50%",
+            transform:"translateY(-52%)",
+            color:T.t3,
+            fontSize:14,
+            pointerEvents:"none",
+          }}
+        >
+          {"\u2304"}
+        </span>
+      </div>
+    </div>
+  );
+
   return (
     <Card style={{ padding: "16px 17px" }}>
       {/* Header giống HTML mẫu */}
@@ -842,7 +910,7 @@ function ChanSong({ data = [], onRefresh = null }) {
             margin: 0,
           }}
         >
-          <span><span onClick={onRefresh || undefined} title="Tất cả lịch sử chân sóng" style={{ cursor: onRefresh ? "pointer" : "inherit" }}>Lịch</span> sử chân sóng</span>
+          <span><span onClick={onRefresh || undefined} title="Tất cả lịch sử chân sóng" style={{ cursor: onRefresh ? "pointer" : "inherit" }}>Lịch</span> sử chân sóng</span>{yearFilterControls}
         </div>
 
         <span
@@ -858,80 +926,6 @@ function ChanSong({ data = [], onRefresh = null }) {
         >
           {showAll ? "Thu gọn" : "Xem tất cả →"}
         </span>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          margin: "-2px 0 14px",
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => {
-            setSelectedYear("all");
-            setShowAll(false);
-          }}
-          style={{
-            minWidth: 92,
-            height: 38,
-            borderRadius: 16,
-            border: `0.5px solid ${selectedYear === "all" ? T.bdr : T.bdrs}`,
-            background: selectedYear === "all" ? T.elev : T.surf,
-            color: selectedYear === "all" ? T.t1 : T.t2,
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: "pointer",
-            boxShadow: T === LIGHT_T ? "0 6px 18px rgba(15,23,42,.06)" : "none",
-          }}
-        >
-          {"T\u1ea5t c\u1ea3"}
-        </button>
-        <div style={{ position: "relative" }}>
-          <select
-            value={selectedYear === "all" ? "" : selectedYear}
-            onChange={(event) => {
-              if (!event.target.value) return;
-              setSelectedYear(event.target.value);
-              setShowAll(false);
-            }}
-            style={{
-              minWidth: 116,
-              height: 38,
-              borderRadius: 10,
-              border: `0.5px solid ${selectedYear === "all" ? T.bdrs : T.Bb}`,
-              background: T.surf,
-              color: selectedYear === "all" ? T.t2 : T.t1,
-              fontSize: 14,
-              fontWeight: 700,
-              padding: "0 34px 0 16px",
-              outline: "none",
-              cursor: "pointer",
-              appearance: "none",
-              boxShadow: T === LIGHT_T ? "0 6px 18px rgba(15,23,42,.06)" : "none",
-            }}
-          >
-            <option value="" disabled>{latestYearOption}</option>
-            {yearOptions.map((year) => (
-              <option key={year} value={year}>{year}</option>
-            ))}
-          </select>
-          <span
-            style={{
-              position: "absolute",
-              right: 12,
-              top: "50%",
-              transform: "translateY(-52%)",
-              color: T.t3,
-              fontSize: 15,
-              pointerEvents: "none",
-            }}
-          >
-            {"\u2304"}
-          </span>
-        </div>
       </div>
 
       <div
