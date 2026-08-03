@@ -109,6 +109,7 @@ export default function DateTimeTravel({
   const currentRef = useRef(current);
   const popRef = useRef(null);
   const triggerRef = useRef(null);
+  const ignoreNextBlurRef = useRef(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mobilePopoverPos, setMobilePopoverPos] = useState(null);
 
@@ -328,6 +329,10 @@ export default function DateTimeTravel({
             }}
             onBlur={() => {
               if (inputError) return;
+              if (isMobile && ignoreNextBlurRef.current) {
+                ignoreNextBlurRef.current = false;
+                return;
+              }
               const parsed = parseInputDate(inputValue);
               if (isMobile) {
                 if (parsed) commitDate(parsed);
@@ -370,7 +375,13 @@ export default function DateTimeTravel({
       </button>
 
       {open && (
-        <div ref={popRef} style={isMobile ? { ...st.popover, ...st.mobilePopover, ...(mobilePopoverPos || null) } : st.popover}>
+        <div
+          ref={popRef}
+          onPointerDownCapture={() => {
+            if (isMobile && editing) ignoreNextBlurRef.current = true;
+          }}
+          style={isMobile ? { ...st.popover, ...st.mobilePopover, ...(mobilePopoverPos || null) } : st.popover}
+        >
           <div style={st.monthHeader}>
             <button
               type="button"
