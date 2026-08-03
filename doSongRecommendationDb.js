@@ -1,6 +1,7 @@
-﻿import { danhGiaDoSong } from "./src/utils/doSongEngine.js";
+import { danhGiaDoSong } from "./src/utils/doSongEngine.js";
 import {
   getAllStockWaveRowsFromDb,
+  getAllStockWaveSummaryRowsFromDb,
   getWaveBottomRowsFromDb,
   getRecommendationDailyFromDb,
   getRecommendationTemplateFromDb,
@@ -16,6 +17,7 @@ export const RECOMMENDATION_PROMPT_VERSION = "dosong-template-v1";
 export const RECOMMENDATION_STATES = ["S0", "S1", "S4", "S5", "S6", "S7", "SN", "WAITBUY", "BUY"];
 const DISABLED_DOSONG_STATES = new Set(["s2", "s3"]);
 const CHATWEB_API_BASE_URL = (process.env.CHATWEB_API_BASE_URL || "http://112.213.91.235:8000").replace(/\/$/, "");
+const recommendationBuildRequests = new Map();
 
 const DEFAULT_TEMPLATES = {
   S0: {
@@ -87,6 +89,16 @@ function getFirstDateField(row, keys) {
 
 function getRowDate(row) {
   return normalizeDateKey(row?.rawDate || row?.date || row?.tradingDate || row?.ngay || row?.tradeDate);
+}
+
+function getFirstWaveRow(value) {
+  const root = value?.StockWaveRequest ?? value;
+  const waves = root?.stockWaves ?? root?.data?.stockWaves ?? root?.data ?? root;
+  const rows = value?.allRows ?? waves?.waveDatas ?? waves?.waveData ?? waves?.rows ?? waves?.history ?? waves?.stockWaves?.waveDatas ?? waves;
+  if (Array.isArray(rows)) return rows.find(Boolean) || null;
+  if (rows && typeof rows === "object" && (rows.date || rows.tradingDate || rows.ngay || rows.buy !== undefined || rows.waitbuy !== undefined)) return rows;
+  if (value && typeof value === "object" && (value.date || value.tradingDate || value.ngay || value.buy !== undefined || value.waitbuy !== undefined)) return value;
+  return null;
 }
 
 function toDoSongInput(row) {
@@ -347,6 +359,8 @@ export async function buildRecommendationDailyStates({ from = "2025-01-01", to =
         pha: specialState ? usedEngine?.pha || engine?.pha || null : usedEngine?.pha || null,
         overrideReason,
         nearestEnabledDate,
+        previousDate: phienTruoc?.date || "",
+        sourceDates: waveDates,
         specialState,
         signalKeys: doSongSignalKeys(usedEngine),
         wave: item.input,
@@ -365,6 +379,139 @@ export async function buildRecommendationDailyStates({ from = "2025-01-01", to =
   }
 
   return states;
+}
+
+function buildRealtimeRecommendationState(currentRow, summaryRows, bottomRows) {
+  const currentInput = toDoSongInput(currentRow);
+  if (!currentInput?.date) return null;
+  const dateKey = currentInput.date;
+  const byDate = new Map();
+  for (const row of Array.isArray(summaryRows) ? summaryRows : []) {
+    const input = toDoSongInput(row);
+    if (input?.date && input.date <= dateKey) byDate.set(input.date, row);
+  }
+  byDate.set(dateKey, currentRow);
+
+  const waveRows = [...byDate.values()].sort((a, b) => String(getRowDate(a)).localeCompare(String(getRowDate(b))));
+  const waveDates = waveRows.map((row) => getRowDate(row)).filter(Boolean);
+  let phienTruoc = null;
+  let phaTruoc = null;
+  let nearestEnabledEngine = null;
+  let nearestEnabledDate = "";
+
+  for (const row of waveRows) {
+    const hienTai = toDoSongInput(row);
+    if (!hienTai) continue;
+    const engine = danhGiaDoSong({ hienTai, phienTruoc, phaTruoc });
+    const specialState = getSpecialState(hienTai.date, bottomRows || [], waveDates);
+    const rawState = String(engine?.maTrangThai || "SN").toUpperCase();
+    const disabled = DISABLED_DOSONG_STATES.has(rawState.toLowerCase());
+    const usedEngine = disabled && nearestEnabledEngine ? nearestEnabledEngine : engine;
+
+    if (hienTai.date === dateKey) {
+      const effectiveState = specialState || String(usedEngine?.maTrangThai || "SN").toUpperCase();
+      const overrideReason = specialState
+        ? `special_${specialState.toLowerCase()}`
+        : disabled && nearestEnabledEngine
+          ? `disabled_${rawState.toLowerCase()}_use_nearest_previous_state`
+          : "";
+      return {
+        dateKey,
+        rawState,
+        effectiveState,
+        pha: specialState ? usedEngine?.pha || engine?.pha || null : usedEngine?.pha || null,
+        overrideReason,
+        nearestEnabledDate,
+        previousDate: phienTruoc?.date || "",
+        sourceDates: waveDates,
+        specialState,
+        signalKeys: doSongSignalKeys(usedEngine),
+        wave: hienTai,
+        engine: usedEngine,
+        rawEngine: engine,
+        nearestEngine: nearestEnabledEngine,
+      };
+    }
+
+    if (!DISABLED_DOSONG_STATES.has(rawState.toLowerCase())) {
+      nearestEnabledEngine = engine;
+      nearestEnabledDate = hienTai.date;
+    }
+    phienTruoc = hienTai;
+    phaTruoc = engine?.pha || null;
+  }
+
+  return null;
+}
+
+async function fetchRealtimeChatAiSignal(state) {
+  if (state.effectiveState === "BUY" || state.effectiveState === "WAITBUY") {
+    const params = new URLSearchParams({
+      signal_key: state.effectiveState === "BUY" ? "buy_over_threshold" : "waitbuy_over_threshold",
+      check_date: state.dateKey,
+      waitbuy: String(state.wave.choMua ?? 0),
+      buy: String(state.wave.mua ?? 0),
+    });
+    return fetchJson(`${CHATWEB_API_BASE_URL}/public/condition-signals/latest?${params.toString()}`);
+  }
+
+  return fetchJson(`${CHATWEB_API_BASE_URL}/public/do-song-advice`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      check_date: state.dateKey,
+      signal_keys: state.signalKeys,
+      source_dates: state.sourceDates || [],
+      previous_date: state.previousDate || "",
+      nearest_enabled_date: state.nearestEnabledDate,
+      wave: state.wave,
+      engine: state.engine,
+      raw_engine: state.rawEngine,
+      nearest_engine: state.nearestEngine,
+    }),
+  });
+}
+
+export async function upsertRealtimeChatAiRecommendation(wavePayload, { promptVersion = RECOMMENDATION_PROMPT_VERSION } = {}) {
+  const currentRow = getFirstWaveRow(wavePayload);
+  const dateKey = getRowDate(currentRow);
+  if (!dateKey) return { saved: false, reason: "date_missing" };
+
+  const [summaryRows, bottomRows] = await Promise.all([
+    getAllStockWaveSummaryRowsFromDb(),
+    getWaveBottomRowsFromDb(),
+  ]);
+  const state = buildRealtimeRecommendationState(currentRow, summaryRows, bottomRows);
+  if (!state) return { saved: false, reason: "state_missing", dateKey };
+
+  const signal = await fetchRealtimeChatAiSignal(state);
+  const title = String(signal?.title || "").trim();
+  const body = String(signal?.response || signal?.body || "").trim();
+  const action = String(signal?.recommendation || signal?.action || "").trim();
+  if (!body) return { saved: false, reason: "empty_signal", dateKey, state: state.effectiveState };
+
+  const source = { ...state, promptVersion, templateSource: "chatai_realtime", realtime: true, signal };
+  await upsertRecommendationDaily({
+    dateKey: state.dateKey,
+    promptVersion,
+    rawState: state.rawState,
+    effectiveState: state.effectiveState,
+    pha: state.pha,
+    overrideReason: state.overrideReason,
+    choMua: state.wave.choMua,
+    mua: state.wave.mua,
+    choBan: state.wave.choBan,
+    ban: state.wave.ban,
+    tc: state.wave.tinCay,
+    total: state.wave.tong,
+    title,
+    body,
+    action,
+    sourceHash: hashStockDataValue({ promptVersion, realtime: true, state, signal }),
+    source,
+  });
+
+  return { saved: true, dateKey, state: state.effectiveState };
 }
 
 export async function backfillRecommendationDaily({ from = "2025-01-01", to = "", promptVersion = RECOMMENDATION_PROMPT_VERSION, seedTemplates = true } = {}) {
@@ -425,12 +572,20 @@ export async function getDoSongRecommendationForDate(dateKey, { promptVersion = 
   const row = await getRecommendationDailyFromDb(normalizedDate, promptVersion);
   if (row) return row;
 
-  await backfillRecommendationDaily({
-    from: normalizedDate,
-    to: normalizedDate,
-    promptVersion,
-    seedTemplates: true,
-  });
+  const requestKey = `${promptVersion}:${normalizedDate}`;
+  if (!recommendationBuildRequests.has(requestKey)) {
+    const request = backfillRecommendationDaily({
+      from: normalizedDate,
+      to: normalizedDate,
+      promptVersion,
+      seedTemplates: true,
+    }).finally(() => {
+      recommendationBuildRequests.delete(requestKey);
+    });
+    recommendationBuildRequests.set(requestKey, request);
+  }
+
+  await recommendationBuildRequests.get(requestKey);
 
   const generated = await getRecommendationDailyFromDb(normalizedDate, promptVersion);
   if (generated) return generated;

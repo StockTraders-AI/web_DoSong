@@ -14,14 +14,15 @@ function normalizeSignal(data) {
   };
 }
 
-export default function KhuyenNghiTuVanAI({ refreshKey = 0, checkDate = "", theme = "dark" }) {
+export default function KhuyenNghiTuVanAI({ refreshKey = 0, checkDate = "", theme = "dark", realtime = false, waitbuy = 0, buy = 0, doSongAdvice = null }) {
   const [conditionSignal, setConditionSignal] = useState(EMPTY_SIGNAL);
 
   useEffect(() => {
     let cancelled = false;
     const retryTimers = [];
-    const retryDelays = [0, 350, 1000, 2200];
+    const retryDelays = realtime ? [0, 350, 900, 1800, 3500, 6500, 10000] : [0, 350, 1000, 2200];
     const dateKey = String(checkDate || "").slice(0, 10);
+    const realtimeWave = doSongAdvice?.wave || null;
 
     if (!dateKey) {
       setConditionSignal(EMPTY_SIGNAL);
@@ -29,6 +30,20 @@ export default function KhuyenNghiTuVanAI({ refreshKey = 0, checkDate = "", them
         cancelled = true;
         retryTimers.forEach((timer) => window.clearTimeout(timer));
       };
+    }
+
+    function sameNumber(a, b) {
+      if (b === undefined || b === null || b === "") return true;
+      return Number(a) === Number(b);
+    }
+
+    function matchesRealtimeCounts(data) {
+      if (!realtime) return true;
+      return sameNumber(data?.cho_mua, realtimeWave?.choMua ?? waitbuy) &&
+        sameNumber(data?.mua, realtimeWave?.mua ?? buy) &&
+        sameNumber(data?.cho_ban, realtimeWave?.choBan) &&
+        sameNumber(data?.ban, realtimeWave?.ban) &&
+        sameNumber(data?.total, realtimeWave?.tong);
     }
 
     function scheduleLoad(attempt) {
@@ -45,21 +60,21 @@ export default function KhuyenNghiTuVanAI({ refreshKey = 0, checkDate = "", them
         const nextSignal = normalizeSignal(data || {});
 
         if (cancelled) return;
-        if (hasSignalContent(nextSignal)) {
+        if (hasSignalContent(nextSignal) && matchesRealtimeCounts(data)) {
           setConditionSignal(nextSignal);
           return;
         }
 
         if (attempt + 1 < retryDelays.length) {
           scheduleLoad(attempt + 1);
-        } else {
+        } else if (!realtime) {
           setConditionSignal(EMPTY_SIGNAL);
         }
       } catch {
         if (cancelled) return;
         if (attempt + 1 < retryDelays.length) {
           scheduleLoad(attempt + 1);
-        } else {
+        } else if (!realtime) {
           setConditionSignal(EMPTY_SIGNAL);
         }
       }
@@ -71,7 +86,7 @@ export default function KhuyenNghiTuVanAI({ refreshKey = 0, checkDate = "", them
       cancelled = true;
       retryTimers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [checkDate, refreshKey]);
+  }, [buy, checkDate, doSongAdvice, realtime, refreshKey, waitbuy]);
 
   const { title, response, recommendation } = conditionSignal;
   const visibleTitle = title || "\u00a0";

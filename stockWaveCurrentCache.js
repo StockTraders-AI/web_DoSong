@@ -5,15 +5,40 @@ import {
   insertRawSocketEvent,
   upsertStockWaveCurrent,
 } from "./stockDataDb.js";
+import { upsertRealtimeChatAiRecommendation } from "./doSongRecommendationDb.js";
 
 const REALTIME_WAVE_URL = process.env.REALTIME_WAVE_URL || "http://112.213.91.235:3005/realtime";
 const WAVE_CHANNEL = "wave";
 let currentPayload = null;
 let socketStarted = false;
+const stockWaveCurrentClients = new Set();
+let realtimeAiQueue = Promise.resolve();
 
 function getSocketWaveData(payload) {
   if (payload?.channel && payload.channel !== WAVE_CHANNEL) return null;
   return payload?.data ?? payload;
+}
+function writeStockWaveCurrentEvent(res, event, payload) {
+  res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+function broadcastStockWaveCurrent(payload) {
+  for (const res of stockWaveCurrentClients) {
+    try {
+      writeStockWaveCurrentEvent(res, "stock-wave-current", payload);
+    } catch {
+      stockWaveCurrentClients.delete(res);
+    }
+  }
+}
+function queueRealtimeAiRecommendation(data) {
+  realtimeAiQueue = realtimeAiQueue
+    .catch(() => {})
+    .then(() => upsertRealtimeChatAiRecommendation(data))
+    .catch((error) => {
+      console.error("Realtime ChatAI recommendation failed", error);
+    });
 }
 
 async function writeCurrent(data) {
@@ -23,9 +48,11 @@ async function writeCurrent(data) {
     data,
     source: "socket",
   };
+  broadcastStockWaveCurrent(currentPayload);
 
   await upsertStockWaveCurrent(data, { source: "socket" });
   invalidateStockWaveHistorySnapshot();
+  queueRealtimeAiRecommendation(data);
 }
 
 async function readCurrent() {
@@ -75,6 +102,27 @@ export function startStockWaveCurrentSocket() {
   });
 }
 
+
+export async function handleStockWaveCurrentStream(req, res) {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+  writeStockWaveCurrentEvent(res, "ready", { success: true, channel: WAVE_CHANNEL });
+  stockWaveCurrentClients.add(res);
+  req.on("close", () => {
+    stockWaveCurrentClients.delete(res);
+  });
+
+  try {
+    const payload = await readCurrent();
+    if (payload) writeStockWaveCurrentEvent(res, "stock-wave-current", payload);
+  } catch (error) {
+    writeStockWaveCurrentEvent(res, "error", { success: false, error: error.message || "Cannot load current wave." });
+  }
+}
 export async function handleStockWaveCurrent(req, res) {
   try {
     const payload = await readCurrent();

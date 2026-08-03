@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { io } from "socket.io-client";
 import branchLookup from "../data/branchLookup.json";
 import VongTronDoSong from "./VongTronDoSong.jsx";
 import DateTimeTravel from "./DateTimeTravel.jsx";
@@ -45,10 +44,7 @@ const STOCK_WAVE_HISTORY_URL = import.meta.env.VITE_STOCK_WAVE_HISTORY_URL || "/
 const STOCK_WAVE_TICKERS_URL = import.meta.env.VITE_STOCK_WAVE_TICKERS_URL || "/api/stock-wave-tickers";
 const WAVE_BOTTOM_CONFIRM_PAIRS_URL = import.meta.env.VITE_WAVE_BOTTOM_CONFIRM_PAIRS_URL || "/api/wave-bottom-confirm-pairs";
 const STOCK_NOTI_STREAM_URL = import.meta.env.VITE_STOCK_NOTI_STREAM_URL || "/api/stock-noti/stream";
-const REALTIME_WAVE_URL =
-  import.meta.env.VITE_REALTIME_WAVE_URL ||
-  import.meta.env.VITE_REALTIME_URL ||
-  "http://112.213.91.235:3005/realtime";
+const STOCK_WAVE_CURRENT_STREAM_URL = import.meta.env.VITE_STOCK_WAVE_CURRENT_STREAM_URL || "/api/stock-wave-current/stream";
 const WAVE_CHANNEL = "wave";
 const STOCK_NOTI_CHANNEL = "stock-noti";
 const EMPTY_WAVE = {
@@ -1158,18 +1154,6 @@ export default function DoSongThiTruong() {
         console.error("Load stock wave current cache failed", error);
       });
 
-    const socket = io(REALTIME_WAVE_URL, {
-      transports:["websocket"],
-    });
-
-    socket.on("connect", () => {
-      if (!active) return;
-      socket.emit("message", {
-        action:"subscribe",
-        channels:[WAVE_CHANNEL, STOCK_NOTI_CHANNEL],
-      });
-    });
-
     const applyStockNotiPayload = (payload) => {
       if (!active) return false;
 
@@ -1187,22 +1171,25 @@ export default function DoSongThiTruong() {
       return true;
     };
 
-    socket.on("message", (payload) => {
+    const stockWaveCurrentStream = typeof EventSource !== "undefined"
+      ? new EventSource(STOCK_WAVE_CURRENT_STREAM_URL)
+      : null;
+
+    stockWaveCurrentStream?.addEventListener("stock-wave-current", (event) => {
       if (!active) return;
-      if (applyStockNotiPayload(payload)) return;
+      try {
+        const payload = JSON.parse(event.data);
+        const data = getSocketWaveData(payload);
+        if (!data) return;
 
-      const data = getSocketWaveData(payload);
-      if (!data) return;
+        const rows = normalizeWavePayload(data);
+        if (!rows.length) return;
 
-      const rows = normalizeWavePayload(data);
-      if (!rows.length) return;
-
-      setLatestWave(rows[0]);
-      setSignalRefreshKey((key) => key + 1);
-    });
-
-    socket.on(STOCK_NOTI_CHANNEL, (payload) => {
-      applyStockNotiPayload({ channel:STOCK_NOTI_CHANNEL, data:payload });
+        setLatestWave(rows[0]);
+        setSignalRefreshKey((key) => key + 1);
+      } catch (error) {
+        console.error("Parse stock-wave-current stream failed", error);
+      }
     });
 
     const stockNotiStream = typeof EventSource !== "undefined"
@@ -1219,13 +1206,13 @@ export default function DoSongThiTruong() {
       }
     });
 
-    socket.on("connect_error", (error) => {
-      console.error("Realtime wave socket failed", error);
+    stockWaveCurrentStream?.addEventListener("error", (error) => {
+      if (active) console.error("Stock wave current stream failed", error);
     });
 
     return () => {
       active = false;
-      socket.disconnect();
+      stockWaveCurrentStream?.close();
       stockNotiStream?.close();
     };
   }, []);
@@ -1507,6 +1494,7 @@ export default function DoSongThiTruong() {
                 buy={selectedMainDonutWave.mu}
                 refreshKey={signalRefreshKey}
                 checkDate={selectedMainDonutWave.rawDate}
+                realtime={selectedMainDonutWave.rawDate === latestWave.rawDate}
                 doSongAdvice={selectedDoSongAdvice}
                 adviceMode={selectedAdviceMode}
                 theme={theme}

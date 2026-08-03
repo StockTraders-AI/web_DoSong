@@ -3,7 +3,7 @@ import { createReadStream, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { handleStockWaveHistory, preloadStockWaveHistorySnapshot, sendJson } from "./stockWaveHistoryCache.js";
-import { handleStockWaveCurrent, startStockWaveCurrentSocket } from "./stockWaveCurrentCache.js";
+import { handleStockWaveCurrent, handleStockWaveCurrentStream, startStockWaveCurrentSocket } from "./stockWaveCurrentCache.js";
 import { handleStockWaveTickers } from "./stockWaveTickersCache.js";
 import { handleWaveBottomConfirmPairs } from "./waveBottomConfirmPairsCache.js";
 import { handleStockNoti, startStockNotiSocket } from "./stockNotiCache.js";
@@ -79,6 +79,11 @@ createServer(async (req, res) => {
   if (await handleStockNoti(req, res, req.url)) return;
 
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+
+  if (req.method === "GET" && url.pathname === "/api/stock-wave-current/stream") {
+    handleStockWaveCurrentStream(req, res);
+    return;
+  }
 
   if (req.method === "GET" && url.pathname === "/api/stock-wave-current") {
     handleStockWaveCurrent(req, res);
