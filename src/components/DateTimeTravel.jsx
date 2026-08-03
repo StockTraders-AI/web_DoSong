@@ -259,7 +259,7 @@ export default function DateTimeTravel({
         <ChevronLeft size={15} />
       </button>
 
-      <div ref={triggerRef} style={{ ...st.dateButton, color: isToday ? "var(--G, #3DD68C)" : "var(--t1, #D9E4F5)" }}>
+      <div ref={triggerRef} style={{ ...st.dateButton, ...(isMobile && editing ? st.mobileEditingDateButton : null), color: isToday ? "var(--G, #3DD68C)" : "var(--t1, #D9E4F5)" }}>
         <button type="button" onClick={openCalendar} style={st.calendarButton} aria-label="Mở lịch">
           <Calendar size={13} style={{ opacity: 0.72, flexShrink: 0 }} />
         </button>
@@ -413,6 +413,11 @@ const st = {
   },
   mobileEditingRoot: {
     zIndex: 1500,
+  },
+  mobileEditingDateButton: {
+    position: "relative",
+    zIndex: 1600,
+    background: "var(--elev, rgba(17,21,32,.96))",
   },
   dateButton: {
     display: "inline-flex",
