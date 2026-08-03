@@ -5,7 +5,6 @@ import {
   insertRawSocketEvent,
   upsertStockWaveCurrent,
 } from "./stockDataDb.js";
-import { backfillRecommendationDaily } from "./doSongRecommendationDb.js";
 
 const REALTIME_WAVE_URL = process.env.REALTIME_WAVE_URL || "http://112.213.91.235:3005/realtime";
 const WAVE_CHANNEL = "wave";
@@ -17,37 +16,16 @@ function getSocketWaveData(payload) {
   return payload?.data ?? payload;
 }
 
-function getWaveDate(data) {
-  const rows = Array.isArray(data)
-    ? data
-    : Array.isArray(data?.StockWaveRequest?.stockWaves?.waveDatas)
-      ? data.StockWaveRequest.stockWaves.waveDatas
-      : Array.isArray(data?.stockWaves?.waveDatas)
-        ? data.stockWaves.waveDatas
-        : Array.isArray(data?.waveDatas)
-          ? data.waveDatas
-          : Array.isArray(data?.data)
-            ? data.data
-            : [data];
-  const row = rows.find(Boolean) || {};
-  const value = String(row.rawDate || row.date || row.tradingDate || row.ngay || row.tradeDate || "");
-  const match = value.match(/^(\d{4}-\d{2}-\d{2})/);
-  return match?.[1] || "";
-}
-
 async function writeCurrent(data) {
-  await upsertStockWaveCurrent(data, { source: "socket" });
-  invalidateStockWaveHistorySnapshot();
-  const dateKey = getWaveDate(data);
-  if (dateKey) {
-    await backfillRecommendationDaily({ from: dateKey, to: dateKey, seedTemplates: true });
-  }
   currentPayload = {
     success: true,
     cachedAt: new Date().toISOString(),
     data,
     source: "socket",
   };
+
+  await upsertStockWaveCurrent(data, { source: "socket" });
+  invalidateStockWaveHistorySnapshot();
 }
 
 async function readCurrent() {
