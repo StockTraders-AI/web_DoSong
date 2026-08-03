@@ -814,7 +814,7 @@ function ChanSong({ data = [], onRefresh = null }) {
   };
 
   const yearFilterControls = (
-    <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+    <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0, marginLeft:18 }}>
       <div
         style={{
           position:"relative",
