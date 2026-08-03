@@ -15,6 +15,12 @@ const sameDay = (a, b) =>
 const fmt = (d) =>
   `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 
+function formatInputDateText(value) {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
 function parseInputDate(value) {
   const text = String(value || "").trim();
   const match = text.match(/^(\d{1,4})[/\-.](\d{1,2})[/\-.](\d{1,4})$/);
@@ -271,7 +277,7 @@ export default function DateTimeTravel({
             autoComplete="off"
             value={inputValue}
             onChange={(event) => {
-              setInputValue(event.target.value);
+              setInputValue(formatInputDateText(event.target.value));
               setInputError(false);
             }}
             onKeyDown={(event) => {
@@ -326,7 +332,7 @@ export default function DateTimeTravel({
       </button>
 
       {open && (
-        <div ref={popRef} style={isMobile ? { ...st.popover, ...st.mobilePopover, ...(editing ? st.mobileEditingPopover : null) } : st.popover}>
+        <div ref={popRef} style={isMobile ? { ...st.popover, ...st.mobilePopover } : st.popover}>
           <div style={st.monthHeader}>
             <button
               type="button"
@@ -490,21 +496,17 @@ const st = {
     boxShadow: "0 22px 55px rgba(0,0,0,.18)",
   },
   mobilePopover: {
-    position: "fixed",
-    left: "50vw",
-    top: "max(120px, calc(env(safe-area-inset-top, 0px) + 104px))",
+    position: "absolute",
+    left: "50%",
+    top: "calc(100% + 10px)",
     transform: "translateX(-50%)",
     width: "min(292px, calc(100vw - 28px))",
-    maxHeight: "calc(100dvh - 178px)",
+    maxHeight: "min(430px, calc(100dvh - 190px))",
     overflowY: "auto",
     zIndex: 1300,
     background: "#121826",
     border: "1px solid #2B3850",
     boxShadow: "0 22px 60px rgba(0,0,0,.42)",
-  },
-  mobileEditingPopover: {
-    top: "max(178px, calc(env(safe-area-inset-top, 0px) + 162px))",
-    maxHeight: "calc(100dvh - 236px)",
   },
   monthHeader: {
     display: "flex",
