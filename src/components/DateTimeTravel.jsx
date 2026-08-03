@@ -340,10 +340,7 @@ export default function DateTimeTravel({
                   key={i}
                   type="button"
                   disabled={disabled}
-                  onClick={() => {
-                    setDraft(date);
-                    setEditing(true);
-                  }}
+                  onClick={() => commitDate(date)}
                   style={{
                     ...st.day,
                     color: disabled ? "var(--t4, #334155)" : other ? "var(--t3, #53657F)" : "var(--t2, #B6C5DB)",
@@ -364,8 +361,7 @@ export default function DateTimeTravel({
             <button
               type="button"
               onClick={() => {
-                setDraft(new Date(maxDate));
-                setEditing(true);
+                commitDate(new Date(maxDate));
               }}
               style={{ ...st.footerButton, color: "var(--G, #3DD68C)" }}
             >
