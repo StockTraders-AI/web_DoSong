@@ -110,6 +110,7 @@ export default function DateTimeTravel({
   const popRef = useRef(null);
   const triggerRef = useRef(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [mobilePopoverPos, setMobilePopoverPos] = useState(null);
 
   useEffect(() => {
     currentRef.current = current;
@@ -123,6 +124,43 @@ export default function DateTimeTravel({
     query.addEventListener?.("change", update);
     return () => query.removeEventListener?.("change", update);
   }, []);
+  useEffect(() => {
+    if (!open || !isMobile || typeof window === "undefined") {
+      setMobilePopoverPos(null);
+      return undefined;
+    }
+
+    const updatePosition = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const viewport = window.visualViewport;
+      const viewportWidth = viewport?.width || window.innerWidth;
+      const viewportHeight = viewport?.height || window.innerHeight;
+      const offsetLeft = viewport?.offsetLeft || 0;
+      const offsetTop = viewport?.offsetTop || 0;
+      const width = Math.min(292, viewportWidth - 28);
+      const rect = trigger.getBoundingClientRect();
+      const minLeft = offsetLeft + 14;
+      const maxLeft = offsetLeft + viewportWidth - width - 14;
+      const preferredLeft = rect.left + rect.width / 2 - width / 2;
+      const left = Math.max(minLeft, Math.min(maxLeft, preferredLeft));
+      const top = rect.bottom + 10 + offsetTop;
+      const maxHeight = Math.max(260, Math.min(430, offsetTop + viewportHeight - top - 14));
+      setMobilePopoverPos({ left, top, width, maxHeight });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    window.visualViewport?.addEventListener("resize", updatePosition);
+    window.visualViewport?.addEventListener("scroll", updatePosition);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      window.visualViewport?.removeEventListener("resize", updatePosition);
+      window.visualViewport?.removeEventListener("scroll", updatePosition);
+    };
+  }, [open, isMobile, editing]);
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -332,7 +370,7 @@ export default function DateTimeTravel({
       </button>
 
       {open && (
-        <div ref={popRef} style={isMobile ? { ...st.popover, ...st.mobilePopover } : st.popover}>
+        <div ref={popRef} style={isMobile ? { ...st.popover, ...st.mobilePopover, ...(mobilePopoverPos || null) } : st.popover}>
           <div style={st.monthHeader}>
             <button
               type="button"
@@ -496,10 +534,10 @@ const st = {
     boxShadow: "0 22px 55px rgba(0,0,0,.18)",
   },
   mobilePopover: {
-    position: "absolute",
-    left: "50%",
-    top: "calc(100% + 10px)",
-    transform: "translateX(-50%)",
+    position: "fixed",
+    left: 14,
+    top: 120,
+    transform: "none",
     width: "min(292px, calc(100vw - 28px))",
     maxHeight: "min(430px, calc(100dvh - 190px))",
     overflowY: "auto",
