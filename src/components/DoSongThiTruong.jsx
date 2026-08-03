@@ -903,7 +903,7 @@ function ChanSong({ data = [], onRefresh = null }) {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 8,
+            gap: 12,
             fontFamily: "'Be Vietnam Pro', Inter, sans-serif",
             fontSize: 16,
             fontWeight: 600,
