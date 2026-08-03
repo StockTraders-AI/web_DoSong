@@ -832,7 +832,7 @@ function ChanSong({ data = [], onRefresh = null }) {
             color:T.t1,
             fontSize:13,
             fontWeight:700,
-            padding:"0 24px 0 13px",
+            padding:"0 24px 0 18px",
             outline:"none",
             cursor:"pointer",
             appearance:"none",
