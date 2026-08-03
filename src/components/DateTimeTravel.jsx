@@ -103,10 +103,20 @@ export default function DateTimeTravel({
   const currentRef = useRef(current);
   const popRef = useRef(null);
   const triggerRef = useRef(null);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     currentRef.current = current;
   }, [current]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return undefined;
+    const query = window.matchMedia("(max-width: 768px)");
+    const update = () => setIsMobile(query.matches);
+    update();
+    query.addEventListener?.("change", update);
+    return () => query.removeEventListener?.("change", update);
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -276,7 +286,7 @@ export default function DateTimeTravel({
               if (parsed) commitDate(parsed);
               else cancelInput();
             }}
-            style={{ ...st.inlineInput, borderColor: inputError ? "var(--R, #EF4444)" : "transparent" }}
+            style={{ ...st.inlineInput, ...(isMobile ? st.mobileInlineInput : null), borderColor: inputError ? "var(--R, #EF4444)" : "transparent" }}
           />
         ) : (
           <button
@@ -308,7 +318,7 @@ export default function DateTimeTravel({
       </button>
 
       {open && (
-        <div ref={popRef} style={st.popover}>
+        <div ref={popRef} style={isMobile ? { ...st.popover, ...st.mobilePopover } : st.popover}>
           <div style={st.monthHeader}>
             <button
               type="button"
@@ -444,6 +454,10 @@ const st = {
     lineHeight: 1,
     outline: "none",
   },
+  mobileInlineInput: {
+    width: 118,
+    fontSize: 16,
+  },
   popover: {
     position: "absolute",
     left: "50%",
@@ -456,6 +470,16 @@ const st = {
     background: "var(--surf, #0B0F18)",
     padding: 14,
     boxShadow: "0 22px 55px rgba(0,0,0,.18)",
+  },
+  mobilePopover: {
+    position: "fixed",
+    left: "50vw",
+    top: "max(88px, calc(env(safe-area-inset-top, 0px) + 72px))",
+    transform: "translateX(-50%)",
+    width: "min(292px, calc(100vw - 28px))",
+    maxHeight: "calc(100dvh - 150px)",
+    overflowY: "auto",
+    zIndex: 1300,
   },
   monthHeader: {
     display: "flex",
