@@ -827,15 +827,15 @@ function ChanSong({ data = [], onRefresh = null }) {
             minWidth:92,
             height:32,
             borderRadius:10,
-            border:`0.5px solid ${selectedYear === "all" ? T.bdrs : T.Bb}`,
+            border:`0.5px solid ${T.Bb}`,
             background:T.surf,
-            color:selectedYear === "all" ? T.t2 : T.t1,
+            color:T.t1,
             fontSize:13,
             fontWeight:700,
-            padding:"0 28px 0 13px",
+            padding:"0 24px 0 13px",
             outline:"none",
             cursor:"pointer",
-            appearance:"none",
+            appearance:"auto",
             boxShadow:T === LIGHT_T ? "0 6px 18px rgba(15,23,42,.06)" : "none",
           }}
         >
@@ -843,19 +843,6 @@ function ChanSong({ data = [], onRefresh = null }) {
             <option key={year} value={year}>{year}</option>
           ))}
         </select>
-        <span
-          style={{
-            position:"absolute",
-            right:10,
-            top:"50%",
-            transform:"translateY(-52%)",
-            color:T.t3,
-            fontSize:14,
-            pointerEvents:"none",
-          }}
-        >
-          {"\u2304"}
-        </span>
       </div>
     </div>
   );
