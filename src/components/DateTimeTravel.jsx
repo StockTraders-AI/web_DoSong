@@ -326,7 +326,7 @@ export default function DateTimeTravel({
       </button>
 
       {open && (
-        <div ref={popRef} style={isMobile ? { ...st.popover, ...st.mobilePopover } : st.popover}>
+        <div ref={popRef} style={isMobile ? { ...st.popover, ...st.mobilePopover, ...(editing ? st.mobileEditingPopover : null) } : st.popover}>
           <div style={st.monthHeader}>
             <button
               type="button"
@@ -501,6 +501,10 @@ const st = {
     background: "#121826",
     border: "1px solid #2B3850",
     boxShadow: "0 22px 60px rgba(0,0,0,.42)",
+  },
+  mobileEditingPopover: {
+    top: "max(178px, calc(env(safe-area-inset-top, 0px) + 162px))",
+    maxHeight: "calc(100dvh - 236px)",
   },
   monthHeader: {
     display: "flex",
