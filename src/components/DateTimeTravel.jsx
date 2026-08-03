@@ -327,7 +327,7 @@ export default function DateTimeTravel({
             >
               <ChevronLeft size={12} />
             </button>
-            <span style={st.monthTitle}>{MONTHS[calCursor.getMonth()]}, {calCursor.getFullYear()}</span>
+            <span style={isMobile ? { ...st.monthTitle, ...st.mobileMonthTitle } : st.monthTitle}>{MONTHS[calCursor.getMonth()]}, {calCursor.getFullYear()}</span>
             <button
               type="button"
               onClick={() => setCalCursor((c) => new Date(c.getFullYear(), c.getMonth() + 1, 1))}
@@ -339,7 +339,7 @@ export default function DateTimeTravel({
 
           <div style={st.grid}>
             {DOW.map((d) => (
-              <div key={d} style={st.dow}>{d}</div>
+              <div key={d} style={isMobile ? { ...st.dow, ...st.mobileDow } : st.dow}>{d}</div>
             ))}
             {cells.map(({ other, date }, i) => {
               const disabled = date > maxDate || date < minDate;
@@ -353,8 +353,10 @@ export default function DateTimeTravel({
                   onClick={() => commitDate(date)}
                   style={{
                     ...st.day,
-                    color: disabled ? "var(--t4, #334155)" : other ? "var(--t3, #53657F)" : "var(--t2, #B6C5DB)",
-                    opacity: disabled ? 0.42 : other ? 0.55 : 1,
+                    color: isMobile
+                      ? (disabled ? "#33435B" : other ? "#4F6684" : "#D7E4F7")
+                      : disabled ? "var(--t4, #334155)" : other ? "var(--t3, #53657F)" : "var(--t2, #B6C5DB)",
+                    opacity: isMobile ? (disabled ? 0.58 : other ? 0.72 : 1) : disabled ? 0.42 : other ? 0.55 : 1,
                     cursor: disabled ? "not-allowed" : "pointer",
                     background: selected ? "var(--G, #3DD68C)" : "transparent",
                     border: today && !selected ? "1px solid var(--G, #3DD68C)" : "1px solid transparent",
@@ -480,6 +482,9 @@ const st = {
     maxHeight: "calc(100dvh - 150px)",
     overflowY: "auto",
     zIndex: 1300,
+    background: "#121826",
+    border: "1px solid #2B3850",
+    boxShadow: "0 22px 60px rgba(0,0,0,.42)",
   },
   monthHeader: {
     display: "flex",
