@@ -734,7 +734,7 @@ function DanhMucDoSong({ wave = EMPTY_WAVE, countWave = wave }) {
  // -------------------------------------------------------------
 function ChanSong({ data = [], onRefresh = null }) {
   const [showAll, setShowAll] = useState(false);
-  const [selectedYear, setSelectedYear] = useState("all");
+  const [selectedYear, setSelectedYear] = useState("");
 
   const sortedRows = [...data].sort((a, b) =>
     String(b.confirm_wave_date || "").localeCompare(
@@ -747,16 +747,14 @@ function ChanSong({ data = [], onRefresh = null }) {
       .filter((year) => /^\d{4}$/.test(year))
     )];
   }, [sortedRows]);
-  const latestYearOption = yearOptions[0] || String(new Date().getFullYear());
-  const filteredRows = selectedYear === "all"
-    ? sortedRows
-    : sortedRows.filter((row) => String(row.confirm_wave_date || "").startsWith(selectedYear));
+  const activeYear = selectedYear || yearOptions[0] || String(new Date().getFullYear());
+  const filteredRows = sortedRows.filter((row) => String(row.confirm_wave_date || "").startsWith(activeYear));
   const visibleRows = showAll ? filteredRows : filteredRows.slice(0, 5);
   const canToggle = filteredRows.length > 5;
 
   useEffect(() => {
-    if (selectedYear !== "all" && !yearOptions.includes(selectedYear)) {
-      setSelectedYear("all");
+    if (selectedYear && !yearOptions.includes(selectedYear)) {
+      setSelectedYear("");
     }
   }, [selectedYear, yearOptions]);
 
@@ -817,30 +815,9 @@ function ChanSong({ data = [], onRefresh = null }) {
 
   const yearFilterControls = (
     <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
-      <button
-        type="button"
-        onClick={() => {
-          setSelectedYear("all");
-          setShowAll(false);
-        }}
-        style={{
-          minWidth:74,
-          height:32,
-          borderRadius:14,
-          border:`0.5px solid ${selectedYear === "all" ? T.bdr : T.bdrs}`,
-          background:selectedYear === "all" ? T.elev : T.surf,
-          color:selectedYear === "all" ? T.t1 : T.t2,
-          fontSize:13,
-          fontWeight:700,
-          cursor:"pointer",
-          boxShadow:T === LIGHT_T ? "0 6px 18px rgba(15,23,42,.06)" : "none",
-        }}
-      >
-        {"T\u1ea5t c\u1ea3"}
-      </button>
       <div style={{ position:"relative" }}>
         <select
-          value={selectedYear === "all" ? latestYearOption : selectedYear}
+          value={activeYear}
           onChange={(event) => {
             if (!event.target.value) return;
             setSelectedYear(event.target.value);
