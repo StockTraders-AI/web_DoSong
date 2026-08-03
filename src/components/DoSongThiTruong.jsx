@@ -815,7 +815,33 @@ function ChanSong({ data = [], onRefresh = null }) {
 
   const yearFilterControls = (
     <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
-      <div style={{ position:"relative" }}>
+      <div
+        style={{
+          position:"relative",
+          width:92,
+          height:32,
+          borderRadius:10,
+          border:`0.5px solid ${T.Bb}`,
+          background:T.surf,
+          boxShadow:T === LIGHT_T ? "0 6px 18px rgba(15,23,42,.06)" : "none",
+          overflow:"hidden",
+        }}
+      >
+        <span
+          style={{
+            position:"absolute",
+            left:27,
+            top:"50%",
+            transform:"translateY(-50%)",
+            color:T.t1,
+            fontSize:13,
+            fontWeight:700,
+            lineHeight:1,
+            pointerEvents:"none",
+          }}
+        >
+          {activeYear}
+        </span>
         <select
           value={activeYear}
           onChange={(event) => {
@@ -824,21 +850,13 @@ function ChanSong({ data = [], onRefresh = null }) {
             setShowAll(false);
           }}
           style={{
-            minWidth:92,
-            height:32,
-            borderRadius:10,
-            border:`0.5px solid ${T.Bb}`,
-            background:T.surf,
-            color:T.t1,
-            fontSize:13,
-            fontWeight:700,
-            padding:"0 24px 0 26px",
-            outline:"none",
+            position:"absolute",
+            inset:0,
+            width:"100%",
+            height:"100%",
+            border:0,
+            opacity:0,
             cursor:"pointer",
-            appearance:"none",
-            WebkitAppearance:"none",
-            MozAppearance:"none",
-            boxShadow:T === LIGHT_T ? "0 6px 18px rgba(15,23,42,.06)" : "none",
           }}
         >
           {yearOptions.map((year) => (
