@@ -1,5 +1,5 @@
 import { io } from "socket.io-client";
-import { sendJson } from "./stockWaveHistoryCache.js";
+import { invalidateStockWaveHistorySnapshot, sendJson } from "./stockWaveHistoryCache.js";
 import {
   getStockWaveCurrentFromDb,
   insertRawSocketEvent,
@@ -37,6 +37,7 @@ function getWaveDate(data) {
 
 async function writeCurrent(data) {
   await upsertStockWaveCurrent(data, { source: "socket" });
+  invalidateStockWaveHistorySnapshot();
   const dateKey = getWaveDate(data);
   if (dateKey) {
     await backfillRecommendationDaily({ from: dateKey, to: dateKey, seedTemplates: true });

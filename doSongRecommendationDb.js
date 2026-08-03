@@ -421,14 +421,26 @@ export async function backfillRecommendationDaily({ from = "2025-01-01", to = ""
 }
 
 export async function getDoSongRecommendationForDate(dateKey, { promptVersion = RECOMMENDATION_PROMPT_VERSION } = {}) {
-  const row = await getRecommendationDailyFromDb(dateKey, promptVersion);
+  const normalizedDate = normalizeDateKey(dateKey);
+  const row = await getRecommendationDailyFromDb(normalizedDate, promptVersion);
   if (row) return row;
+
+  await backfillRecommendationDaily({
+    from: normalizedDate,
+    to: normalizedDate,
+    promptVersion,
+    seedTemplates: true,
+  });
+
+  const generated = await getRecommendationDailyFromDb(normalizedDate, promptVersion);
+  if (generated) return generated;
+
   return {
     ok: false,
     title: "",
     response: "",
     recommendation: "",
-    date_key: normalizeDateKey(dateKey),
+    date_key: normalizedDate,
     prompt_version: promptVersion,
     error: "recommendation_not_found",
   };

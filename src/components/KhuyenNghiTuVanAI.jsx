@@ -19,31 +19,57 @@ export default function KhuyenNghiTuVanAI({ refreshKey = 0, checkDate = "", them
 
   useEffect(() => {
     let cancelled = false;
+    const retryTimers = [];
+    const retryDelays = [0, 350, 1000, 2200];
     const dateKey = String(checkDate || "").slice(0, 10);
 
     if (!dateKey) {
       setConditionSignal(EMPTY_SIGNAL);
       return () => {
         cancelled = true;
+        retryTimers.forEach((timer) => window.clearTimeout(timer));
       };
     }
 
-    setConditionSignal(EMPTY_SIGNAL);
+    function scheduleLoad(attempt) {
+      const delay = retryDelays[attempt] ?? 0;
+      const timer = window.setTimeout(() => loadRecommendation(attempt), delay);
+      retryTimers.push(timer);
+    }
 
-    const params = new URLSearchParams({ date: dateKey });
-    fetch(`/api/do-song-recommendation?${params.toString()}`, { cache: "no-store" })
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => {
-        if (cancelled) return;
+    async function loadRecommendation(attempt = 0) {
+      try {
+        const params = new URLSearchParams({ date: dateKey });
+        const res = await fetch(`/api/do-song-recommendation?${params.toString()}`, { cache: "no-store" });
+        const data = res.ok ? await res.json() : null;
         const nextSignal = normalizeSignal(data || {});
-        setConditionSignal(hasSignalContent(nextSignal) ? nextSignal : EMPTY_SIGNAL);
-      })
-      .catch(() => {
-        if (!cancelled) setConditionSignal(EMPTY_SIGNAL);
-      });
+
+        if (cancelled) return;
+        if (hasSignalContent(nextSignal)) {
+          setConditionSignal(nextSignal);
+          return;
+        }
+
+        if (attempt + 1 < retryDelays.length) {
+          scheduleLoad(attempt + 1);
+        } else {
+          setConditionSignal(EMPTY_SIGNAL);
+        }
+      } catch {
+        if (cancelled) return;
+        if (attempt + 1 < retryDelays.length) {
+          scheduleLoad(attempt + 1);
+        } else {
+          setConditionSignal(EMPTY_SIGNAL);
+        }
+      }
+    }
+
+    scheduleLoad(0);
 
     return () => {
       cancelled = true;
+      retryTimers.forEach((timer) => window.clearTimeout(timer));
     };
   }, [checkDate, refreshKey]);
 
