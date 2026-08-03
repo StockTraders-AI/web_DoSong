@@ -528,8 +528,8 @@ const st = {
     outline: "none",
   },
   mobileInlineInput: {
-    width: 118,
-    fontSize: 16,
+    width: 78,
+    fontSize: "inherit",
   },
   popover: {
     position: "absolute",
