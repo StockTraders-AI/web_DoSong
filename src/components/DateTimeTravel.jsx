@@ -266,6 +266,9 @@ export default function DateTimeTravel({
         {editing ? (
           <input
             ref={inputRef}
+            inputMode="numeric"
+            enterKeyHint="done"
+            autoComplete="off"
             value={inputValue}
             onChange={(event) => {
               setInputValue(event.target.value);
@@ -280,9 +283,14 @@ export default function DateTimeTravel({
               if (event.key === "Escape") cancelInput();
             }}
             onBlur={() => {
-              if (open) return;
               if (inputError) return;
               const parsed = parseInputDate(inputValue);
+              if (isMobile) {
+                if (parsed) commitDate(parsed);
+                else cancelInput();
+                return;
+              }
+              if (open) return;
               if (parsed) commitDate(parsed);
               else cancelInput();
             }}
