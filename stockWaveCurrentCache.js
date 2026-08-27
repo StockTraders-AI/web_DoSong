@@ -6,9 +6,11 @@ import {
   upsertStockWaveCurrent,
 } from "./stockDataDb.js";
 import { upsertRealtimeChatAiRecommendation } from "./doSongRecommendationDb.js";
+import { queueWaveBottomRealtimeRecalc } from "./waveBottomConfirmPairsCache.js";
 
 const REALTIME_WAVE_URL = process.env.REALTIME_WAVE_URL || "http://112.213.91.235:3005/realtime";
 const WAVE_CHANNEL = "wave";
+const STOCK_TOTAL_CHANNEL = "stock-total";
 let currentPayload = null;
 let socketStarted = false;
 const stockWaveCurrentClients = new Set();
@@ -81,11 +83,31 @@ export function startStockWaveCurrentSocket() {
   socket.on("connect", () => {
     socket.emit("message", {
       action: "subscribe",
-      channels: [WAVE_CHANNEL],
+      channels: [WAVE_CHANNEL, STOCK_TOTAL_CHANNEL],
     });
   });
 
   socket.on("message", (payload) => {
+
+    // =============================
+    // STOCK TOTAL - VNINDEX REALTIME
+    // =============================
+    if (payload?.channel === STOCK_TOTAL_CHANNEL) {
+      const data = payload?.data ?? payload;
+
+      Promise.all([
+        insertRawSocketEvent(STOCK_TOTAL_CHANNEL, payload),
+        queueWaveBottomRealtimeRecalc(data),
+      ]).catch((error) => {
+        console.error("Realtime VNINDEX high recalc failed", error);
+      });
+
+      return;
+    }
+
+    // =============================
+    // WAVE - GIỮ NGUYÊN CODE CŨ
+    // =============================
     const data = getSocketWaveData(payload);
     if (!data) return;
 

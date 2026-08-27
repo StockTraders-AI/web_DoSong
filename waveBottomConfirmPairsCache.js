@@ -22,6 +22,14 @@ let memoryCacheKey = "";
 let pendingRequest = null;
 let pendingRequestKey = "";
 
+let realtimeRecalcQueue = Promise.resolve();
+let runningPeakState = {
+  waveKey: "",
+  high: 0,
+};
+
+const waveBottomRealtimeClients = new Set();
+
 function getMarketNowParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: MARKET_TIME_ZONE,
@@ -267,6 +275,316 @@ function normalizeTradeRows(payload) {
     .filter((row) => row.date && row.high > 0 && row.low > 0)
     .sort((a, b) => rowDateValue(a.date) - rowDateValue(b.date))
     .map((row, index) => ({ ...row, index }));
+}
+
+function getLatestWaveBottomRow(rows = []) {
+  return [...rows]
+    .filter((row) => row?.confirm_wave_date)
+    .sort((a, b) =>
+      String(a.confirm_wave_date).localeCompare(
+        String(b.confirm_wave_date)
+      )
+    )
+    .pop() || null;
+}
+
+function collectRealtimeRows(
+  value,
+  tickerHint = "",
+  depth = 0,
+  result = []
+) {
+  if (!value || depth > 6) {
+    return result;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectRealtimeRows(
+        item,
+        tickerHint,
+        depth + 1,
+        result
+      );
+    }
+
+    return result;
+  }
+
+  if (typeof value !== "object") {
+    return result;
+  }
+
+  const explicitTicker = String(
+    value?.ticker ??
+    value?.symbol ??
+    value?.code ??
+    tickerHint ??
+    ""
+  ).toUpperCase();
+
+  if (hasTradeFields(value)) {
+    result.push({
+      ticker: explicitTicker,
+      row: value,
+    });
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    if (!child || typeof child !== "object") {
+      continue;
+    }
+
+    const keyUpper = String(key).toUpperCase();
+
+    collectRealtimeRows(
+      child,
+      keyUpper === "VNINDEX"
+        ? "VNINDEX"
+        : tickerHint,
+      depth + 1,
+      result
+    );
+  }
+
+  return result;
+}
+
+function getRealtimeHigh(payload) {
+  const rows = collectRealtimeRows(payload);
+
+  const highs = rows
+    .filter(
+      ({ ticker }) =>
+        ticker === "VNINDEX"
+    )
+    .map(({ row }) =>
+      toNumber(
+        row?.high ??
+        row?.High ??
+        row?.h 
+      )
+    )
+    .filter(
+      (high) => high > 0
+    );
+
+  if (!highs.length) {
+    return 0;
+  }
+
+  return Math.max(...highs);
+}
+
+async function recalculateWaveBottomRealtime(realtimePayload) {
+  const incomingHigh = getRealtimeHigh(realtimePayload);
+
+  if (!incomingHigh) return null;
+
+  // Lấy dữ liệu đang lưu DB
+  const oldRows = await getWaveBottomRowsFromDb();
+
+  if (!oldRows?.length) return null;
+
+  const latestOldRow = getLatestWaveBottomRow(oldRows);
+
+  if (!latestOldRow) {
+    return null;
+  }
+
+  // Mỗi chân sóng có 1 key riêng
+  const waveKey = [
+    String(latestOldRow.confirm_wave_date || ""),
+    String(latestOldRow.prepare_bottom_date || ""),
+  ].join("|");
+
+  const dbRunningHigh =
+    toNumber(latestOldRow.zigzag_peak_price);
+
+  // Nếu vừa chuyển sang chân sóng mới
+  // thì bỏ high của chân sóng cũ
+  if (runningPeakState.waveKey !== waveKey) {
+    runningPeakState = {
+      waveKey,
+      high: dbRunningHigh,
+    };
+  }
+
+  const currentRunningHigh = Math.max(
+    runningPeakState.high,
+    dbRunningHigh
+  );
+
+  // Chỉ high mới cao hơn high cao nhất mới tính
+  if (incomingHigh <= currentRunningHigh) {
+    return null;
+  }
+
+  // Không gọi getTotalTradeReal ở đây nữa.
+  // Realtime payload chính là dữ liệu real.
+  const [pairsPayload, vnindexPayload] = await Promise.all([
+    fetchPairs(),
+    fetchVnindexTrades(),
+  ]);
+
+  const realtimeVnindexRows = collectRealtimeRows(realtimePayload)
+  .filter(({ ticker }) => ticker === "VNINDEX")
+  .map(({ row }) => ({
+    ticker: "VNINDEX",
+
+    date:
+      getRowDate(row, getPayloadDate(realtimePayload)) ||
+      getMarketDateKey(),
+
+    high: toNumber(
+      row?.high ??
+      row?.High ??
+      row?.h
+    ),
+
+    low: toNumber(
+      row?.low ??
+      row?.Low ??
+      row?.l
+    ) || toNumber(
+      row?.high ??
+      row?.High ??
+      row?.h
+    ),
+  }))
+  .filter((row) => row.high > 0);
+
+  const newRows = buildWaveBottomRows(
+    pairsPayload,
+    vnindexPayload,
+    realtimeVnindexRows
+  );
+
+  if (!newRows.length) return null;
+
+  const changedRows = [];
+
+  for (const newRow of newRows) {
+    const oldRow = oldRows.find(
+      (row) =>
+        String(row.confirm_wave_date || "") ===
+          String(newRow.confirm_wave_date || "") &&
+        String(row.prepare_bottom_date || "") ===
+          String(newRow.prepare_bottom_date || "")
+    );
+
+    if (
+      !oldRow ||
+      toNumber(oldRow.zigzag_peak_price) !==
+        toNumber(newRow.zigzag_peak_price) ||
+      toNumber(oldRow.increase_points) !==
+        toNumber(newRow.increase_points) ||
+      toNumber(oldRow.duration_sessions) !==
+        toNumber(newRow.duration_sessions) ||
+      String(oldRow.zigzag_peak_date || "") !==
+        String(newRow.zigzag_peak_date || "")
+    ) {
+      changedRows.push(newRow);
+    }
+  }
+
+  // high mới nhưng kết quả bảng không đổi
+  if (!changedRows.length) {
+    runningPeakState = {
+      waveKey,
+      high: incomingHigh,
+    };
+
+    return null;
+  }
+
+  // GHI DB TRƯỚC
+  await writeDailyCache(
+    newRows,
+    getCacheKey()
+  );
+
+  const latestNewRow = getLatestWaveBottomRow(newRows);
+
+  runningPeakState = {
+    waveKey,
+    high: Math.max(
+      incomingHigh,
+      toNumber(latestNewRow?.zigzag_peak_price)
+    ),
+  };
+
+  // DB thành công rồi mới báo frontend
+  broadcastWaveBottomRealtime(changedRows);
+
+  return changedRows;
+}
+
+export function queueWaveBottomRealtimeRecalc(payload) {
+  realtimeRecalcQueue = realtimeRecalcQueue
+    .catch(() => {})
+    .then(() => recalculateWaveBottomRealtime(payload))
+    .catch((error) => {
+      console.error(
+        "Wave bottom realtime recalc failed",
+        error
+      );
+    });
+
+  return realtimeRecalcQueue;
+}
+
+function writeWaveBottomRealtimeEvent(
+  res,
+  event,
+  payload
+) {
+  res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+function broadcastWaveBottomRealtime(rows) {
+  const payload = {
+    success: true,
+    rows,
+    updatedAt: new Date().toISOString(),
+  };
+
+  for (const res of waveBottomRealtimeClients) {
+    try {
+      writeWaveBottomRealtimeEvent(
+        res,
+        "wave-bottom-updated",
+        payload
+      );
+    } catch {
+      waveBottomRealtimeClients.delete(res);
+    }
+  }
+}
+
+export function handleWaveBottomConfirmPairsStream(
+  req,
+  res
+) {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+
+  writeWaveBottomRealtimeEvent(
+    res,
+    "ready",
+    { success: true }
+  );
+
+  waveBottomRealtimeClients.add(res);
+
+  req.on("close", () => {
+    waveBottomRealtimeClients.delete(res);
+  });
 }
 
 function mergeTradeRows(...payloads) {

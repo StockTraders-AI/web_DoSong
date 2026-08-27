@@ -45,6 +45,9 @@ const STOCK_WAVE_TICKERS_URL = import.meta.env.VITE_STOCK_WAVE_TICKERS_URL || "/
 const WAVE_BOTTOM_CONFIRM_PAIRS_URL = import.meta.env.VITE_WAVE_BOTTOM_CONFIRM_PAIRS_URL || "/api/wave-bottom-confirm-pairs";
 const STOCK_NOTI_STREAM_URL = import.meta.env.VITE_STOCK_NOTI_STREAM_URL || "/api/stock-noti/stream";
 const STOCK_WAVE_CURRENT_STREAM_URL = import.meta.env.VITE_STOCK_WAVE_CURRENT_STREAM_URL || "/api/stock-wave-current/stream";
+const WAVE_BOTTOM_CONFIRM_PAIRS_STREAM_URL =
+  import.meta.env.VITE_WAVE_BOTTOM_CONFIRM_PAIRS_STREAM_URL ||
+  "/api/wave-bottom-confirm-pairs/stream";
 const WAVE_CHANNEL = "wave";
 const STOCK_NOTI_CHANNEL = "stock-noti";
 const EMPTY_WAVE = {
@@ -497,7 +500,6 @@ function fetchWaveBottomConfirmPairs(force = false) {
 
   return waveBottomConfirmPairsRequest;
 }
-
 
 // ─────────────────────────────────────────────────────────────
 // PRIMITIVES
@@ -1340,6 +1342,70 @@ export default function DoSongThiTruong() {
 
     return () => {
       active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof EventSource === "undefined") return;
+
+    const stream = new EventSource(
+      WAVE_BOTTOM_CONFIRM_PAIRS_STREAM_URL
+    );
+
+    stream.addEventListener(
+      "wave-bottom-updated",
+      (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+
+          const updates = Array.isArray(payload?.rows)
+            ? payload.rows
+            : [];
+
+          if (!updates.length) return;
+
+          setChanSongRows((currentRows) => {
+            return currentRows.map((oldRow) => {
+
+              const updatedRow = updates.find((newRow) => {
+                return (
+                  String(newRow.confirm_wave_date || "") ===
+                    String(oldRow.confirm_wave_date || "")
+                  &&
+                  String(newRow.prepare_bottom_date || "") ===
+                    String(oldRow.prepare_bottom_date || "")
+                );
+              });
+
+              if (!updatedRow) {
+                return oldRow;
+              }
+
+              return {
+                ...oldRow,
+                ...updatedRow,
+              };
+            });
+          });
+
+        } catch (error) {
+          console.error(
+            "Parse wave bottom realtime update failed",
+            error
+          );
+        }
+      }
+    );
+
+    stream.addEventListener("error", (error) => {
+      console.error(
+        "Wave bottom realtime stream failed",
+        error
+      );
+    });
+
+    return () => {
+      stream.close();
     };
   }, []);
 

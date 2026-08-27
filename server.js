@@ -5,10 +5,14 @@ import { fileURLToPath } from "node:url";
 import { handleStockWaveHistory, preloadStockWaveHistorySnapshot, sendJson } from "./stockWaveHistoryCache.js";
 import { handleStockWaveCurrent, handleStockWaveCurrentStream, startStockWaveCurrentSocket } from "./stockWaveCurrentCache.js";
 import { handleStockWaveTickers } from "./stockWaveTickersCache.js";
-import { handleWaveBottomConfirmPairs } from "./waveBottomConfirmPairsCache.js";
+import {
+  handleWaveBottomConfirmPairs,
+  handleWaveBottomConfirmPairsStream,
+} from "./waveBottomConfirmPairsCache.js";
 import { handleStockNoti, startStockNotiSocket } from "./stockNotiCache.js";
 import { handleUsersRequest } from "./usersApi.js";
 import { handlePortfolioChat } from "./portfolioChatApi.js";
+import { handleAiKey } from "./aiKeyApi.js";
 import { handleConditionSignalLatest, handleDoSongAdvice } from "./conditionSignalApi.js";
 import { handleDoSongRecommendation } from "./doSongRecommendationDb.js";
 import { initStockDataDb, DB_PATH } from "./stockDataDb.js";
@@ -80,6 +84,7 @@ function serveStatic(req, res, url) {
 createServer(async (req, res) => {
   if (await handleUsersRequest(req, res, req.url)) return;
   if (await handlePortfolioChat(req, res, req.url)) return;
+  if (await handleAiKey(req, res, req.url)) return;
   if (await handleDoSongRecommendation(req, res, req.url)) return;
   if (await handleConditionSignalLatest(req, res, req.url)) return;
   if (await handleDoSongAdvice(req, res, req.url)) return;
@@ -104,6 +109,14 @@ createServer(async (req, res) => {
 
   if (req.method === "POST" && url.pathname === "/api/wave-bottom-confirm-pairs") {
     handleWaveBottomConfirmPairs(req, res);
+    return;
+  }
+
+  if (
+    req.method === "GET" &&
+    url.pathname === "/api/wave-bottom-confirm-pairs/stream"
+  ) {
+    handleWaveBottomConfirmPairsStream(req, res);
     return;
   }
 

@@ -1,4 +1,11 @@
 const PORTFOLIO_CHAT_API_URL = process.env.PORTFOLIO_CHAT_API_URL || "http://112.213.91.235:8000/api/portfolio-chat";
+// Live test switch: when set, proxy to the new stocktraders-mcp webapp
+// (BYOK - each user_id must already have a key saved there via POST
+// /auth/key) instead of the old chatbotgpt /api/portfolio-chat. The new
+// webapp's /chat is single-turn stateless (no conversation_id support), so
+// this branch just echoes back whatever conversation_id the client sent.
+const NEW_CHAT_API_BASE_URL = (process.env.NEW_CHAT_API_BASE_URL || "").replace(/\/$/, "");
+const NEW_CHAT_PROVIDER = process.env.NEW_CHAT_PROVIDER || "openai";
 
 function sendJson(res, status, payload) {
   const body = JSON.stringify(payload);
@@ -51,28 +58,39 @@ export async function handlePortfolioChat(req, res, rawUrl) {
       return true;
     }
 
-    const response = await fetch(PORTFOLIO_CHAT_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        question,
-        user_id: body.user_id || "u1",
-        conversation_id: body.conversation_id || "portfolio-test-1",
-      }),
-    });
+    const userId = body.user_id || "u1";
+    const conversationId = body.conversation_id || "portfolio-test-1";
+
+    const response = NEW_CHAT_API_BASE_URL
+      ? await fetch(`${NEW_CHAT_API_BASE_URL}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: userId, message: question, provider: NEW_CHAT_PROVIDER }),
+        })
+      : await fetch(PORTFOLIO_CHAT_API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            question,
+            user_id: userId,
+            conversation_id: conversationId,
+            portfolio: body.portfolio || null,
+          }),
+        });
 
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       sendJson(res, response.status, {
         success: false,
-        error: payload.error || payload.message || `Portfolio chat failed: ${response.status}`,
+        error: payload.error || payload.detail || payload.message || `Portfolio chat failed: ${response.status}`,
       });
       return true;
     }
 
     sendJson(res, 200, {
       answer: typeof payload.answer === "string" ? payload.answer : "",
-      conversation_id: payload.conversation_id || body.conversation_id || "portfolio-test-1",
+      conversation_id: payload.conversation_id || conversationId,
+      usage: payload.usage || null,
     });
   } catch (error) {
     console.error("Portfolio chat proxy failed", error);

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import AiKeySettings from "./AiKeySettings.jsx";
 
 const PORTFOLIO_CHAT_URL = import.meta.env.VITE_PORTFOLIO_CHAT_URL || "/api/portfolio-chat";
 const USER_ID = "u1";
@@ -21,13 +22,20 @@ const SUGGEST_CHIPS = [
   "Ch\u1edd b\u00e1n l\u00e0 g\u00ec?",
 ];
 
-function MsgBubble({ role, text, isPanel }) {
+function MsgBubble({ role, text, usage, isPanel }) {
   const cls = isPanel ? { wrap: "pmsg", bub: "pbubble", av: "pav" } : { wrap: "msg", bub: "bubble", av: "av" };
   const html = String(text).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/\n/g, "<br>");
   return (
     <div className={`${cls.wrap} ${role}`}>
       <div className={cls.av}>{role === "ai" ? "AI" : "B\u1ea1n"}</div>
-      <div className={cls.bub} dangerouslySetInnerHTML={{ __html: html }} />
+      <div>
+        <div className={cls.bub} dangerouslySetInnerHTML={{ __html: html }} />
+        {role === "ai" && usage?.total_tokens ? (
+          <div style={{ fontSize: 9, color: "var(--t3,#5B6478)", opacity: 0.7, marginTop: 3, textAlign: "right" }}>
+            {usage.total_tokens} token ({usage.input_tokens} in / {usage.output_tokens} out)
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -46,12 +54,13 @@ function TypingIndicator({ isPanel }) {
 
 
 
-export default function TuVanAiCard() {
+export default function TuVanAiCard({ portfolio = null } = {}) {
   const [msgs, setMsgs] = useState([]);
   const [chatVal, setChatVal] = useState("");
   const [panelVal, setPanelVal] = useState("");
   const [loading, setLoading] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [keySettingsOpen, setKeySettingsOpen] = useState(false);
   const [panelMsgs, setPanelMsgs] = useState([]);
   const [panelSynced, setPanelSynced] = useState(false);
   const [conversationId, setConversationId] = useState(DEFAULT_CONVERSATION_ID);
@@ -90,13 +99,13 @@ export default function TuVanAiCard() {
     const res = await fetch(PORTFOLIO_CHAT_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: q, user_id: USER_ID, conversation_id: conversationId }),
+      body: JSON.stringify({ question: q, user_id: USER_ID, conversation_id: conversationId, portfolio }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `API loi ${res.status}`);
     if (data.conversation_id) setConversationId(data.conversation_id);
-    return typeof data.answer === "string" ? data.answer : "";
-  }, [conversationId]);
+    return { text: typeof data.answer === "string" ? data.answer : "", usage: data.usage || null };
+  }, [conversationId, portfolio]);
 
   const sendMsg = useCallback(async (q, isPanel = false) => {
     if (!q.trim()) return;
@@ -114,17 +123,20 @@ export default function TuVanAiCard() {
     setLoading(true);
 
     let text;
+    let usage = null;
     try {
-      text = await fetchReply(q);
+      const reply = await fetchReply(q);
+      text = reply.text;
+      usage = reply.usage;
     } catch (error) {
       text = error.message || TEXT.apiError;
     }
 
     setLoading(false);
     if (isPanel) {
-      setPanelMsgs((prev) => [...prev.filter((m) => m.role !== "typing"), { role: "ai", text }]);
+      setPanelMsgs((prev) => [...prev.filter((m) => m.role !== "typing"), { role: "ai", text, usage }]);
     } else {
-      const nextMsgs = [...msgsDataRef.current.filter((m) => m.role !== "typing"), { role: "ai", text }];
+      const nextMsgs = [...msgsDataRef.current.filter((m) => m.role !== "typing"), { role: "ai", text, usage }];
       msgsDataRef.current = nextMsgs;
       setMsgs(nextMsgs);
       if (panelSyncedRef.current) {
@@ -172,6 +184,9 @@ export default function TuVanAiCard() {
               <span className="dm-ready-dot" />
               {TEXT.ready}
             </div>
+            <button className="dm-expand-btn" onClick={() => setKeySettingsOpen(true)} title="Cài đặt API key">
+              <span className="dm-expand-ic">⚙</span>
+            </button>
             <button className="dm-expand-btn" onClick={openPanel} title={TEXT.expand}>
               <span className="dm-expand-ic">↗</span>
               <span>{TEXT.expand}</span>
@@ -180,7 +195,7 @@ export default function TuVanAiCard() {
         </div>
 
         <div className="dm-chat-msgs" ref={msgsRef}>
-          {msgs.map((m, i) => m.role === "typing" ? <TypingIndicator key={i} isPanel={false} /> : <MsgBubble key={i} role={m.role} text={m.text} isPanel={false} />)}
+          {msgs.map((m, i) => m.role === "typing" ? <TypingIndicator key={i} isPanel={false} /> : <MsgBubble key={i} role={m.role} text={m.text} usage={m.usage} isPanel={false} />)}
         </div>
 
         <div style={{ padding: "6px 14px", display: "flex", gap: 5, flexWrap: "wrap", borderTop: ".5px solid var(--bdr)", flexShrink: 0 }}>
@@ -222,7 +237,7 @@ export default function TuVanAiCard() {
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, padding: "14px 16px" }} ref={panelRef}>
-              {panelMsgs.map((m, i) => m.role === "typing" ? <TypingIndicator key={i} isPanel /> : <MsgBubble key={i} role={m.role} text={m.text} isPanel />)}
+              {panelMsgs.map((m, i) => m.role === "typing" ? <TypingIndicator key={i} isPanel /> : <MsgBubble key={i} role={m.role} text={m.text} usage={m.usage} isPanel />)}
             </div>
 
             <div style={{ padding: "10px 16px", display: "flex", gap: 6, flexWrap: "wrap", borderTop: ".5px solid var(--bdr)", flexShrink: 0 }}>
@@ -243,6 +258,10 @@ export default function TuVanAiCard() {
             </div>
           </div>
         </>
+      )}
+
+      {keySettingsOpen && (
+        <AiKeySettings userId={USER_ID} onClose={() => setKeySettingsOpen(false)} />
       )}
     </>
   );
