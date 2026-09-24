@@ -65,12 +65,7 @@ export async function handlePortfolioChat(req, res, rawUrl) {
       ? await fetch(`${NEW_CHAT_API_BASE_URL}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user_id: userId,
-            message: question,
-            provider: NEW_CHAT_PROVIDER,
-            history: Array.isArray(body.history) ? body.history : [],
-          }),
+          body: JSON.stringify({ user_id: userId, message: question, provider: NEW_CHAT_PROVIDER }),
         })
       : await fetch(PORTFOLIO_CHAT_API_URL, {
           method: "POST",

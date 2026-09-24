@@ -96,14 +96,10 @@ export default function TuVanAiCard({ portfolio = null } = {}) {
 
 
   const fetchReply = useCallback(async (q) => {
-    const history = msgsDataRef.current
-      .filter((m) => (m.role === "user" || m.role === "ai") && String(m.text || "").trim())
-      .slice(-8)
-      .map((m) => ({ role: m.role, text: m.text }));
     const res = await fetch(PORTFOLIO_CHAT_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: q, user_id: USER_ID, conversation_id: conversationId, portfolio, history }),
+      body: JSON.stringify({ question: q, user_id: USER_ID, conversation_id: conversationId, portfolio }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `API loi ${res.status}`);
@@ -149,13 +145,6 @@ export default function TuVanAiCard({ portfolio = null } = {}) {
     }
   }, [fetchReply]);
 
-  const startNewChat = useCallback(() => {
-    msgsDataRef.current = [];
-    setMsgs([]);
-    setPanelMsgs([]);
-    setConversationId(DEFAULT_CONVERSATION_ID);
-  }, []);
-
   const openPanel = useCallback(() => {
     if (!panelSyncedRef.current) {
       setPanelMsgs(msgsDataRef.current);
@@ -195,9 +184,6 @@ export default function TuVanAiCard({ portfolio = null } = {}) {
               <span className="dm-ready-dot" />
               {TEXT.ready}
             </div>
-            <button className="dm-expand-btn" onClick={startNewChat} title="Cuộc trò chuyện mới">
-              <span className="dm-expand-ic">＋</span>
-            </button>
             <button className="dm-expand-btn" onClick={() => setKeySettingsOpen(true)} title="Cài đặt API key">
               <span className="dm-expand-ic">⚙</span>
             </button>
