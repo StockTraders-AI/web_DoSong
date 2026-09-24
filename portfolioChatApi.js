@@ -2,8 +2,10 @@ const PORTFOLIO_CHAT_API_URL = process.env.PORTFOLIO_CHAT_API_URL || "http://112
 // Live test switch: when set, proxy to the new stocktraders-mcp webapp
 // (BYOK - each user_id must already have a key saved there via POST
 // /auth/key) instead of the old chatbotgpt /api/portfolio-chat. The new
-// webapp's /chat is single-turn stateless (no conversation_id support), so
-// this branch just echoes back whatever conversation_id the client sent.
+// webapp keeps its own short server-side history per session_id, so we
+// forward the client's conversation_id as session_id to get multi-turn
+// context; it's still opt-in on the backend (falls back to stateless if
+// omitted) and we always echo the same conversation_id back either way.
 const NEW_CHAT_API_BASE_URL = (process.env.NEW_CHAT_API_BASE_URL || "").replace(/\/$/, "");
 const NEW_CHAT_PROVIDER = process.env.NEW_CHAT_PROVIDER || "openai";
 
@@ -65,7 +67,12 @@ export async function handlePortfolioChat(req, res, rawUrl) {
       ? await fetch(`${NEW_CHAT_API_BASE_URL}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: userId, message: question, provider: NEW_CHAT_PROVIDER }),
+          body: JSON.stringify({
+            user_id: userId,
+            message: question,
+            provider: NEW_CHAT_PROVIDER,
+            session_id: conversationId,
+          }),
         })
       : await fetch(PORTFOLIO_CHAT_API_URL, {
           method: "POST",

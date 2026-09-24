@@ -3,7 +3,21 @@ import AiKeySettings from "./AiKeySettings.jsx";
 
 const PORTFOLIO_CHAT_URL = import.meta.env.VITE_PORTFOLIO_CHAT_URL || "/api/portfolio-chat";
 const USER_ID = "u1";
-const DEFAULT_CONVERSATION_ID = "portfolio-test-1";
+const CONVERSATION_ID_STORAGE_KEY = "st_tuvan_conversation_id";
+
+function getOrCreateConversationId() {
+  try {
+    const existing = window.localStorage.getItem(CONVERSATION_ID_STORAGE_KEY);
+    if (existing) return existing;
+    const fresh = (window.crypto?.randomUUID?.() || `conv-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    window.localStorage.setItem(CONVERSATION_ID_STORAGE_KEY, fresh);
+    return fresh;
+  } catch {
+    // localStorage unavailable (private mode, etc.) - fall back to a
+    // per-tab-session id so multi-turn context still works within the tab.
+    return `conv-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+}
 
 const TEXT = {
   title: "T\u01b0 v\u1ea5n AI",
@@ -63,7 +77,7 @@ export default function TuVanAiCard({ portfolio = null } = {}) {
   const [keySettingsOpen, setKeySettingsOpen] = useState(false);
   const [panelMsgs, setPanelMsgs] = useState([]);
   const [panelSynced, setPanelSynced] = useState(false);
-  const [conversationId, setConversationId] = useState(DEFAULT_CONVERSATION_ID);
+  const [conversationId, setConversationId] = useState(getOrCreateConversationId);
 
   const msgsRef = useRef(null);
   const panelRef = useRef(null);
